@@ -11,7 +11,7 @@
   - **Property 1: Season data round trip**
   - **Validates: Requirements 1.1, 1.2**
 
-- [ ] 2. Implement data models and validation
+- [x] 2. Implement data models and validation
   - Create Season model class with validation methods
   - Create Player model class with handedness and preference validation
   - Create Week model class with availability tracking
@@ -19,7 +19,7 @@
   - Implement data validation functions for all models
   - _Requirements: 1.1, 2.1, 2.5_
 
-- [ ] 2.1 Write property test for player data integrity
+- [x] 2.1 Write property test for player data integrity
   - **Property 3: Player data integrity**
   - **Validates: Requirements 2.1, 2.2, 2.3**
 
