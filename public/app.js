@@ -10,6 +10,7 @@ class SimpleGolfScheduler {
     this.seasons = JSON.parse(localStorage.getItem('golf_seasons') || '[]');
     this.players = JSON.parse(localStorage.getItem('golf_players') || '[]');
     this.activeSeason = localStorage.getItem('golf_active_season') || null;
+    this.activeTab = 'seasons'; // Track the currently active tab
     this.init();
   }
   
@@ -63,13 +64,13 @@ class SimpleGolfScheduler {
         </div>
         
         <div class="app-tabs">
-          <button class="tab-btn active" data-tab="seasons">Seasons</button>
-          <button class="tab-btn" data-tab="players">Players</button>
-          <button class="tab-btn" data-tab="schedule">Schedule</button>
+          <button class="tab-btn ${this.activeTab === 'seasons' ? 'active' : ''}" data-tab="seasons">Seasons</button>
+          <button class="tab-btn ${this.activeTab === 'players' ? 'active' : ''}" data-tab="players">Players</button>
+          <button class="tab-btn ${this.activeTab === 'schedule' ? 'active' : ''}" data-tab="schedule">Schedule</button>
         </div>
         
         <div class="app-content">
-          <div id="seasons-tab" class="tab-content active">
+          <div id="seasons-tab" class="tab-content ${this.activeTab === 'seasons' ? 'active' : ''}">
             <h3>Season Management</h3>
             <div class="form-group">
               <input type="text" id="season-name" placeholder="Season name (e.g., Spring 2024)">
@@ -87,7 +88,7 @@ class SimpleGolfScheduler {
             </div>
           </div>
           
-          <div id="players-tab" class="tab-content">
+          <div id="players-tab" class="tab-content ${this.activeTab === 'players' ? 'active' : ''}">
             <h3>Player Management</h3>
             ${activeSeason ? `
               <div class="form-group">
@@ -115,7 +116,7 @@ class SimpleGolfScheduler {
             ` : '<p>Please select an active season first.</p>'}
           </div>
           
-          <div id="schedule-tab" class="tab-content">
+          <div id="schedule-tab" class="tab-content ${this.activeTab === 'schedule' ? 'active' : ''}">
             <h3>Schedule Generation</h3>
             ${activeSeason && seasonPlayers.length >= 4 ? `
               <button id="generate-schedule">Generate Weekly Schedule</button>
@@ -315,6 +316,9 @@ class SimpleGolfScheduler {
   }
   
   switchTab(tabName) {
+    // Update active tab state
+    this.activeTab = tabName;
+    
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.classList.remove('active');
