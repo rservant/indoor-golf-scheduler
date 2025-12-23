@@ -101,3 +101,6 @@ dist
 # Temporary folders
 tmp/
 temp/
+before-generation.png
+.gitignore
+schedule-generation-debug.png
