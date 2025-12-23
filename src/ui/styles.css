@@ -612,6 +612,12 @@ input:checked + .toggle-slider:before {
   gap: 1rem;
 }
 
+.btn.active {
+  background: #2c3e50;
+  color: white;
+  border-color: #2c3e50;
+}
+
 .export-options {
   background: #f8f9fa;
   padding: 1rem;
@@ -624,6 +630,469 @@ input:checked + .toggle-slider:before {
   display: flex;
   gap: 1rem;
   margin-top: 1rem;
+}
+
+/* Player Distribution Panel */
+.player-distribution-panel {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-left: 4px solid #3498db;
+}
+
+.distribution-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.distribution-section h5 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.time-slot-stats {
+  display: flex;
+  gap: 2rem;
+}
+
+.slot-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  flex: 1;
+}
+
+.slot-label {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.slot-count {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.preference-compliance {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.compliance-slot h6 {
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.compliance-stats {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.pref-stat {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.pref-stat.am {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.pref-stat.pm {
+  background: #e8f5e8;
+  color: #388e3c;
+}
+
+.pref-stat.either {
+  background: #f5f5f5;
+  color: #616161;
+}
+
+.conflict-indicator {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.handedness-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.balance-slot h6 {
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.handedness-stats {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hand-stat {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.hand-stat.left {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.hand-stat.right {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+/* Pairing History Panel */
+.pairing-history-panel {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-left: 4px solid #27ae60;
+}
+
+.pairing-metrics {
+  margin-top: 1rem;
+}
+
+.metrics-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.metric {
+  text-align: center;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.metric-label {
+  display: block;
+  font-size: 0.8rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+
+.metric-value {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.optimization-metrics {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.optimization-score {
+  text-align: center;
+  padding: 1rem;
+  border-radius: 8px;
+  min-width: 120px;
+}
+
+.optimization-score.excellent {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.optimization-score.good {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.optimization-score.needs-improvement {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.score-label {
+  display: block;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.score-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.pairing-breakdown {
+  display: flex;
+  gap: 1rem;
+}
+
+.breakdown-item {
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 6px;
+  min-width: 100px;
+}
+
+.breakdown-item.new {
+  background: #d4edda;
+  color: #155724;
+}
+
+.breakdown-item.repeat {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.breakdown-label {
+  display: block;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.breakdown-value {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.current-pairings h5 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+}
+
+.new-pairings-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.pairing-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+}
+
+.pairing-item.new-pairing {
+  background: #f0fff4;
+  border-color: #c6f6d5;
+}
+
+.pairing-item.repeat-pairing {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.pairing-players {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-name {
+  font-weight: 500;
+}
+
+.pairing-connector {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.new-badge {
+  background: #27ae60;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.repeat-badge {
+  background: #f39c12;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.no-pairings {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 2rem;
+}
+
+/* Availability Status Panel */
+.availability-status-panel {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-left: 4px solid #e74c3c;
+}
+
+.availability-overview {
+  margin-top: 1rem;
+}
+
+.availability-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.availability-stat {
+  text-align: center;
+  padding: 1rem;
+  border-radius: 6px;
+}
+
+.availability-stat.available {
+  background: #d4edda;
+  color: #155724;
+}
+
+.availability-stat.unavailable {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.availability-stat.scheduled {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.availability-conflicts {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 2rem;
+}
+
+.availability-conflicts h5 {
+  color: #721c24;
+  margin-bottom: 0.5rem;
+}
+
+.conflict-description {
+  color: #721c24;
+  margin-bottom: 1rem;
+}
+
+.conflict-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.conflict-player {
+  background: #721c24;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.availability-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.available-players h5,
+.unavailable-players h5 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+}
+
+.player-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.player-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+}
+
+.player-item.available {
+  background: #f0fff4;
+  border-color: #c6f6d5;
+}
+
+.player-item.available.scheduled {
+  background: #e6f3ff;
+  border-color: #b3d9ff;
+}
+
+.player-item.unavailable {
+  background: #fdf2f2;
+  border-color: #fed7d7;
+}
+
+.player-badges {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.scheduled-badge {
+  background: #3498db;
+  color: white;
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.unscheduled-badge {
+  background: #95a5a6;
+  color: white;
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 500;
 }
 
 .schedule-grid {

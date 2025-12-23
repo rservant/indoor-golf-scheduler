@@ -7,6 +7,8 @@ import { ScheduleManager } from '../services/ScheduleManager';
 import { ScheduleGenerator } from '../services/ScheduleGenerator';
 import { WeekRepository } from '../repositories/WeekRepository';
 import { ExportService, ExportFormat } from '../services/ExportService';
+import { PairingHistoryTracker, PairingOptimizationResult } from '../services/PairingHistoryTracker';
+import { PlayerManager } from '../services/PlayerManager';
 
 export interface ScheduleDisplayUIState {
   activeSeason: Season | null;
@@ -16,6 +18,12 @@ export interface ScheduleDisplayUIState {
   isGenerating: boolean;
   error: string | null;
   showExportOptions: boolean;
+  allPlayers: Player[];
+  availablePlayers: Player[];
+  unavailablePlayers: Player[];
+  pairingMetrics: PairingOptimizationResult | null;
+  showPairingHistory: boolean;
+  showPlayerDistribution: boolean;
 }
 
 export class ScheduleDisplayUI {
@@ -23,6 +31,8 @@ export class ScheduleDisplayUI {
   private scheduleManager: ScheduleManager;
   private weekRepository: WeekRepository;
   private exportService: ExportService;
+  private pairingHistoryTracker: PairingHistoryTracker;
+  private playerManager: PlayerManager;
   public container: HTMLElement;
   private onScheduleGenerated?: (schedule: Schedule) => void;
 
@@ -31,11 +41,15 @@ export class ScheduleDisplayUI {
     _scheduleGenerator: ScheduleGenerator,
     weekRepository: WeekRepository,
     exportService: ExportService,
+    pairingHistoryTracker: PairingHistoryTracker,
+    playerManager: PlayerManager,
     container: HTMLElement
   ) {
     this.scheduleManager = scheduleManager;
     this.weekRepository = weekRepository;
     this.exportService = exportService;
+    this.pairingHistoryTracker = pairingHistoryTracker;
+    this.playerManager = playerManager;
     this.container = container;
     this.state = {
       activeSeason: null,
@@ -44,7 +58,13 @@ export class ScheduleDisplayUI {
       schedule: null,
       isGenerating: false,
       error: null,
-      showExportOptions: false
+      showExportOptions: false,
+      allPlayers: [],
+      availablePlayers: [],
+      unavailablePlayers: [],
+      pairingMetrics: null,
+      showPairingHistory: false,
+      showPlayerDistribution: false
     };
   }
 
@@ -55,6 +75,7 @@ export class ScheduleDisplayUI {
     this.state.activeSeason = activeSeason;
     if (activeSeason) {
       await this.loadWeeks();
+      await this.loadPlayers();
     }
     this.render();
   }
@@ -73,10 +94,15 @@ export class ScheduleDisplayUI {
     this.state.activeSeason = season;
     if (season) {
       await this.loadWeeks();
+      await this.loadPlayers();
     } else {
       this.state.weeks = [];
       this.state.selectedWeek = null;
       this.state.schedule = null;
+      this.state.allPlayers = [];
+      this.state.availablePlayers = [];
+      this.state.unavailablePlayers = [];
+      this.state.pairingMetrics = null;
     }
     this.render();
   }
@@ -95,11 +121,70 @@ export class ScheduleDisplayUI {
       if (this.state.weeks.length > 0 && !this.state.selectedWeek) {
         this.state.selectedWeek = this.state.weeks[0];
         await this.loadScheduleForSelectedWeek();
+        await this.loadPlayerAvailability();
+        await this.loadPairingMetrics();
       }
       
       this.state.error = null;
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : 'Failed to load weeks';
+    }
+  }
+
+  /**
+   * Load all players for the active season
+   */
+  private async loadPlayers(): Promise<void> {
+    if (!this.state.activeSeason) return;
+
+    try {
+      this.state.allPlayers = await this.playerManager.getAllPlayers(this.state.activeSeason.id);
+      this.state.error = null;
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to load players';
+    }
+  }
+
+  /**
+   * Load player availability for the selected week
+   */
+  private async loadPlayerAvailability(): Promise<void> {
+    if (!this.state.selectedWeek || !this.state.activeSeason) return;
+
+    try {
+      const availablePlayers: Player[] = [];
+      const unavailablePlayers: Player[] = [];
+
+      for (const player of this.state.allPlayers) {
+        const isAvailable = await this.playerManager.getPlayerAvailability(player.id, this.state.selectedWeek.id);
+        if (isAvailable) {
+          availablePlayers.push(player);
+        } else {
+          unavailablePlayers.push(player);
+        }
+      }
+
+      this.state.availablePlayers = availablePlayers;
+      this.state.unavailablePlayers = unavailablePlayers;
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to load player availability';
+    }
+  }
+
+  /**
+   * Load pairing metrics for the active season
+   */
+  private async loadPairingMetrics(): Promise<void> {
+    if (!this.state.activeSeason || this.state.allPlayers.length === 0) return;
+
+    try {
+      this.state.pairingMetrics = await this.pairingHistoryTracker.calculatePairingMetrics(
+        this.state.activeSeason.id,
+        this.state.allPlayers
+      );
+    } catch (error) {
+      // Don't show error for pairing metrics as it's not critical
+      this.state.pairingMetrics = null;
     }
   }
 
@@ -114,6 +199,8 @@ export class ScheduleDisplayUI {
 
     try {
       this.state.schedule = await this.scheduleManager.getSchedule(this.state.selectedWeek.id);
+      await this.loadPlayerAvailability();
+      await this.loadPairingMetrics();
       this.state.error = null;
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : 'Failed to load schedule';
@@ -279,10 +366,20 @@ export class ScheduleDisplayUI {
             <button class="btn btn-primary" onclick="scheduleDisplayUI.showExportOptions()">
               Export
             </button>
+            <button class="btn btn-outline ${this.state.showPlayerDistribution ? 'active' : ''}" onclick="scheduleDisplayUI.togglePlayerDistribution()">
+              Player Distribution
+            </button>
+            <button class="btn btn-outline ${this.state.showPairingHistory ? 'active' : ''}" onclick="scheduleDisplayUI.togglePairingHistory()">
+              Pairing History
+            </button>
           </div>
         </div>
 
         ${this.state.showExportOptions ? this.renderExportOptions() : ''}
+
+        ${this.state.showPlayerDistribution ? this.renderPlayerDistribution() : ''}
+
+        ${this.state.showPairingHistory ? this.renderPairingHistory() : ''}
 
         <div class="schedule-grid">
           ${this.renderTimeSlot('Morning (10:30 AM)', this.state.schedule.timeSlots.morning)}
@@ -292,6 +389,8 @@ export class ScheduleDisplayUI {
         <div class="schedule-summary">
           ${this.renderScheduleSummary()}
         </div>
+
+        ${this.renderAvailabilityStatus()}
       </div>
     `;
   }
@@ -371,6 +470,336 @@ export class ScheduleDisplayUI {
         <div class="player-details">
           <span class="handedness ${player.handedness}">${player.handedness.charAt(0).toUpperCase()}</span>
           <span class="preference ${player.timePreference.toLowerCase()}">${player.timePreference}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Render player distribution visualization
+   */
+  private renderPlayerDistribution(): string {
+    if (!this.state.schedule) return '';
+
+    const morningPlayers = this.state.schedule.timeSlots.morning.reduce((players, foursome) => {
+      return players.concat(foursome.players);
+    }, [] as Player[]);
+
+    const afternoonPlayers = this.state.schedule.timeSlots.afternoon.reduce((players, foursome) => {
+      return players.concat(foursome.players);
+    }, [] as Player[]);
+
+    // Analyze time preference distribution
+    const morningPrefs = { AM: 0, PM: 0, Either: 0 };
+    const afternoonPrefs = { AM: 0, PM: 0, Either: 0 };
+    const morningHandedness = { left: 0, right: 0 };
+    const afternoonHandedness = { left: 0, right: 0 };
+
+    morningPlayers.forEach(player => {
+      morningPrefs[player.timePreference]++;
+      morningHandedness[player.handedness]++;
+    });
+
+    afternoonPlayers.forEach(player => {
+      afternoonPrefs[player.timePreference]++;
+      afternoonHandedness[player.handedness]++;
+    });
+
+    return `
+      <div class="player-distribution-panel">
+        <h4>Player Distribution Analysis</h4>
+        <div class="distribution-grid">
+          <div class="distribution-section">
+            <h5>Time Slot Distribution</h5>
+            <div class="distribution-stats">
+              <div class="time-slot-stats">
+                <div class="slot-stat">
+                  <span class="slot-label">Morning</span>
+                  <span class="slot-count">${morningPlayers.length} players</span>
+                </div>
+                <div class="slot-stat">
+                  <span class="slot-label">Afternoon</span>
+                  <span class="slot-count">${afternoonPlayers.length} players</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="distribution-section">
+            <h5>Time Preference Compliance</h5>
+            <div class="preference-compliance">
+              <div class="compliance-slot">
+                <h6>Morning Slot</h6>
+                <div class="compliance-stats">
+                  <span class="pref-stat am">AM: ${morningPrefs.AM}</span>
+                  <span class="pref-stat pm">PM: ${morningPrefs.PM}</span>
+                  <span class="pref-stat either">Either: ${morningPrefs.Either}</span>
+                </div>
+                ${morningPrefs.PM > 0 ? `<div class="conflict-indicator">⚠️ ${morningPrefs.PM} PM preference conflicts</div>` : ''}
+              </div>
+              <div class="compliance-slot">
+                <h6>Afternoon Slot</h6>
+                <div class="compliance-stats">
+                  <span class="pref-stat am">AM: ${afternoonPrefs.AM}</span>
+                  <span class="pref-stat pm">PM: ${afternoonPrefs.PM}</span>
+                  <span class="pref-stat either">Either: ${afternoonPrefs.Either}</span>
+                </div>
+                ${afternoonPrefs.AM > 0 ? `<div class="conflict-indicator">⚠️ ${afternoonPrefs.AM} AM preference conflicts</div>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div class="distribution-section">
+            <h5>Handedness Balance</h5>
+            <div class="handedness-balance">
+              <div class="balance-slot">
+                <h6>Morning</h6>
+                <div class="handedness-stats">
+                  <span class="hand-stat left">Left: ${morningHandedness.left}</span>
+                  <span class="hand-stat right">Right: ${morningHandedness.right}</span>
+                </div>
+              </div>
+              <div class="balance-slot">
+                <h6>Afternoon</h6>
+                <div class="handedness-stats">
+                  <span class="hand-stat left">Left: ${afternoonHandedness.left}</span>
+                  <span class="hand-stat right">Right: ${afternoonHandedness.right}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Render pairing history and optimization results
+   */
+  private renderPairingHistory(): string {
+    if (!this.state.pairingMetrics || !this.state.schedule) return '';
+
+    const { pairingCounts, minPairings, maxPairings, averagePairings } = this.state.pairingMetrics;
+    
+    // Get current schedule pairings for comparison
+    const currentPairings = this.getCurrentSchedulePairings();
+
+    return `
+      <div class="pairing-history-panel">
+        <h4>Pairing History & Optimization</h4>
+        <div class="pairing-metrics">
+          <div class="metrics-summary">
+            <div class="metric">
+              <span class="metric-label">Min Pairings</span>
+              <span class="metric-value">${minPairings}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Max Pairings</span>
+              <span class="metric-value">${maxPairings}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Average</span>
+              <span class="metric-value">${averagePairings.toFixed(1)}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Spread</span>
+              <span class="metric-value">${maxPairings - minPairings}</span>
+            </div>
+          </div>
+
+          <div class="optimization-status">
+            ${this.renderOptimizationStatus(currentPairings, pairingCounts)}
+          </div>
+
+          <div class="current-pairings">
+            <h5>This Week's New Pairings</h5>
+            <div class="new-pairings-list">
+              ${this.renderCurrentPairings(currentPairings, pairingCounts)}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Get current schedule pairings
+   */
+  private getCurrentSchedulePairings(): Set<string> {
+    if (!this.state.schedule) return new Set();
+
+    const pairings = new Set<string>();
+    const allFoursomes = [...this.state.schedule.timeSlots.morning, ...this.state.schedule.timeSlots.afternoon];
+
+    allFoursomes.forEach(foursome => {
+      const players = foursome.players;
+      for (let i = 0; i < players.length; i++) {
+        for (let j = i + 1; j < players.length; j++) {
+          const key = players[i].id < players[j].id 
+            ? `${players[i].id}-${players[j].id}` 
+            : `${players[j].id}-${players[i].id}`;
+          pairings.add(key);
+        }
+      }
+    });
+
+    return pairings;
+  }
+
+  /**
+   * Render optimization status
+   */
+  private renderOptimizationStatus(currentPairings: Set<string>, historicalPairings: Map<string, number>): string {
+    let newPairings = 0;
+    let repeatPairings = 0;
+    let totalRepeatCount = 0;
+
+    currentPairings.forEach(pairingKey => {
+      const count = historicalPairings.get(pairingKey) || 0;
+      if (count === 0) {
+        newPairings++;
+      } else {
+        repeatPairings++;
+        totalRepeatCount += count;
+      }
+    });
+
+    const optimizationScore = newPairings / (newPairings + repeatPairings) * 100;
+
+    return `
+      <div class="optimization-metrics">
+        <div class="optimization-score ${optimizationScore >= 80 ? 'excellent' : optimizationScore >= 60 ? 'good' : 'needs-improvement'}">
+          <span class="score-label">Optimization Score</span>
+          <span class="score-value">${optimizationScore.toFixed(0)}%</span>
+        </div>
+        <div class="pairing-breakdown">
+          <div class="breakdown-item new">
+            <span class="breakdown-label">New Pairings</span>
+            <span class="breakdown-value">${newPairings}</span>
+          </div>
+          <div class="breakdown-item repeat">
+            <span class="breakdown-label">Repeat Pairings</span>
+            <span class="breakdown-value">${repeatPairings}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Render current pairings with history context
+   */
+  private renderCurrentPairings(currentPairings: Set<string>, historicalPairings: Map<string, number>): string {
+    const pairingsList = Array.from(currentPairings).map(pairingKey => {
+      const [playerId1, playerId2] = pairingKey.split('-');
+      const player1 = this.state.allPlayers.find(p => p.id === playerId1);
+      const player2 = this.state.allPlayers.find(p => p.id === playerId2);
+      const count = historicalPairings.get(pairingKey) || 0;
+
+      if (!player1 || !player2) return '';
+
+      return `
+        <div class="pairing-item ${count === 0 ? 'new-pairing' : 'repeat-pairing'}">
+          <div class="pairing-players">
+            <span class="player-name">${player1.firstName} ${player1.lastName}</span>
+            <span class="pairing-connector">↔</span>
+            <span class="player-name">${player2.firstName} ${player2.lastName}</span>
+          </div>
+          <div class="pairing-history">
+            ${count === 0 
+              ? '<span class="new-badge">NEW</span>' 
+              : `<span class="repeat-badge">×${count + 1}</span>`
+            }
+          </div>
+        </div>
+      `;
+    }).filter(item => item !== '');
+
+    return pairingsList.length > 0 ? pairingsList.join('') : '<p class="no-pairings">No pairings in current schedule</p>';
+  }
+
+  /**
+   * Render player availability status and conflicts
+   */
+  private renderAvailabilityStatus(): string {
+    if (!this.state.selectedWeek) return '';
+
+    const totalPlayers = this.state.allPlayers.length;
+    const availableCount = this.state.availablePlayers.length;
+    const unavailableCount = this.state.unavailablePlayers.length;
+    const scheduledPlayers = this.state.schedule ? this.state.schedule.getAllPlayers() : [];
+
+    // Find conflicts - players scheduled but not available
+    const conflicts = scheduledPlayers.filter(playerId => 
+      !this.state.availablePlayers.some(p => p.id === playerId)
+    );
+
+    return `
+      <div class="availability-status-panel">
+        <h4>Player Availability Status</h4>
+        <div class="availability-overview">
+          <div class="availability-stats">
+            <div class="availability-stat available">
+              <span class="stat-label">Available</span>
+              <span class="stat-value">${availableCount}/${totalPlayers}</span>
+            </div>
+            <div class="availability-stat unavailable">
+              <span class="stat-label">Unavailable</span>
+              <span class="stat-value">${unavailableCount}/${totalPlayers}</span>
+            </div>
+            <div class="availability-stat scheduled">
+              <span class="stat-label">Scheduled</span>
+              <span class="stat-value">${scheduledPlayers.length}</span>
+            </div>
+          </div>
+
+          ${conflicts.length > 0 ? `
+            <div class="availability-conflicts">
+              <h5>⚠️ Scheduling Conflicts</h5>
+              <p class="conflict-description">The following players are scheduled but marked as unavailable:</p>
+              <div class="conflict-list">
+                ${conflicts.map(playerId => {
+                  const player = this.state.allPlayers.find(p => p.id === playerId);
+                  return player ? `<span class="conflict-player">${player.firstName} ${player.lastName}</span>` : '';
+                }).filter(item => item !== '').join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="availability-details">
+            <div class="available-players">
+              <h5>Available Players (${availableCount})</h5>
+              <div class="player-list available-list">
+                ${this.state.availablePlayers.map(player => `
+                  <div class="player-item available ${scheduledPlayers.includes(player.id) ? 'scheduled' : 'unscheduled'}">
+                    <span class="player-name">${player.firstName} ${player.lastName}</span>
+                    <div class="player-badges">
+                      <span class="handedness-badge ${player.handedness}">${player.handedness.charAt(0).toUpperCase()}</span>
+                      <span class="preference-badge ${player.timePreference.toLowerCase()}">${player.timePreference}</span>
+                      ${scheduledPlayers.includes(player.id) ? '<span class="scheduled-badge">Scheduled</span>' : '<span class="unscheduled-badge">Not Scheduled</span>'}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            ${unavailableCount > 0 ? `
+              <div class="unavailable-players">
+                <h5>Unavailable Players (${unavailableCount})</h5>
+                <div class="player-list unavailable-list">
+                  ${this.state.unavailablePlayers.map(player => `
+                    <div class="player-item unavailable">
+                      <span class="player-name">${player.firstName} ${player.lastName}</span>
+                      <div class="player-badges">
+                        <span class="handedness-badge ${player.handedness}">${player.handedness.charAt(0).toUpperCase()}</span>
+                        <span class="preference-badge ${player.timePreference.toLowerCase()}">${player.timePreference}</span>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
         </div>
       </div>
     `;
@@ -467,6 +896,14 @@ export class ScheduleDisplayUI {
       },
       exportSchedule: (format: 'pdf' | 'excel' | 'csv') => {
         this.exportSchedule(format);
+      },
+      togglePlayerDistribution: () => {
+        this.state.showPlayerDistribution = !this.state.showPlayerDistribution;
+        this.render();
+      },
+      togglePairingHistory: () => {
+        this.state.showPairingHistory = !this.state.showPairingHistory;
+        this.render();
       }
     };
   }

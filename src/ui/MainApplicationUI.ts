@@ -14,6 +14,7 @@ import { PlayerManager } from '../services/PlayerManager';
 import { ScheduleManager } from '../services/ScheduleManager';
 import { ScheduleGenerator } from '../services/ScheduleGenerator';
 import { ExportService } from '../services/ExportService';
+import { PairingHistoryTracker } from '../services/PairingHistoryTracker';
 
 // Import repositories
 import { WeekRepository } from '../repositories/WeekRepository';
@@ -42,6 +43,7 @@ export class MainApplicationUI {
   private scheduleGenerator: ScheduleGenerator;
   private weekRepository: WeekRepository;
   private exportService: ExportService;
+  private pairingHistoryTracker: PairingHistoryTracker;
 
   constructor(
     container: HTMLElement,
@@ -50,7 +52,8 @@ export class MainApplicationUI {
     scheduleManager: ScheduleManager,
     scheduleGenerator: ScheduleGenerator,
     weekRepository: WeekRepository,
-    exportService: ExportService
+    exportService: ExportService,
+    pairingHistoryTracker: PairingHistoryTracker
   ) {
     this.container = container;
     this.seasonManager = seasonManager;
@@ -59,6 +62,7 @@ export class MainApplicationUI {
     this.scheduleGenerator = scheduleGenerator;
     this.weekRepository = weekRepository;
     this.exportService = exportService;
+    this.pairingHistoryTracker = pairingHistoryTracker;
 
     this.state = {
       activeSeason: null,
@@ -90,6 +94,8 @@ export class MainApplicationUI {
       this.scheduleGenerator,
       this.weekRepository,
       this.exportService,
+      this.pairingHistoryTracker,
+      this.playerManager,
       scheduleDisplayContainer
     );
     this.scheduleEditingUI = new ScheduleEditingUI(this.scheduleManager, scheduleEditingContainer);
