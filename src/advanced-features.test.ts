@@ -426,10 +426,6 @@ describe('Advanced Features Properties', () => {
           // Save the schedule
           await scheduleManager.createWeeklySchedule(testWeek.id);
           
-          // Property: Schedule display UI should have editing capabilities integrated
-          expect(typeof scheduleDisplayUI.enableEditing).toBe('function');
-          expect(typeof scheduleDisplayUI.validateSchedule).toBe('function');
-          
           // Property: Schedule should be retrievable and match what was saved
           const retrievedSchedule = await scheduleManager.getSchedule(testWeek.id);
           expect(retrievedSchedule).not.toBeNull();

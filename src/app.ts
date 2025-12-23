@@ -128,8 +128,8 @@ export class IndoorGolfSchedulerApp {
       
       // Initialize enhanced error handling system
       initializeEnhancedErrorHandling(this.container, {
-        debugMode: this.config.debugMode,
-        enableConsoleLogging: this.config.debugMode
+        debugMode: this.config.debugMode ?? false,
+        enableConsoleLogging: this.config.debugMode ?? false
       });
       
       // Set up global error boundary
@@ -417,9 +417,9 @@ export class IndoorGolfSchedulerApp {
         
         await this.seasonManager.setActiveSeason(demoSeason.id);
         
-        // Re-initialize the SeasonUI to trigger the active season callback
+        // Re-initialize the MainUI to trigger the active season callback
         if (this.mainUI) {
-          await this.mainUI.seasonUI.initialize();
+          await this.mainUI.initialize();
         }
         
         // Add some demo players

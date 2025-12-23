@@ -97,15 +97,15 @@ describe('Enhanced Error Handling Property Tests', () => {
           switch (errorData.type) {
             case 'Error':
               error = new Error(errorData.message);
-              if (errorData.stack) error.stack = errorData.stack;
+              if ('stack' in errorData && errorData.stack) error.stack = errorData.stack;
               break;
             case 'TypeError':
               error = new TypeError(errorData.message);
-              if (errorData.stack) error.stack = errorData.stack;
+              if ('stack' in errorData && errorData.stack) error.stack = errorData.stack;
               break;
             case 'ReferenceError':
               error = new ReferenceError(errorData.message);
-              if (errorData.stack) error.stack = errorData.stack;
+              if ('stack' in errorData && errorData.stack) error.stack = errorData.stack;
               break;
             case 'string':
               error = errorData.message;
@@ -113,8 +113,8 @@ describe('Enhanced Error Handling Property Tests', () => {
             case 'object':
               error = {
                 message: errorData.message,
-                code: errorData.code,
-                details: errorData.details
+                ...('code' in errorData && { code: errorData.code }),
+                ...('details' in errorData && { details: errorData.details })
               };
               break;
           }
