@@ -1,13 +1,13 @@
 # Implementation Plan
 
-- [ ] 1. Set up project structure and core interfaces
+- [x] 1. Set up project structure and core interfaces
   - Create directory structure for models, services, repositories, and UI components
   - Set up TypeScript configuration and build tools
   - Initialize testing framework (Jest and fast-check)
   - Define core TypeScript interfaces for Season, Player, Week, Schedule, Foursome, and PairingHistory
   - _Requirements: 1.1, 2.1, 3.1_
 
-- [ ] 1.1 Write property test for season data round trip
+- [x] 1.1 Write property test for season data round trip
   - **Property 1: Season data round trip**
   - **Validates: Requirements 1.1, 1.2**
 
