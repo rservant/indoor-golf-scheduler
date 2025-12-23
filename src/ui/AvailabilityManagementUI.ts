@@ -160,6 +160,12 @@ export class AvailabilityManagementUI {
   private async setAllAvailable(weekId: string, available: boolean): Promise<void> {
     console.log(`Setting all players ${available ? 'available' : 'unavailable'} for week ${weekId}`);
     
+    // Prevent multiple simultaneous operations
+    if (this.state.isLoading) {
+      console.log('Operation already in progress, ignoring click');
+      return;
+    }
+    
     if (this.state.players.length === 0) {
       this.state.error = 'No players found to update availability';
       this.render();
@@ -333,10 +339,10 @@ export class AvailabilityManagementUI {
         </div>
 
         <div class="bulk-actions">
-          <button class="btn btn-sm btn-secondary" onclick="availabilityUI.setAllAvailable('${this.state.selectedWeek.id}', true)">
+          <button class="btn btn-sm btn-secondary" data-action="mark-all-available" data-week-id="${this.state.selectedWeek.id}">
             Mark All Available
           </button>
-          <button class="btn btn-sm btn-secondary" onclick="availabilityUI.setAllAvailable('${this.state.selectedWeek.id}', false)">
+          <button class="btn btn-sm btn-secondary" data-action="mark-all-unavailable" data-week-id="${this.state.selectedWeek.id}">
             Mark All Unavailable
           </button>
         </div>
@@ -376,7 +382,9 @@ export class AvailabilityManagementUI {
           <label class="toggle-switch">
             <input type="checkbox" 
                    ${isAvailable ? 'checked' : ''}
-                   onchange="availabilityUI.toggleAvailability('${player.id}', '${this.state.selectedWeek.id}')">
+                   data-action="toggle-availability"
+                   data-player-id="${player.id}"
+                   data-week-id="${this.state.selectedWeek.id}">>
             <span class="toggle-slider"></span>
           </label>
           <span class="availability-status">
@@ -412,15 +420,49 @@ export class AvailabilityManagementUI {
       });
     }
 
-    // Bind methods to window for onclick handlers
-    // Use a unique namespace to avoid conflicts
+    // Use event delegation for bulk actions
+    this.container.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const action = target.getAttribute('data-action');
+      
+      if (action === 'mark-all-available') {
+        const weekId = target.getAttribute('data-week-id');
+        if (weekId) {
+          console.log('Mark All Available clicked for week:', weekId);
+          this.setAllAvailable(weekId, true);
+        }
+      } else if (action === 'mark-all-unavailable') {
+        const weekId = target.getAttribute('data-week-id');
+        if (weekId) {
+          console.log('Mark All Unavailable clicked for week:', weekId);
+          this.setAllAvailable(weekId, false);
+        }
+      }
+    });
+
+    // Use event delegation for individual toggles
+    this.container.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      const action = target.getAttribute('data-action');
+      
+      if (action === 'toggle-availability') {
+        const playerId = target.getAttribute('data-player-id');
+        const weekId = target.getAttribute('data-week-id');
+        if (playerId && weekId) {
+          console.log('Toggle availability clicked:', { playerId, weekId });
+          this.togglePlayerAvailability(playerId, weekId);
+        }
+      }
+    });
+
+    // Keep the window binding as fallback (for any remaining onclick handlers)
     (window as any).availabilityUI = {
       toggleAvailability: (playerId: string, weekId: string) => {
-        console.log('Toggle availability called:', { playerId, weekId });
+        console.log('Toggle availability called via window binding:', { playerId, weekId });
         this.togglePlayerAvailability(playerId, weekId);
       },
       setAllAvailable: (weekId: string, available: boolean) => {
-        console.log('Set all available called:', { weekId, available });
+        console.log('Set all available called via window binding:', { weekId, available });
         this.setAllAvailable(weekId, available);
       }
     };
