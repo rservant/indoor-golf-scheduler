@@ -13,7 +13,6 @@ import { SeasonManagementUI } from './ui/SeasonManagementUI';
 import { PlayerManagementUI } from './ui/PlayerManagementUI';
 import { AvailabilityManagementUI } from './ui/AvailabilityManagementUI';
 import { ScheduleDisplayUI } from './ui/ScheduleDisplayUI';
-import { ScheduleEditingUI } from './ui/ScheduleEditingUI';
 
 // Import services
 import { SeasonManagerService } from './services/SeasonManager';
@@ -134,7 +133,6 @@ describe('UI Component Service Access Properties', () => {
           const playerContainer = document.createElement('div');
           const availabilityContainer = document.createElement('div');
           const scheduleDisplayContainer = document.createElement('div');
-          const scheduleEditingContainer = document.createElement('div');
 
           // Property: UI components can be instantiated with services
           const seasonUI = new SeasonManagementUI(seasonManager, seasonContainer);
@@ -161,9 +159,6 @@ describe('UI Component Service Access Properties', () => {
           );
           expect(scheduleDisplayUI).toBeInstanceOf(ScheduleDisplayUI);
 
-          const scheduleEditingUI = new ScheduleEditingUI(scheduleManager, scheduleEditingContainer);
-          expect(scheduleEditingUI).toBeInstanceOf(ScheduleEditingUI);
-
           // Property: UI components should have access to service methods
           // We verify this by checking that the components have the expected methods
           // (which would fail if services weren't properly injected)
@@ -179,8 +174,6 @@ describe('UI Component Service Access Properties', () => {
           
           expect(typeof scheduleDisplayUI.initialize).toBe('function');
           expect(typeof scheduleDisplayUI.refresh).toBe('function');
-          
-          expect(typeof scheduleEditingUI.initialize).toBe('function');
 
           return true;
         }

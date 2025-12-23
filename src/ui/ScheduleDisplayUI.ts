@@ -3,12 +3,16 @@ import { Foursome } from '../models/Foursome';
 import { Player } from '../models/Player';
 import { Week } from '../models/Week';
 import { Season } from '../models/Season';
-import { ScheduleManager } from '../services/ScheduleManager';
+import { ScheduleManager, RegenerationStatus } from '../services/ScheduleManager';
 import { ScheduleGenerator } from '../services/ScheduleGenerator';
 import { WeekRepository } from '../repositories/WeekRepository';
 import { ExportService, ExportFormat } from '../services/ExportService';
 import { PairingHistoryTracker, PairingOptimizationResult } from '../services/PairingHistoryTracker';
 import { PlayerManager } from '../services/PlayerManager';
+import { ScheduleRegenerationConfirmationUI, ConfirmationResult } from './ScheduleRegenerationConfirmationUI';
+import { ProgressTrackingUI, ProgressTrackingOptions } from './ProgressTrackingUI';
+import { OperationLockUI, OperationLockOptions } from './OperationLockUI';
+import { applicationState } from '../state/ApplicationState';
 
 export interface ScheduleDisplayUIState {
   activeSeason: Season | null;
@@ -25,6 +29,12 @@ export interface ScheduleDisplayUIState {
   pairingMetrics: PairingOptimizationResult | null;
   showPairingHistory: boolean;
   showPlayerDistribution: boolean;
+  // Schedule editing state
+  isEditing: boolean;
+  draggedPlayer: Player | null;
+  draggedFromFoursome: string | null;
+  hasUnsavedChanges: boolean;
+  validationResult: any | null;
 }
 
 export class ScheduleDisplayUI {
@@ -34,8 +44,12 @@ export class ScheduleDisplayUI {
   private exportService: ExportService;
   private pairingHistoryTracker: PairingHistoryTracker;
   private playerManager: PlayerManager;
+  private confirmationUI: ScheduleRegenerationConfirmationUI;
+  private progressTrackingUI: ProgressTrackingUI;
+  private operationLockUI: OperationLockUI;
   public container: HTMLElement;
   private onScheduleGenerated?: (schedule: Schedule) => void;
+  private regenerationStatusInterval: number | null = null;
 
   constructor(
     scheduleManager: ScheduleManager,
@@ -52,6 +66,19 @@ export class ScheduleDisplayUI {
     this.pairingHistoryTracker = pairingHistoryTracker;
     this.playerManager = playerManager;
     this.container = container;
+    
+    // Create confirmation UI container
+    const confirmationContainer = document.createElement('div');
+    confirmationContainer.id = 'schedule-regeneration-confirmation';
+    document.body.appendChild(confirmationContainer);
+    this.confirmationUI = new ScheduleRegenerationConfirmationUI(confirmationContainer);
+    
+    // Create progress tracking UI
+    this.progressTrackingUI = new ProgressTrackingUI(document.body);
+    
+    // Create operation lock UI
+    this.operationLockUI = new OperationLockUI(this.container);
+    
     this.state = {
       activeSeason: null,
       weeks: [],
@@ -66,7 +93,13 @@ export class ScheduleDisplayUI {
       unavailablePlayers: [],
       pairingMetrics: null,
       showPairingHistory: false,
-      showPlayerDistribution: false
+      showPlayerDistribution: false,
+      // Schedule editing state
+      isEditing: false,
+      draggedPlayer: null,
+      draggedFromFoursome: null,
+      hasUnsavedChanges: false,
+      validationResult: null
     };
   }
 
@@ -195,17 +228,30 @@ export class ScheduleDisplayUI {
    * Load schedule for the selected week
    */
   private async loadScheduleForSelectedWeek(): Promise<void> {
+    console.log('loadScheduleForSelectedWeek called, selectedWeek:', this.state.selectedWeek?.id, 'current schedule:', this.state.schedule?.id);
+    
     if (!this.state.selectedWeek) {
+      console.log('No selected week, clearing schedule');
       this.state.schedule = null;
       return;
     }
 
     try {
-      this.state.schedule = await this.scheduleManager.getSchedule(this.state.selectedWeek.id);
+      // Only reload schedule if we don't already have one for this week
+      // This prevents overwriting a freshly created schedule that might not be persisted yet
+      if (!this.state.schedule || this.state.schedule.weekId !== this.state.selectedWeek.id) {
+        console.log('Loading schedule from repository for week:', this.state.selectedWeek.id);
+        const loadedSchedule = await this.scheduleManager.getSchedule(this.state.selectedWeek.id);
+        console.log('Loaded schedule from repository:', loadedSchedule?.id || 'null');
+        this.state.schedule = loadedSchedule;
+      } else {
+        console.log('Keeping existing schedule for week:', this.state.selectedWeek.id);
+      }
       await this.loadPlayerAvailability();
       await this.loadPairingMetrics();
       this.state.error = null;
     } catch (error) {
+      console.log('Error loading schedule:', error);
       this.state.error = error instanceof Error ? error.message : 'Failed to load schedule';
     }
   }
@@ -276,9 +322,8 @@ export class ScheduleDisplayUI {
       weekDate = nextMonday;
     }
 
-    this.state.isGenerating = true;
-    this.state.error = null;
-    this.render();
+    // Show progress tracking
+    this.showGenerationProgress('Creating First Week', 'Setting up season and generating schedule...');
 
     try {
       // Create the first week
@@ -310,12 +355,36 @@ export class ScheduleDisplayUI {
       if (this.onScheduleGenerated) {
         this.onScheduleGenerated(schedule);
       }
+
+      // Show success notification
+      applicationState.addNotification({
+        type: 'success',
+        title: 'First Week Created',
+        message: `Successfully created Week 1 and generated schedule for ${this.state.activeSeason.name}`,
+        autoHide: true,
+        duration: 4000
+      });
+
+      // Hide progress with success state
+      this.progressTrackingUI.showCompletion(true, 'First week created successfully!');
       
       console.log('First week creation completed successfully');
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : 'Failed to create first week and schedule';
+      
+      // Show error notification
+      applicationState.addNotification({
+        type: 'error',
+        title: 'First Week Creation Failed',
+        message: this.state.error,
+        autoHide: false
+      });
+
+      // Hide progress with error state
+      this.progressTrackingUI.showCompletion(false, 'First week creation failed');
     } finally {
       this.state.isGenerating = false;
+      this.operationLockUI.unlockUI();
       this.render();
     }
   }
@@ -326,9 +395,8 @@ export class ScheduleDisplayUI {
   private async generateSchedule(): Promise<void> {
     if (!this.state.selectedWeek) return;
 
-    this.state.isGenerating = true;
-    this.state.error = null;
-    this.render();
+    // Show progress tracking
+    this.showGenerationProgress('Generating Schedule', 'Creating new schedule...');
 
     try {
       const schedule = await this.scheduleManager.createWeeklySchedule(this.state.selectedWeek.id);
@@ -337,10 +405,35 @@ export class ScheduleDisplayUI {
       if (this.onScheduleGenerated) {
         this.onScheduleGenerated(schedule);
       }
+
+      // Show success notification
+      applicationState.addNotification({
+        type: 'success',
+        title: 'Schedule Generated',
+        message: `Successfully generated schedule for Week ${this.state.selectedWeek.weekNumber}`,
+        autoHide: true,
+        duration: 3000
+      });
+
+      // Hide progress with success state
+      this.progressTrackingUI.showCompletion(true, 'Schedule generated successfully!');
+
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : 'Failed to generate schedule';
+      
+      // Show error notification
+      applicationState.addNotification({
+        type: 'error',
+        title: 'Generation Failed',
+        message: this.state.error,
+        autoHide: false
+      });
+
+      // Hide progress with error state
+      this.progressTrackingUI.showCompletion(false, 'Schedule generation failed');
     } finally {
       this.state.isGenerating = false;
+      this.operationLockUI.unlockUI();
       this.render();
     }
   }
@@ -428,16 +521,24 @@ export class ScheduleDisplayUI {
         ${this.state.weeks.length === 0 ? `
           <div class="no-weeks">
             <h3>No Weeks Created Yet</h3>
-            <p>Start by creating your first week and generating a schedule.</p>
-            <div class="first-week-creation">
-              <div class="form-group">
-                <label for="first-week-date">Week 1 Date:</label>
-                <input type="date" id="first-week-date" class="form-control">
+            ${this.state.allPlayers.length < 4 ? `
+              <div class="insufficient-players">
+                <p>You need at least 4 players to generate a schedule.</p>
+                <p>Current players: ${this.state.allPlayers.length}</p>
+                <p>Please add more players before creating your first week.</p>
               </div>
-              <button class="btn btn-primary" onclick="scheduleDisplayUI.createFirstWeek()">
-                Generate Schedule
-              </button>
-            </div>
+            ` : `
+              <p>Start by creating your first week and generating a schedule.</p>
+              <div class="first-week-creation">
+                <div class="form-group">
+                  <label for="first-week-date">Week 1 Date:</label>
+                  <input type="date" id="first-week-date" class="form-control">
+                </div>
+                <button class="btn btn-primary" onclick="scheduleDisplayUI.createFirstWeek()">
+                  Generate Schedule
+                </button>
+              </div>
+            `}
           </div>
         ` : `
           <div class="week-selector">
@@ -491,9 +592,15 @@ export class ScheduleDisplayUI {
    * Render the schedule content area
    */
   private renderScheduleContent(): string {
-    if (!this.state.selectedWeek) return '';
+    console.log('renderScheduleContent called, selectedWeek:', this.state.selectedWeek?.weekNumber, 'schedule:', this.state.schedule?.id, 'isGenerating:', this.state.isGenerating);
+    
+    if (!this.state.selectedWeek) {
+      console.log('No selectedWeek, returning empty');
+      return '';
+    }
 
     if (this.state.isGenerating) {
+      console.log('Is generating, showing loading');
       return `
         <div class="generating-schedule">
           <div class="loading-spinner"></div>
@@ -503,6 +610,22 @@ export class ScheduleDisplayUI {
     }
 
     if (!this.state.schedule) {
+      console.log('No schedule, showing no-schedule content');
+      // Check if there are insufficient players
+      const playerCount = this.state.allPlayers.length;
+      if (playerCount < 4) {
+        return `
+          <div class="no-schedule">
+            <h3>Week ${this.state.selectedWeek.weekNumber} - ${this.formatDate(this.state.selectedWeek.date)}</h3>
+            <div class="insufficient-players">
+              <p>You need at least 4 players to generate a schedule.</p>
+              <p>Current players: ${playerCount}</p>
+              <p>Please add more players to continue.</p>
+            </div>
+          </div>
+        `;
+      }
+      
       return `
         <div class="no-schedule">
           <h3>Week ${this.state.selectedWeek.weekNumber} - ${this.formatDate(this.state.selectedWeek.date)}</h3>
@@ -514,17 +637,34 @@ export class ScheduleDisplayUI {
       `;
     }
 
+    console.log('Has schedule, rendering schedule content');
     return `
       <div class="schedule-content">
         <div class="schedule-actions">
           <h3>Week ${this.state.selectedWeek.weekNumber} - ${this.formatDate(this.state.selectedWeek.date)}</h3>
           <div class="action-buttons">
-            <button class="btn btn-secondary" onclick="scheduleDisplayUI.regenerateSchedule()">
-              Regenerate
-            </button>
-            <button class="btn btn-primary" onclick="scheduleDisplayUI.showExportOptions()">
-              Export
-            </button>
+            ${!this.state.isEditing ? `
+              <button class="btn btn-secondary" onclick="scheduleDisplayUI.regenerateSchedule()">
+                Regenerate
+              </button>
+              <button class="btn btn-outline" onclick="scheduleDisplayUI.enableEditing()">
+                Edit Schedule
+              </button>
+              <button class="btn btn-primary" onclick="scheduleDisplayUI.showExportOptions()">
+                Export
+              </button>
+            ` : `
+              <button class="btn btn-secondary" onclick="scheduleDisplayUI.validateSchedule()">
+                Validate
+              </button>
+              <button class="btn btn-primary" onclick="scheduleDisplayUI.saveChanges()"
+                      ${this.state.validationResult && !this.state.validationResult.isValid ? 'disabled' : ''}>
+                Save Changes
+              </button>
+              <button class="btn btn-outline" onclick="scheduleDisplayUI.cancelEditing()">
+                Cancel
+              </button>
+            `}
             <button class="btn btn-outline ${this.state.showPlayerDistribution ? 'active' : ''}" onclick="scheduleDisplayUI.togglePlayerDistribution()">
               Player Distribution
             </button>
@@ -534,15 +674,29 @@ export class ScheduleDisplayUI {
           </div>
         </div>
 
+        ${this.state.hasUnsavedChanges ? `
+          <div class="alert alert-warning">
+            <strong>Unsaved Changes:</strong> You have made changes to this schedule. Don't forget to save!
+          </div>
+        ` : ''}
+
+        ${this.state.validationResult ? this.renderValidationResult() : ''}
+
+        ${this.state.isEditing ? `
+          <div class="editing-instructions">
+            <p><strong>Editing Mode:</strong> Drag and drop players between groups, or use the remove buttons to take players out of groups.</p>
+          </div>
+        ` : ''}
+
         ${this.state.showExportOptions ? this.renderExportOptions() : ''}
 
         ${this.state.showPlayerDistribution ? this.renderPlayerDistribution() : ''}
 
         ${this.state.showPairingHistory ? this.renderPairingHistory() : ''}
 
-        <div class="schedule-grid">
-          ${this.renderTimeSlot('Morning Session', this.state.schedule.timeSlots.morning)}
-          ${this.renderTimeSlot('Afternoon Session', this.state.schedule.timeSlots.afternoon)}
+        <div class="schedule-grid ${this.state.isEditing ? 'editing-mode' : 'view-mode'}">
+          ${this.renderTimeSlot('Morning (10:30 AM)', this.state.schedule.timeSlots.morning, 'morning')}
+          ${this.renderTimeSlot('Afternoon (1:00 PM)', this.state.schedule.timeSlots.afternoon, 'afternoon')}
         </div>
 
         <div class="schedule-summary">
@@ -582,11 +736,15 @@ export class ScheduleDisplayUI {
   /**
    * Render a time slot with its foursomes
    */
-  private renderTimeSlot(title: string, foursomes: Foursome[]): string {
+  private renderTimeSlot(title: string, foursomes: Foursome[], timeSlot?: 'morning' | 'afternoon'): string {
     return `
       <div class="time-slot">
         <h4 class="time-slot-title">${title}</h4>
-        <div class="foursomes">
+        <div class="foursomes ${this.state.isEditing ? 'editing-mode' : ''}"
+             ${this.state.isEditing && timeSlot ? `
+               ondragover="event.preventDefault()" 
+               ondrop="scheduleDisplayUI.handleTimeSlotDrop(event, '${timeSlot}')"
+             ` : ''}>
           ${foursomes.length === 0 ? `
             <div class="no-foursomes">
               <p>No players scheduled for this time slot</p>
@@ -602,14 +760,22 @@ export class ScheduleDisplayUI {
    */
   private renderFoursome(foursome: Foursome, position: number): string {
     return `
-      <div class="foursome">
+      <div class="foursome ${this.state.isEditing ? 'editable' : ''}"
+           ${this.state.isEditing ? `
+             ondragover="event.preventDefault()" 
+             ondrop="scheduleDisplayUI.handleFoursomeDrop(event, '${foursome.id}')"
+           ` : ''}>
         <div class="foursome-header">
           <h5>Group ${position}</h5>
           <span class="player-count">${foursome.players.length}/4 players</span>
         </div>
-        <div class="foursome-players">
-          ${foursome.players.map(player => this.renderPlayer(player)).join('')}
-          ${Array(4 - foursome.players.length).fill(0).map(() => `
+        <div class="foursome-players ${this.state.isEditing ? 'editing-mode' : ''}">
+          ${foursome.players.map(player => this.renderPlayer(player, foursome.id)).join('')}
+          ${this.state.isEditing ? Array(4 - foursome.players.length).fill(0).map((_, index) => `
+            <div class="player-slot empty" key="empty-${index}">
+              <span>Drop player here</span>
+            </div>
+          `).join('') : Array(4 - foursome.players.length).fill(0).map(() => `
             <div class="player-slot empty">
               <span>Empty slot</span>
             </div>
@@ -622,14 +788,26 @@ export class ScheduleDisplayUI {
   /**
    * Render a single player
    */
-  private renderPlayer(player: Player): string {
+  private renderPlayer(player: Player, foursomeId?: string): string {
     return `
-      <div class="player-slot filled">
-        <div class="player-name">${player.firstName} ${player.lastName}</div>
-        <div class="player-details">
-          <span class="handedness ${player.handedness}">${player.handedness.charAt(0).toUpperCase()}</span>
-          <span class="preference ${player.timePreference.toLowerCase()}">${player.timePreference}</span>
+      <div class="player-slot filled ${this.state.isEditing ? 'draggable' : ''}"
+           ${this.state.isEditing && foursomeId ? `
+             draggable="true"
+             ondragstart="scheduleDisplayUI.handlePlayerDragStart(event, '${player.id}', '${foursomeId}')"
+           ` : ''}>
+        <div class="player-info">
+          <div class="player-name">${player.firstName} ${player.lastName}</div>
+          <div class="player-details">
+            <span class="handedness ${player.handedness}">${player.handedness.charAt(0).toUpperCase()}</span>
+            <span class="preference ${player.timePreference.toLowerCase()}">${player.timePreference}</span>
+          </div>
         </div>
+        ${this.state.isEditing && foursomeId ? `
+          <button class="remove-player-btn" onclick="scheduleDisplayUI.removePlayer('${player.id}', '${foursomeId}')"
+                  title="Remove player from group">
+            ×
+          </button>
+        ` : ''}
       </div>
     `;
   }
@@ -1052,48 +1230,85 @@ export class ScheduleDisplayUI {
 
     // Bind methods to window for onclick handlers
     (window as any).scheduleDisplayUI = {
-      createFirstWeek: () => {
-        this.createFirstWeek();
-      },
-      showAddWeekForm: () => {
-        this.state.showAddWeekForm = true;
-        this.render();
-      },
-      hideAddWeekForm: () => {
-        this.state.showAddWeekForm = false;
-        this.render();
-      },
-      addNewWeek: () => {
-        this.addNewWeek();
-      },
-      generateSchedule: () => {
-        this.generateSchedule();
-      },
-      regenerateSchedule: () => {
-        if (confirm('Are you sure you want to regenerate this schedule? This will replace the current schedule.')) {
-          this.generateSchedule();
+      ...this,
+      // Core schedule methods
+      createFirstWeek: () => this.createFirstWeek(),
+      addNewWeek: () => this.addNewWeek(),
+      generateSchedule: () => this.generateSchedule(),
+      regenerateSchedule: () => this.regenerateSchedule(),
+      // UI toggle methods
+      showAddWeekForm: () => this.showAddWeekForm(),
+      hideAddWeekForm: () => this.hideAddWeekForm(),
+      showExportOptions: () => this.showExportOptions(),
+      hideExportOptions: () => this.hideExportOptions(),
+      togglePlayerDistribution: () => this.togglePlayerDistribution(),
+      togglePairingHistory: () => this.togglePairingHistory(),
+      // Export methods
+      exportSchedule: (format: 'pdf' | 'excel' | 'csv') => this.exportSchedule(format),
+      // Editing methods
+      enableEditing: () => this.enableEditing(),
+      cancelEditing: () => this.cancelEditing(),
+      saveChanges: () => this.saveChanges(),
+      validateSchedule: () => this.validateSchedule(),
+      handlePlayerDragStart: (event: DragEvent, playerId: string, foursomeId: string) => {
+        const player = this.findPlayerById(playerId);
+        if (player) {
+          this.handleDragStart(player, foursomeId);
+          if (event.dataTransfer) {
+            event.dataTransfer.setData('text/plain', playerId);
+          }
         }
       },
-      showExportOptions: () => {
-        this.state.showExportOptions = true;
-        this.render();
+      handleFoursomeDrop: (event: DragEvent, foursomeId: string) => {
+        event.preventDefault();
+        this.handleDrop(foursomeId);
       },
-      hideExportOptions: () => {
-        this.state.showExportOptions = false;
-        this.render();
+      handleTimeSlotDrop: (event: DragEvent, _timeSlot: 'morning' | 'afternoon') => {
+        event.preventDefault();
+        // For now, we'll just clear the drag state if dropped on empty time slot
+        this.clearDragState();
       },
-      exportSchedule: (format: 'pdf' | 'excel' | 'csv') => {
-        this.exportSchedule(format);
-      },
-      togglePlayerDistribution: () => {
-        this.state.showPlayerDistribution = !this.state.showPlayerDistribution;
-        this.render();
-      },
-      togglePairingHistory: () => {
-        this.state.showPairingHistory = !this.state.showPairingHistory;
-        this.render();
+      removePlayer: (playerId: string, foursomeId: string) => {
+        if (confirm('Are you sure you want to remove this player from the group?')) {
+          this.removePlayer(playerId, foursomeId);
+        }
       }
     };
+  }
+
+  /**
+   * Render validation results
+   */
+  private renderValidationResult(): string {
+    if (!this.state.validationResult) return '';
+
+    const { isValid, errors, warnings } = this.state.validationResult;
+
+    return `
+      <div class="validation-result">
+        <div class="validation-status ${isValid ? 'valid' : 'invalid'}">
+          <strong>${isValid ? '✓ Schedule is valid' : '✗ Schedule has errors'}</strong>
+        </div>
+        
+        ${errors.length > 0 ? `
+          <div class="validation-errors">
+            <h4>Errors:</h4>
+            <ul>
+              ${errors.map((error: string) => `<li>${error}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+        
+        ${warnings.length > 0 ? `
+          <div class="validation-warnings">
+            <h4>Warnings:</h4>
+            <ul>
+              ${warnings.map((warning: string) => `<li>${warning}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+      </div>
+    `;
   }
 
   /**
@@ -1115,9 +1330,531 @@ export class ScheduleDisplayUI {
    */
   async refresh(): Promise<void> {
     await this.loadWeeks();
+    await this.loadPlayers(); // Add this line to refresh player data
     if (this.state.selectedWeek) {
       await this.loadScheduleForSelectedWeek();
     }
     this.render();
+  }
+
+  /**
+   * Cleanup resources when component is destroyed
+   */
+  destroy(): void {
+    // Stop any ongoing status tracking
+    this.stopRegenerationStatusTracking();
+
+    // Cleanup UI components
+    if (this.progressTrackingUI) {
+      this.progressTrackingUI.destroy();
+    }
+
+    if (this.operationLockUI) {
+      this.operationLockUI.destroy();
+    }
+
+    if (this.confirmationUI) {
+      this.confirmationUI.destroy();
+    }
+  }
+
+  /**
+   * Show regeneration confirmation dialog
+   */
+  private async showRegenerationConfirmation(): Promise<void> {
+    if (!this.state.selectedWeek || !this.state.schedule) {
+      this.state.error = 'No schedule selected for regeneration';
+      this.render();
+      return;
+    }
+
+    // Check if regeneration is allowed (but don't set lock yet)
+    const isAllowed = await this.scheduleManager.isRegenerationAllowed(this.state.selectedWeek.id);
+    if (!isAllowed) {
+      this.state.error = 'Regeneration is already in progress for this week';
+      this.render();
+      return;
+    }
+
+    try {
+      // Show confirmation dialog WITHOUT setting the lock first
+      // The lock will be set only after user confirms
+      await this.confirmationUI.showConfirmation(
+        this.state.schedule,
+        this.state.selectedWeek,
+        this.state.allPlayers,
+        (result: ConfirmationResult) => this.handleRegenerationConfirmation(result),
+        () => this.handleRegenerationCancellation()
+      );
+
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to show regeneration confirmation';
+      this.render();
+    }
+  }
+
+  /**
+   * Handle regeneration confirmation
+   */
+  private async handleRegenerationConfirmation(result: ConfirmationResult): Promise<void> {
+    if (!this.state.selectedWeek) return;
+
+    try {
+      // Set regeneration lock ONLY after user confirms
+      await this.scheduleManager.setRegenerationLock(this.state.selectedWeek.id, true);
+
+      // Show progress tracking with detailed steps
+      this.showRegenerationProgress();
+
+      const regenerationResult = await this.scheduleManager.regenerateSchedule(
+        this.state.selectedWeek.id,
+        {
+          forceOverwrite: result.forceOverwrite,
+          preserveManualEdits: result.preserveManualEdits
+        }
+      );
+
+      if (regenerationResult.success && regenerationResult.newScheduleId) {
+        // Reload the schedule to get the updated version
+        await this.loadScheduleForSelectedWeek();
+        
+        if (this.onScheduleGenerated && this.state.schedule) {
+          this.onScheduleGenerated(this.state.schedule);
+        }
+
+        // Show success message with changes detected
+        this.showRegenerationSuccess(regenerationResult);
+        
+        // Hide progress with success state
+        this.progressTrackingUI.showCompletion(true, 'Schedule regenerated successfully!');
+      } else {
+        this.state.error = regenerationResult.error || 'Regeneration failed';
+        
+        // Show error notification
+        applicationState.addNotification({
+          type: 'error',
+          title: 'Regeneration Failed',
+          message: this.state.error,
+          autoHide: false
+        });
+
+        // Hide progress with error state
+        this.progressTrackingUI.showCompletion(false, 'Schedule regeneration failed');
+      }
+
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to regenerate schedule';
+      
+      // Show error notification
+      applicationState.addNotification({
+        type: 'error',
+        title: 'Regeneration Error',
+        message: this.state.error,
+        autoHide: false
+      });
+
+      // Hide progress with error state
+      this.progressTrackingUI.showCompletion(false, 'An error occurred during regeneration');
+    } finally {
+      this.state.isGenerating = false;
+      this.operationLockUI.unlockUI();
+      this.stopRegenerationStatusTracking();
+      
+      // Always release regeneration lock in finally block
+      if (this.state.selectedWeek) {
+        try {
+          await this.scheduleManager.setRegenerationLock(this.state.selectedWeek.id, false);
+        } catch (lockError) {
+          console.warn('Failed to release regeneration lock:', lockError);
+          // Don't throw - we don't want to mask the original error
+        }
+      }
+      this.render();
+    }
+  }
+
+  /**
+   * Handle regeneration cancellation
+   */
+  private async handleRegenerationCancellation(): Promise<void> {
+    // Since we no longer set the lock before confirmation,
+    // we don't need to clear it on cancellation
+    // This method is kept for consistency and future extensibility
+    console.log('Regeneration cancelled by user');
+  }
+
+  /**
+   * Show regeneration success message
+   */
+  private showRegenerationSuccess(result: any): void {
+    const changes = result.changesDetected;
+    let message = 'Schedule regenerated successfully!';
+    
+    if (changes.playersAdded.length > 0 || changes.playersRemoved.length > 0) {
+      message += ` Players added: ${changes.playersAdded.length}, removed: ${changes.playersRemoved.length}.`;
+    }
+    
+    if (changes.pairingChanges > 0) {
+      message += ` ${changes.pairingChanges} pairing changes detected.`;
+    }
+
+    // Show success notification with detailed information
+    applicationState.addNotification({
+      type: 'success',
+      title: 'Schedule Regenerated',
+      message: message,
+      autoHide: true,
+      duration: 5000
+    });
+
+    // For now, just clear any existing error to show success
+    // In a real implementation, you might want a proper notification system
+    this.state.error = null;
+    console.log(message);
+  }
+
+  /**
+   * Show progress tracking for schedule generation
+   */
+  private showGenerationProgress(title: string, initialMessage: string): void {
+    this.state.isGenerating = true;
+    this.state.error = null;
+
+    // Lock UI to prevent other operations
+    this.operationLockUI.lockUI({
+      message: 'Please wait while the schedule is being generated',
+      operationType: 'Schedule Generation',
+      allowedActions: ['.progress-cancel'] // Allow cancel button if present
+    });
+
+    // Show progress tracking
+    this.progressTrackingUI.showProgress({
+      title: title,
+      showPercentage: true,
+      showCurrentStep: true,
+      showElapsedTime: true,
+      allowCancel: false
+    });
+
+    this.render();
+  }
+
+  /**
+   * Show progress tracking for schedule regeneration with status monitoring
+   */
+  private showRegenerationProgress(): void {
+    if (!this.state.selectedWeek) return;
+
+    this.state.isGenerating = true;
+    this.state.error = null;
+
+    // Lock UI to prevent other operations
+    this.operationLockUI.lockUI({
+      message: 'Please wait while the schedule is being regenerated',
+      operationType: 'Schedule Regeneration',
+      allowedActions: ['.progress-cancel'] // Allow cancel button if present
+    });
+
+    // Show progress tracking
+    this.progressTrackingUI.showProgress({
+      title: `Regenerating Week ${this.state.selectedWeek.weekNumber} Schedule`,
+      showPercentage: true,
+      showCurrentStep: true,
+      showElapsedTime: true,
+      allowCancel: false
+    });
+
+    // Start monitoring regeneration status
+    this.startRegenerationStatusTracking();
+
+    this.render();
+  }
+
+  /**
+   * Start tracking regeneration status and updating progress
+   */
+  private startRegenerationStatusTracking(): void {
+    if (!this.state.selectedWeek || this.regenerationStatusInterval) return;
+
+    this.regenerationStatusInterval = window.setInterval(() => {
+      if (!this.state.selectedWeek) {
+        this.stopRegenerationStatusTracking();
+        return;
+      }
+
+      const status = this.scheduleManager.getRegenerationStatus(this.state.selectedWeek.id);
+      if (status) {
+        // Update progress tracking with current status
+        this.progressTrackingUI.updateProgress(status, {
+          title: `Regenerating Week ${this.state.selectedWeek.weekNumber} Schedule`,
+          showPercentage: true,
+          showCurrentStep: true,
+          showElapsedTime: true,
+          allowCancel: false
+        });
+
+        // Update operation lock message based on current step
+        this.operationLockUI.updateLockMessage(
+          `${status.currentStep} (${Math.round(status.progress)}%)`
+        );
+
+        // Stop tracking if operation is complete
+        if (status.status === 'completed' || status.status === 'failed') {
+          this.stopRegenerationStatusTracking();
+        }
+      }
+    }, 500); // Update every 500ms for smooth progress
+  }
+
+  /**
+   * Stop tracking regeneration status
+   */
+  private stopRegenerationStatusTracking(): void {
+    if (this.regenerationStatusInterval) {
+      clearInterval(this.regenerationStatusInterval);
+      this.regenerationStatusInterval = null;
+    }
+  }
+
+  // ===== UI TOGGLE METHODS =====
+
+  /**
+   * Show the add week form
+   */
+  private showAddWeekForm(): void {
+    this.state.showAddWeekForm = true;
+    this.render();
+  }
+
+  /**
+   * Hide the add week form
+   */
+  private hideAddWeekForm(): void {
+    this.state.showAddWeekForm = false;
+    this.render();
+  }
+
+  /**
+   * Show export options
+   */
+  private showExportOptions(): void {
+    this.state.showExportOptions = true;
+    this.render();
+  }
+
+  /**
+   * Hide export options
+   */
+  private hideExportOptions(): void {
+    this.state.showExportOptions = false;
+    this.render();
+  }
+
+  /**
+   * Toggle player distribution display
+   */
+  private togglePlayerDistribution(): void {
+    this.state.showPlayerDistribution = !this.state.showPlayerDistribution;
+    this.render();
+  }
+
+  /**
+   * Toggle pairing history display
+   */
+  private togglePairingHistory(): void {
+    this.state.showPairingHistory = !this.state.showPairingHistory;
+    this.render();
+  }
+
+  /**
+   * Regenerate the current schedule
+   */
+  private async regenerateSchedule(): Promise<void> {
+    await this.showRegenerationConfirmation();
+  }
+
+  // ===== SCHEDULE EDITING METHODS =====
+
+  /**
+   * Enable editing mode
+   */
+  private enableEditing(): void {
+    this.state.isEditing = true;
+    this.render();
+  }
+
+  /**
+   * Cancel editing and revert changes
+   */
+  private cancelEditing(): void {
+    if (this.state.hasUnsavedChanges) {
+      if (!confirm('You have unsaved changes. Are you sure you want to cancel?')) {
+        return;
+      }
+    }
+    
+    this.state.isEditing = false;
+    this.state.hasUnsavedChanges = false;
+    this.state.validationResult = null;
+    this.state.error = null;
+    this.render();
+  }
+
+  /**
+   * Save changes to the schedule
+   */
+  private async saveChanges(): Promise<void> {
+    if (!this.state.schedule || !this.state.selectedWeek) return;
+
+    try {
+      const updatedSchedule = await this.scheduleManager.updateSchedule(
+        this.state.selectedWeek.id, 
+        this.state.schedule
+      );
+      
+      this.state.schedule = updatedSchedule;
+      this.state.isEditing = false;
+      this.state.hasUnsavedChanges = false;
+      this.state.validationResult = null;
+      this.state.error = null;
+      
+      // Show success notification
+      applicationState.addNotification({
+        type: 'success',
+        title: 'Schedule Updated',
+        message: 'Schedule changes have been saved successfully.',
+        autoHide: true,
+        duration: 3000
+      });
+      
+      this.render();
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to save changes';
+      this.render();
+    }
+  }
+
+  /**
+   * Validate the current schedule
+   */
+  private async validateSchedule(): Promise<void> {
+    if (!this.state.schedule || !this.state.selectedWeek) return;
+
+    try {
+      const validation = await this.scheduleManager.validateManualEdit(
+        this.state.selectedWeek.id,
+        this.state.schedule
+      );
+      
+      this.state.validationResult = validation;
+      this.render();
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to validate schedule';
+      this.render();
+    }
+  }
+
+  /**
+   * Handle drag start event
+   */
+  private handleDragStart(player: Player, foursomeId: string): void {
+    this.state.draggedPlayer = player;
+    this.state.draggedFromFoursome = foursomeId;
+  }
+
+  /**
+   * Handle drop event
+   */
+  private async handleDrop(targetFoursomeId: string): Promise<void> {
+    if (!this.state.draggedPlayer || !this.state.draggedFromFoursome || !this.state.selectedWeek) {
+      return;
+    }
+
+    // Don't do anything if dropping on the same foursome
+    if (this.state.draggedFromFoursome === targetFoursomeId) {
+      this.clearDragState();
+      return;
+    }
+
+    try {
+      const operation = {
+        type: 'move_player' as const,
+        playerId: this.state.draggedPlayer.id,
+        fromFoursomeId: this.state.draggedFromFoursome,
+        toFoursomeId: targetFoursomeId
+      };
+
+      await this.scheduleManager.applyManualEdit(this.state.selectedWeek.id, operation);
+      
+      // Reload the schedule to get the updated version
+      const updatedSchedule = await this.scheduleManager.getSchedule(this.state.selectedWeek.id);
+      if (updatedSchedule) {
+        this.state.schedule = updatedSchedule;
+        this.state.hasUnsavedChanges = true;
+      }
+      
+      this.clearDragState();
+      this.render();
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to move player';
+      this.clearDragState();
+      this.render();
+    }
+  }
+
+  /**
+   * Clear drag state
+   */
+  private clearDragState(): void {
+    this.state.draggedPlayer = null;
+    this.state.draggedFromFoursome = null;
+  }
+
+  /**
+   * Remove a player from their current foursome
+   */
+  private async removePlayer(playerId: string, foursomeId: string): Promise<void> {
+    if (!this.state.selectedWeek) return;
+
+    try {
+      const operation = {
+        type: 'remove_player' as const,
+        playerId,
+        fromFoursomeId: foursomeId
+      };
+
+      await this.scheduleManager.applyManualEdit(this.state.selectedWeek.id, operation);
+      
+      // Reload the schedule
+      const updatedSchedule = await this.scheduleManager.getSchedule(this.state.selectedWeek.id);
+      if (updatedSchedule) {
+        this.state.schedule = updatedSchedule;
+        this.state.hasUnsavedChanges = true;
+      }
+      
+      this.render();
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to remove player';
+      this.render();
+    }
+  }
+
+  /**
+   * Find a player by ID in the current schedule
+   */
+  private findPlayerById(playerId: string): Player | null {
+    if (!this.state.schedule) return null;
+
+    const allFoursomes = [
+      ...this.state.schedule.timeSlots.morning,
+      ...this.state.schedule.timeSlots.afternoon
+    ];
+
+    for (const foursome of allFoursomes) {
+      const player = foursome.players.find(p => p.id === playerId);
+      if (player) return player;
+    }
+
+    return null;
   }
 }

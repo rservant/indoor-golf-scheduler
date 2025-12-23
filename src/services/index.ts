@@ -9,3 +9,5 @@ export { ScheduleGenerator } from './ScheduleGenerator';
 export { ExportService } from './ExportService';
 export { ImportExportService } from './ImportExportService';
 export { PairingHistoryTracker } from './PairingHistoryTracker';
+export { LocalScheduleBackupService } from './ScheduleBackupService';
+export type { ScheduleBackupService, BackupMetadata } from './ScheduleBackupService';

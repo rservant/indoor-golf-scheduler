@@ -23,14 +23,32 @@ test.describe('Navigation Bug Fix Test', () => {
     // Step 2: Create test seasons (since there are none initially)
     console.log('Step 2: Creating test seasons...');
     
+    // Ensure the create form is visible
+    const createButton = page.locator('button:has-text("Create New Season")');
+    const createButtonCount = await createButton.count();
+    if (createButtonCount > 0) {
+      await createButton.click();
+      await page.waitForTimeout(300);
+    }
+    
     // Create first season
+    await page.waitForSelector('#season-name', { timeout: 5000 });
     await page.fill('#season-name', 'Test Season 1');
     await page.fill('#start-date', '2025-01-01');
     await page.fill('#end-date', '2025-06-30');
     await page.click('#add-season');
     await page.waitForTimeout(500);
     
+    // Show form again for second season
+    const createButtonAgain = page.locator('button:has-text("Create New Season")');
+    const createButtonAgainCount = await createButtonAgain.count();
+    if (createButtonAgainCount > 0) {
+      await createButtonAgain.click();
+      await page.waitForTimeout(300);
+    }
+    
     // Create second season  
+    await page.waitForSelector('#season-name', { timeout: 5000 });
     await page.fill('#season-name', 'Test Season 2');
     await page.fill('#start-date', '2025-07-01');
     await page.fill('#end-date', '2025-12-31');
@@ -46,7 +64,7 @@ test.describe('Navigation Bug Fix Test', () => {
     // Step 3: Check if there's already an active season, if not activate the first one
     console.log('Step 3: Checking for active season...');
     
-    const activeSeasonInfo = page.locator('.season-info');
+    const activeSeasonInfo = page.locator('.active-season .season-info');
     let activeSeasonText = await activeSeasonInfo.textContent();
     console.log(`Current active season: ${activeSeasonText}`);
     
@@ -74,7 +92,7 @@ test.describe('Navigation Bug Fix Test', () => {
     
     // Verify players tab is active
     await expect(playersTab).toHaveClass(/active/);
-    await expect(page.locator('#players-tab')).toHaveClass(/active/);
+    await expect(page.locator('[data-tab-content="players"]')).toHaveClass(/active/);
     console.log('Initial players tab click worked!');
     
     // Click schedule tab
@@ -83,7 +101,7 @@ test.describe('Navigation Bug Fix Test', () => {
     
     // Verify schedule tab is active
     await expect(scheduleTab).toHaveClass(/active/);
-    await expect(page.locator('#schedule-tab')).toHaveClass(/active/);
+    await expect(page.locator('[data-tab-content="schedule"]')).toHaveClass(/active/);
     console.log('Initial schedule tab click worked!');
     
     // Go back to seasons tab
@@ -125,7 +143,7 @@ test.describe('Navigation Bug Fix Test', () => {
     
     // This should work with the fix
     await expect(playersTab).toHaveClass(/active/);
-    await expect(page.locator('#players-tab')).toHaveClass(/active/);
+    await expect(page.locator('[data-tab-content="players"]')).toHaveClass(/active/);
     console.log('SUCCESS: Players tab click worked after season switch!');
     
     // Try clicking schedule tab after season switch
@@ -135,7 +153,7 @@ test.describe('Navigation Bug Fix Test', () => {
     
     // This should also work with the fix
     await expect(scheduleTab).toHaveClass(/active/);
-    await expect(page.locator('#schedule-tab')).toHaveClass(/active/);
+    await expect(page.locator('[data-tab-content="schedule"]')).toHaveClass(/active/);
     console.log('SUCCESS: Schedule tab click worked after season switch!');
     
     // Step 7: Test multiple season switches

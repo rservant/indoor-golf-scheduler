@@ -1,5 +1,8 @@
 /* Indoor Golf Scheduler UI Styles */
 
+/* Import confirmation dialog styles */
+@import url('./ScheduleRegenerationConfirmation.css');
+
 /* Reset and base styles */
 * {
   box-sizing: border-box;
@@ -720,7 +723,6 @@ input:focus, select:focus, textarea:focus {
   padding: 2rem;
   background: #f8f9fa;
   border-radius: 8px;
-}
   font-size: 0.8rem;
   font-weight: 500;
 }

@@ -1051,4 +1051,20 @@ export class InMemoryPlayerManager implements PlayerManager {
   private generateId(): string {
     return `player_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
+
+  /**
+   * Get the interruption manager for external access (mock for testing)
+   */
+  getInterruptionManager(): OperationInterruptionManager {
+    // Return a mock interruption manager for testing
+    return {
+      startOperation: async () => 'mock-operation-id',
+      completeOperation: async () => {},
+      isOperationInProgress: () => false,
+      getActiveOperations: () => [],
+      clearAllOperations: async () => {},
+      detectInterruptions: async () => [],
+      recoverFromInterruption: async () => {}
+    } as any;
+  }
 }

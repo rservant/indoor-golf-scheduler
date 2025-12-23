@@ -20,6 +20,7 @@ import { SeasonManagerService } from './services/SeasonManager';
 import { PlayerManagerService } from './services/PlayerManager';
 import { ScheduleManager } from './services/ScheduleManager';
 import { ScheduleGenerator } from './services/ScheduleGenerator';
+import { ScheduleBackupService, LocalScheduleBackupService } from './services/ScheduleBackupService';
 import { ExportService } from './services/ExportService';
 import { ImportExportService } from './services/ImportExportService';
 import { PairingHistoryTracker } from './services/PairingHistoryTracker';
@@ -191,12 +192,16 @@ export class IndoorGolfSchedulerApp {
         this.pairingHistoryTracker
       );
 
+      // Initialize backup service
+      const scheduleBackupService = new LocalScheduleBackupService();
+
       this.scheduleManager = new ScheduleManager(
         this.scheduleRepository,
         this.weekRepository,
         this.playerRepository,
         this.scheduleGenerator,
-        this.pairingHistoryTracker
+        this.pairingHistoryTracker,
+        scheduleBackupService
       );
 
       this.exportService = new ExportService();

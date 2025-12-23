@@ -6,6 +6,9 @@ import { WeekRepository } from '../repositories/WeekRepository';
 import { PlayerRepository } from '../repositories/PlayerRepository';
 import { ScheduleGenerator } from './ScheduleGenerator';
 import { PairingHistoryTracker } from './PairingHistoryTracker';
+import { ScheduleBackupService, BackupMetadata } from './ScheduleBackupService';
+import { errorHandler, ErrorContext } from '../utils/ErrorHandler';
+import { applicationState } from '../state/ApplicationState';
 
 export interface ScheduleEditOperation {
   type: 'move_player' | 'swap_players' | 'add_player' | 'remove_player';
@@ -21,19 +24,125 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+export interface ValidationErrorReport {
+  errors: string[];
+  warnings: string[];
+  suggestions: string[];
+}
+
 export interface ConflictResolution {
   conflicts: string[];
   suggestions: string[];
 }
 
+export interface RegenerationOptions {
+  preserveManualEdits?: boolean;
+  forceOverwrite?: boolean;
+  backupRetentionDays?: number;
+  notifyOnCompletion?: boolean;
+  retryConfig?: Partial<RetryConfig>;
+}
+
+export interface RegenerationResult {
+  success: boolean;
+  newScheduleId?: string;
+  backupId?: string;
+  error?: string;
+  changesDetected: {
+    playersAdded: string[];
+    playersRemoved: string[];
+    pairingChanges: number;
+    timeSlotChanges: number;
+  };
+  operationDuration: number;
+}
+
+export interface RegenerationStatus {
+  weekId: string;
+  status: 'idle' | 'confirming' | 'backing_up' | 'generating' | 'replacing' | 'completed' | 'failed';
+  progress: number; // 0-100
+  currentStep: string;
+  startedAt?: Date;
+  completedAt?: Date;
+  error?: string;
+}
+
+export interface RetryConfig {
+  maxAttempts: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  backoffMultiplier: number;
+}
+
+export interface RegenerationError extends Error {
+  code: RegenerationErrorCode;
+  weekId?: string;
+  backupId?: string;
+  retryable: boolean;
+  category: 'backup' | 'generation' | 'replacement' | 'validation' | 'system';
+}
+
+export enum RegenerationErrorCode {
+  BACKUP_CREATION_FAILED = 'BACKUP_CREATION_FAILED',
+  BACKUP_RESTORATION_FAILED = 'BACKUP_RESTORATION_FAILED',
+  SCHEDULE_GENERATION_FAILED = 'SCHEDULE_GENERATION_FAILED',
+  ATOMIC_REPLACEMENT_FAILED = 'ATOMIC_REPLACEMENT_FAILED',
+  VALIDATION_FAILED = 'VALIDATION_FAILED',
+  INSUFFICIENT_PLAYERS = 'INSUFFICIENT_PLAYERS',
+  CONSTRAINT_VIOLATION = 'CONSTRAINT_VIOLATION',
+  CONCURRENT_OPERATION = 'CONCURRENT_OPERATION',
+  STORAGE_ERROR = 'STORAGE_ERROR',
+  OPERATION_TIMEOUT = 'OPERATION_TIMEOUT',
+  SYSTEM_ERROR = 'SYSTEM_ERROR'
+}
+
 export class ScheduleManager {
+  private regenerationStatuses: Map<string, RegenerationStatus> = new Map();
+  private readonly defaultRetryConfig: RetryConfig = {
+    maxAttempts: 3,
+    baseDelayMs: 1000,
+    maxDelayMs: 8000,
+    backoffMultiplier: 2
+  };
+  private cleanupTimer: NodeJS.Timeout | null = null;
+
   constructor(
     private scheduleRepository: ScheduleRepository,
     private weekRepository: WeekRepository,
     private playerRepository: PlayerRepository,
     private scheduleGenerator: ScheduleGenerator,
-    private pairingHistoryTracker: PairingHistoryTracker
-  ) {}
+    private pairingHistoryTracker: PairingHistoryTracker,
+    private backupService: ScheduleBackupService
+  ) {
+    // Start periodic cleanup of expired operations
+    this.startPeriodicCleanup();
+  }
+
+  /**
+   * Start periodic cleanup of expired operations and locks
+   */
+  private startPeriodicCleanup(): void {
+    // Clean up every 2 minutes
+    const CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
+    
+    this.cleanupTimer = setInterval(async () => {
+      try {
+        await this.cleanupExpiredOperations();
+      } catch (error) {
+        console.error('Periodic cleanup failed:', error);
+      }
+    }, CLEANUP_INTERVAL_MS);
+  }
+
+  /**
+   * Stop periodic cleanup (for testing or shutdown)
+   */
+  stopPeriodicCleanup(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
 
   /**
    * Create a new weekly schedule
@@ -468,5 +577,1411 @@ export class ScheduleManager {
    */
   async generateSchedule(weekId: string): Promise<Schedule> {
     return await this.createWeeklySchedule(weekId);
+  }
+
+  /**
+   * Regenerate an existing schedule with user confirmation workflow
+   */
+  async regenerateSchedule(weekId: string, options?: RegenerationOptions): Promise<RegenerationResult> {
+    const startTime = Date.now();
+    
+    try {
+      // Check if regeneration is already in progress for this week
+      const currentStatus = this.getRegenerationStatus(weekId);
+      if (currentStatus && ['confirming', 'backing_up', 'generating', 'replacing'].includes(currentStatus.status)) {
+        const operationDuration = Date.now() - startTime;
+        return {
+          success: false,
+          error: 'Another regeneration operation is currently in progress',
+          changesDetected: {
+            playersAdded: [],
+            playersRemoved: [],
+            pairingChanges: 0,
+            timeSlotChanges: 0
+          },
+          operationDuration
+        };
+      }
+
+      // NOTE: We no longer set the initial status here - the UI should set the lock
+      // before calling this method. This prevents premature lock setting.
+
+      // Execute regeneration with comprehensive error handling and retry
+      const result = await this.executeRegenerationWithRetry(weekId, options);
+      
+      const operationDuration = Date.now() - startTime;
+      return { ...result, operationDuration };
+
+    } catch (error) {
+      // Set error status
+      this.setRegenerationStatus(weekId, {
+        weekId,
+        status: 'failed',
+        progress: 0,
+        currentStep: 'Failed',
+        startedAt: this.regenerationStatuses.get(weekId)?.startedAt || new Date(),
+        completedAt: new Date(),
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      // Attempt comprehensive error recovery
+      await this.handleRegenerationFailure(weekId, error);
+
+      // Perform cleanup even on failure
+      await this.clearRegenerationStatusAndCleanup(weekId);
+
+      const operationDuration = Date.now() - startTime;
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        changesDetected: {
+          playersAdded: [],
+          playersRemoved: [],
+          pairingChanges: 0,
+          timeSlotChanges: 0
+        },
+        operationDuration
+      };
+    }
+  }
+
+  /**
+   * Execute regeneration with retry mechanisms and exponential backoff
+   */
+  private async executeRegenerationWithRetry(
+    weekId: string, 
+    options?: RegenerationOptions
+  ): Promise<Omit<RegenerationResult, 'operationDuration'>> {
+    const retryConfig = { ...this.defaultRetryConfig, ...options?.retryConfig };
+    let lastError: RegenerationError | null = null;
+    let backupId: string | null = null;
+
+    // Set initial status to prevent concurrent operations
+    // This ensures that even direct calls to regenerateSchedule (bypassing UI) are protected
+    this.setRegenerationStatus(weekId, {
+      weekId,
+      status: 'backing_up',
+      progress: 0,
+      currentStep: 'Starting regeneration',
+      startedAt: new Date()
+    });
+
+    for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
+      try {
+        // Step 1: Create backup with error handling
+        this.updateRegenerationProgress(weekId, 10, 'Creating backup');
+        backupId = await this.createBackupWithErrorHandling(weekId);
+
+        // Step 2: Generate new schedule with validation
+        this.updateRegenerationProgress(weekId, 40, 'Generating new schedule');
+        const newSchedule = await this.generateScheduleWithValidation(weekId);
+
+        // Step 3: Replace schedule atomically
+        this.updateRegenerationProgress(weekId, 80, 'Replacing existing schedule');
+        await this.replaceScheduleAtomicWithRetry(weekId, newSchedule, backupId);
+
+        // Step 4: Analyze changes and complete
+        this.updateRegenerationProgress(weekId, 95, 'Finalizing');
+        const existingSchedule = await this.scheduleRepository.findByWeekId(weekId);
+        const changesDetected = existingSchedule 
+          ? this.analyzeScheduleChanges(existingSchedule, newSchedule)
+          : this.getDefaultChanges();
+
+        // Complete regeneration
+        this.setRegenerationStatus(weekId, {
+          weekId,
+          status: 'completed',
+          progress: 100,
+          currentStep: 'Completed',
+          startedAt: this.regenerationStatuses.get(weekId)?.startedAt || new Date(),
+          completedAt: new Date()
+        });
+
+        // Clean up old backups on success
+        await this.cleanupOldBackupsAfterSuccess(weekId, backupId);
+
+        // Perform comprehensive cleanup and UI refresh
+        await this.clearRegenerationStatusAndCleanup(weekId);
+
+        // Generate success notification for successful regeneration
+        applicationState.addNotification({
+          type: 'success',
+          title: 'Schedule Regenerated',
+          message: `Successfully regenerated schedule for week ${weekId}. ${changesDetected.pairingChanges} pairing changes detected.`,
+          autoHide: true,
+          duration: 5000
+        });
+
+        return {
+          success: true,
+          newScheduleId: existingSchedule?.id, // Use the existing schedule ID since we update in place
+          backupId,
+          changesDetected
+        };
+
+      } catch (error) {
+        lastError = this.normalizeRegenerationError(error, weekId, backupId);
+        
+        // Log attempt failure
+        console.warn(`Regeneration attempt ${attempt}/${retryConfig.maxAttempts} failed:`, lastError);
+
+        // If not retryable or last attempt, break
+        if (!this.isRetryableError(lastError) || attempt === retryConfig.maxAttempts) {
+          break;
+        }
+
+        // Calculate delay with exponential backoff
+        const delay = Math.min(
+          retryConfig.baseDelayMs * Math.pow(retryConfig.backoffMultiplier, attempt - 1),
+          retryConfig.maxDelayMs
+        );
+
+        // Update status to show retry
+        this.updateRegenerationProgress(weekId, 0, `Retrying in ${Math.round(delay/1000)}s (attempt ${attempt + 1})`);
+        
+        // Wait before retry
+        await this.delay(delay);
+      }
+    }
+
+    // All attempts failed - throw the last error for handling
+    throw lastError!;
+  }
+
+  /**
+   * Create backup with comprehensive error handling
+   */
+  private async createBackupWithErrorHandling(weekId: string): Promise<string> {
+    try {
+      const schedule = await this.scheduleRepository.findByWeekId(weekId);
+      if (!schedule) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.BACKUP_CREATION_FAILED,
+          `No existing schedule found for week ${weekId}`,
+          weekId,
+          null,
+          'backup'
+        );
+      }
+
+      const backupMetadata = await this.backupService.createBackup(schedule);
+      
+      // Validate backup was created successfully
+      const isValid = await this.backupService.validateBackup(backupMetadata.id);
+      if (!isValid) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.BACKUP_CREATION_FAILED,
+          'Backup validation failed after creation',
+          weekId,
+          backupMetadata.id,
+          'backup'
+        );
+      }
+
+      return backupMetadata.id;
+
+    } catch (error) {
+      // Categorize and re-throw backup errors
+      if (error instanceof Error && 'code' in error) {
+        throw error; // Already a RegenerationError
+      }
+
+      // Handle storage-related errors
+      if (error instanceof Error) {
+        if (error.message.includes('quota') || error.message.includes('storage')) {
+          throw this.createRegenerationError(
+            RegenerationErrorCode.STORAGE_ERROR,
+            'Insufficient storage space for backup creation',
+            weekId,
+            null,
+            'backup',
+            false // Not retryable
+          );
+        }
+      }
+
+      throw this.createRegenerationError(
+        RegenerationErrorCode.BACKUP_CREATION_FAILED,
+        `Backup creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        weekId,
+        null,
+        'backup'
+      );
+    }
+  }
+
+  /**
+   * Generate schedule with validation and error handling
+   */
+  private async generateScheduleWithValidation(weekId: string): Promise<Schedule> {
+    try {
+      // Step 1: Pre-regeneration validation
+      const preValidationResult = await this.validatePreRegenerationConstraints(weekId);
+      if (!preValidationResult.isValid) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.VALIDATION_FAILED,
+          `Pre-regeneration validation failed: ${preValidationResult.errors.join(', ')}`,
+          weekId,
+          null,
+          'validation',
+          false // Not retryable without fixing constraints
+        );
+      }
+
+      // Get week information
+      const week = await this.weekRepository.findById(weekId);
+      if (!week) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.SCHEDULE_GENERATION_FAILED,
+          `Week ${weekId} not found`,
+          weekId,
+          null,
+          'generation',
+          false // Not retryable
+        );
+      }
+
+      // Get all players for the season with current availability
+      const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+      const availablePlayers = this.scheduleGenerator.filterAvailablePlayers(allPlayers, week);
+
+      // Check if we have sufficient players
+      if (availablePlayers.length < 4) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.INSUFFICIENT_PLAYERS,
+          `Insufficient available players (${availablePlayers.length}) for schedule generation`,
+          weekId,
+          null,
+          'generation',
+          false // Not retryable without player changes
+        );
+      }
+
+      // Generate new schedule using current data
+      const newSchedule = await this.scheduleGenerator.generateScheduleForWeek(week, allPlayers);
+      
+      // Step 2: Validate the generated schedule against all constraints
+      const validation = await this.validateScheduleConstraints(newSchedule, availablePlayers, week);
+      if (!validation.isValid) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.CONSTRAINT_VIOLATION,
+          `Generated schedule validation failed: ${validation.errors.join(', ')}`,
+          weekId,
+          null,
+          'generation'
+        );
+      }
+
+      // Step 3: Validate business rules before replacement
+      const businessRuleValidation = await this.validateBusinessRules(newSchedule, week);
+      if (!businessRuleValidation.isValid) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.CONSTRAINT_VIOLATION,
+          `Business rule validation failed: ${businessRuleValidation.errors.join(', ')}`,
+          weekId,
+          null,
+          'validation',
+          false // Business rule violations are not retryable
+        );
+      }
+
+      return newSchedule;
+
+    } catch (error) {
+      // Re-throw RegenerationErrors as-is
+      if (error instanceof Error && 'code' in error) {
+        throw error;
+      }
+
+      // Handle timeout errors
+      if (error instanceof Error && error.message.includes('timeout')) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.OPERATION_TIMEOUT,
+          'Schedule generation timed out',
+          weekId,
+          null,
+          'generation'
+        );
+      }
+
+      throw this.createRegenerationError(
+        RegenerationErrorCode.SCHEDULE_GENERATION_FAILED,
+        `Schedule generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        weekId,
+        null,
+        'generation'
+      );
+    }
+  }
+
+  /**
+   * Replace existing schedule atomically with retry logic
+   */
+  private async replaceScheduleAtomicWithRetry(
+    weekId: string, 
+    newSchedule: Schedule, 
+    backupId: string
+  ): Promise<void> {
+    try {
+      const existingSchedule = await this.scheduleRepository.findByWeekId(weekId);
+      if (!existingSchedule) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.ATOMIC_REPLACEMENT_FAILED,
+          `No existing schedule found for week ${weekId}`,
+          weekId,
+          backupId,
+          'replacement',
+          false
+        );
+      }
+
+      // Check for concurrent operations
+      const currentStatus = this.getRegenerationStatus(weekId);
+      if (currentStatus && currentStatus.status === 'replacing') {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.CONCURRENT_OPERATION,
+          'Another replacement operation is in progress',
+          weekId,
+          backupId,
+          'replacement'
+        );
+      }
+
+      // Perform atomic update
+      const updatedSchedule = await this.scheduleRepository.update(existingSchedule.id, {
+        timeSlots: newSchedule.timeSlots,
+        lastModified: new Date()
+      });
+
+      if (!updatedSchedule) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.ATOMIC_REPLACEMENT_FAILED,
+          'Failed to update schedule with new data',
+          weekId,
+          backupId,
+          'replacement'
+        );
+      }
+
+      // Verify the replacement was successful
+      const verificationSchedule = await this.scheduleRepository.findByWeekId(weekId);
+      if (!verificationSchedule || verificationSchedule.lastModified.getTime() !== updatedSchedule.lastModified.getTime()) {
+        throw this.createRegenerationError(
+          RegenerationErrorCode.ATOMIC_REPLACEMENT_FAILED,
+          'Schedule replacement verification failed',
+          weekId,
+          backupId,
+          'replacement'
+        );
+      }
+
+    } catch (error) {
+      // If atomic replacement fails, attempt to restore from backup
+      if (backupId) {
+        try {
+          await this.restoreFromBackup(weekId, backupId);
+          console.log(`Successfully restored schedule from backup ${backupId} after replacement failure`);
+        } catch (restoreError) {
+          console.error('Failed to restore backup after atomic replacement failure:', restoreError);
+          // Create compound error
+          throw this.createRegenerationError(
+            RegenerationErrorCode.BACKUP_RESTORATION_FAILED,
+            `Atomic replacement failed and backup restoration also failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            weekId,
+            backupId,
+            'replacement',
+            false
+          );
+        }
+      }
+      
+      // Re-throw the original error if it's already a RegenerationError
+      if (error instanceof Error && 'code' in error) {
+        throw error;
+      }
+
+      throw this.createRegenerationError(
+        RegenerationErrorCode.ATOMIC_REPLACEMENT_FAILED,
+        `Atomic replacement failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        weekId,
+        backupId,
+        'replacement'
+      );
+    }
+  }
+
+  /**
+   * Handle comprehensive regeneration failure with automatic restoration
+   */
+  private async handleRegenerationFailure(weekId: string, error: any): Promise<void> {
+    const regenerationError = this.normalizeRegenerationError(error, weekId);
+    
+    // Log detailed error information
+    const errorContext: ErrorContext = {
+      component: 'ScheduleManager',
+      action: 'regenerateSchedule',
+      additionalData: {
+        weekId,
+        errorCode: regenerationError.code,
+        errorCategory: regenerationError.category,
+        retryable: regenerationError.retryable,
+        backupId: regenerationError.backupId
+      }
+    };
+
+    console.error('Regeneration failed with comprehensive error:', regenerationError);
+    errorHandler.handleError(regenerationError, errorContext);
+
+    // Attempt automatic restoration from backup
+    await this.attemptAutomaticRestoration(weekId, regenerationError);
+
+    // Provide user feedback with recovery options
+    await this.provideUserFeedbackForFailure(weekId, regenerationError);
+  }
+
+  /**
+   * Attempt automatic restoration from the most recent backup
+   */
+  private async attemptAutomaticRestoration(weekId: string, error: RegenerationError): Promise<void> {
+    try {
+      // If we have a specific backup ID from the error, try that first
+      if (error.backupId) {
+        try {
+          await this.restoreFromBackup(weekId, error.backupId);
+          console.log(`Successfully restored schedule from backup ${error.backupId}`);
+          
+          applicationState.addNotification({
+            type: 'info',
+            title: 'Schedule Restored',
+            message: 'The original schedule has been restored after the regeneration failure.',
+            autoHide: true,
+            duration: 5000
+          });
+          return;
+        } catch (restoreError) {
+          console.warn(`Failed to restore from specific backup ${error.backupId}:`, restoreError);
+        }
+      }
+
+      // Try to restore from the most recent backup
+      const backups = await this.backupService.listBackups(weekId);
+      if (backups.length > 0) {
+        const mostRecentBackup = backups[0]; // listBackups returns most recent first
+        try {
+          await this.restoreFromBackup(weekId, mostRecentBackup.id);
+          console.log(`Successfully restored schedule from most recent backup ${mostRecentBackup.id}`);
+          
+          applicationState.addNotification({
+            type: 'info',
+            title: 'Schedule Restored',
+            message: 'The original schedule has been restored from the most recent backup.',
+            autoHide: true,
+            duration: 5000
+          });
+        } catch (restoreError) {
+          console.error('Failed to restore from most recent backup:', restoreError);
+          throw restoreError;
+        }
+      } else {
+        console.warn('No backups available for automatic restoration');
+      }
+    } catch (error) {
+      console.error('Automatic restoration failed:', error);
+      
+      applicationState.addNotification({
+        type: 'error',
+        title: 'Restoration Failed',
+        message: 'Could not restore the original schedule. Please refresh the page or contact support.',
+        autoHide: false
+      });
+    }
+  }
+
+  /**
+   * Provide user feedback with recovery options based on error type
+   */
+  private async provideUserFeedbackForFailure(weekId: string, error: RegenerationError): Promise<void> {
+    const userMessage = this.getUserFriendlyErrorMessage(error);
+    const recoveryActions = this.getRecoveryActions(weekId, error);
+
+    applicationState.addNotification({
+      type: 'error',
+      title: 'Schedule Regeneration Failed',
+      message: userMessage,
+      autoHide: false,
+      actions: recoveryActions
+    });
+  }
+
+  /**
+   * Get user-friendly error message based on error code and category
+   */
+  private getUserFriendlyErrorMessage(error: RegenerationError): string {
+    const messages: Record<RegenerationErrorCode, string> = {
+      [RegenerationErrorCode.BACKUP_CREATION_FAILED]: 'Could not create a backup of the current schedule. The regeneration was aborted to prevent data loss.',
+      [RegenerationErrorCode.BACKUP_RESTORATION_FAILED]: 'Failed to restore the original schedule after an error occurred.',
+      [RegenerationErrorCode.SCHEDULE_GENERATION_FAILED]: 'Could not generate a new schedule. Please check player availability and try again.',
+      [RegenerationErrorCode.ATOMIC_REPLACEMENT_FAILED]: 'Failed to replace the existing schedule with the new one.',
+      [RegenerationErrorCode.VALIDATION_FAILED]: 'The generated schedule did not meet the required constraints.',
+      [RegenerationErrorCode.INSUFFICIENT_PLAYERS]: 'Not enough available players to generate a complete schedule.',
+      [RegenerationErrorCode.CONSTRAINT_VIOLATION]: 'The generated schedule violates scheduling constraints.',
+      [RegenerationErrorCode.CONCURRENT_OPERATION]: 'Another regeneration operation is already in progress.',
+      [RegenerationErrorCode.STORAGE_ERROR]: 'Storage space is insufficient or corrupted.',
+      [RegenerationErrorCode.OPERATION_TIMEOUT]: 'The regeneration operation took too long to complete.',
+      [RegenerationErrorCode.SYSTEM_ERROR]: 'An unexpected system error occurred.'
+    };
+
+    return messages[error.code] || 'An unexpected error occurred during schedule regeneration.';
+  }
+
+  /**
+   * Get recovery actions based on error type
+   */
+  private getRecoveryActions(weekId: string, error: RegenerationError): Array<{label: string, action: () => Promise<void>, style: 'primary' | 'secondary' | 'danger'}> {
+    const actions: Array<{label: string, action: () => Promise<void>, style: 'primary' | 'secondary' | 'danger'}> = [];
+
+    // Add retry option for retryable errors
+    if (error.retryable) {
+      actions.push({
+        label: 'Retry Regeneration',
+        action: async () => {
+          await this.regenerateSchedule(weekId);
+        },
+        style: 'primary'
+      });
+    }
+
+    // Add specific recovery actions based on error category
+    switch (error.category) {
+      case 'backup':
+        if (error.code === RegenerationErrorCode.STORAGE_ERROR) {
+          actions.push({
+            label: 'Clear Storage',
+            action: async () => {
+              if (confirm('This will clear application data to free up space. Continue?')) {
+                localStorage.clear();
+                window.location.reload();
+              }
+            },
+            style: 'danger'
+          });
+        }
+        break;
+
+      case 'generation':
+        if (error.code === RegenerationErrorCode.INSUFFICIENT_PLAYERS) {
+          actions.push({
+            label: 'Manage Availability',
+            action: async () => {
+              applicationState.navigateTo('availability');
+            },
+            style: 'secondary'
+          });
+        }
+        break;
+
+      case 'replacement':
+        actions.push({
+          label: 'Manual Restore',
+          action: async () => {
+            const backups = await this.backupService.listBackups(weekId);
+            if (backups.length > 0) {
+              await this.restoreFromBackup(weekId, backups[0].id);
+              applicationState.addNotification({
+                type: 'success',
+                title: 'Schedule Restored',
+                message: 'The schedule has been manually restored from backup.',
+                autoHide: true,
+                duration: 3000
+              });
+            }
+          },
+          style: 'secondary'
+        });
+        break;
+    }
+
+    // Always add refresh option
+    actions.push({
+      label: 'Refresh Page',
+      action: async () => {
+        window.location.reload();
+      },
+      style: 'secondary'
+    });
+
+    return actions;
+  }
+
+  /**
+   * Clean up old backups after successful regeneration
+   */
+  private async cleanupOldBackupsAfterSuccess(weekId: string, currentBackupId: string): Promise<void> {
+    try {
+      await this.backupService.cleanupOldBackups(weekId);
+    } catch (error) {
+      // Don't fail the operation for cleanup errors
+      console.warn('Failed to cleanup old backups:', error);
+    }
+  }
+
+  /**
+   * Normalize any error to RegenerationError
+   */
+  private normalizeRegenerationError(
+    error: any, 
+    weekId: string, 
+    backupId?: string | null
+  ): RegenerationError {
+    if (error instanceof Error && 'code' in error) {
+      return error as RegenerationError;
+    }
+
+    // Determine error code and category based on error message
+    let code = RegenerationErrorCode.SYSTEM_ERROR;
+    let category: RegenerationError['category'] = 'system';
+    let retryable = true;
+
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes('backup')) {
+      category = 'backup';
+      if (message.includes('creation') || message.includes('create')) {
+        code = RegenerationErrorCode.BACKUP_CREATION_FAILED;
+      } else if (message.includes('restoration') || message.includes('restore')) {
+        code = RegenerationErrorCode.BACKUP_RESTORATION_FAILED;
+      }
+    } else if (message.includes('generation') || message.includes('generate')) {
+      category = 'generation';
+      code = RegenerationErrorCode.SCHEDULE_GENERATION_FAILED;
+    } else if (message.includes('replacement') || message.includes('replace') || message.includes('atomic')) {
+      category = 'replacement';
+      code = RegenerationErrorCode.ATOMIC_REPLACEMENT_FAILED;
+    } else if (message.includes('validation') || message.includes('constraint')) {
+      category = 'validation';
+      code = RegenerationErrorCode.VALIDATION_FAILED;
+    } else if (message.includes('insufficient') || message.includes('not enough')) {
+      category = 'generation';
+      code = RegenerationErrorCode.INSUFFICIENT_PLAYERS;
+      retryable = false;
+    } else if (message.includes('concurrent') || message.includes('progress')) {
+      category = 'system';
+      code = RegenerationErrorCode.CONCURRENT_OPERATION;
+    } else if (message.includes('storage') || message.includes('quota')) {
+      category = 'backup';
+      code = RegenerationErrorCode.STORAGE_ERROR;
+      retryable = false;
+    } else if (message.includes('timeout')) {
+      category = 'system';
+      code = RegenerationErrorCode.OPERATION_TIMEOUT;
+    }
+
+    return this.createRegenerationError(code, message, weekId, backupId, category, retryable);
+  }
+
+  /**
+   * Create a standardized RegenerationError
+   */
+  private createRegenerationError(
+    code: RegenerationErrorCode,
+    message: string,
+    weekId: string,
+    backupId: string | null | undefined,
+    category: RegenerationError['category'],
+    retryable: boolean = true
+  ): RegenerationError {
+    const error = new Error(message) as RegenerationError;
+    error.code = code;
+    error.weekId = weekId;
+    error.backupId = backupId || undefined;
+    error.retryable = retryable;
+    error.category = category;
+    error.name = 'RegenerationError';
+    
+    return error;
+  }
+
+  /**
+   * Check if an error is retryable
+   */
+  private isRetryableError(error: RegenerationError): boolean {
+    return error.retryable && ![
+      RegenerationErrorCode.INSUFFICIENT_PLAYERS,
+      RegenerationErrorCode.STORAGE_ERROR,
+      RegenerationErrorCode.BACKUP_RESTORATION_FAILED
+    ].includes(error.code);
+  }
+
+  /**
+   * Get default changes object for when comparison isn't possible
+   */
+  private getDefaultChanges(): RegenerationResult['changesDetected'] {
+    return {
+      playersAdded: [],
+      playersRemoved: [],
+      pairingChanges: 0,
+      timeSlotChanges: 0
+    };
+  }
+
+  /**
+   * Utility method for delays with exponential backoff
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Create a backup of the current schedule
+   */
+  async createScheduleBackup(weekId: string): Promise<BackupMetadata> {
+    const schedule = await this.scheduleRepository.findByWeekId(weekId);
+    if (!schedule) {
+      throw new Error(`Schedule not found for week ${weekId}`);
+    }
+
+    return await this.backupService.createBackup(schedule);
+  }
+
+  /**
+   * Restore a schedule from backup
+   */
+  async restoreFromBackup(weekId: string, backupId: string): Promise<void> {
+    try {
+      const restoredSchedule = await this.backupService.restoreBackup(backupId);
+      
+      // Update the existing schedule with restored data
+      const existingSchedule = await this.scheduleRepository.findByWeekId(weekId);
+      if (!existingSchedule) {
+        throw new Error(`No existing schedule found for week ${weekId} to restore to`);
+      }
+
+      await this.scheduleRepository.update(existingSchedule.id, {
+        timeSlots: restoredSchedule.timeSlots,
+        lastModified: new Date()
+      });
+
+    } catch (error) {
+      throw new Error(`Failed to restore backup: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get regeneration status for a week
+   */
+  getRegenerationStatus(weekId: string): RegenerationStatus | null {
+    return this.regenerationStatuses.get(weekId) || null;
+  }
+
+  /**
+   * Set regeneration lock to prevent concurrent modifications
+   */
+  async setRegenerationLock(weekId: string, locked: boolean): Promise<void> {
+    if (locked) {
+      this.setRegenerationStatus(weekId, {
+        weekId,
+        status: 'confirming',
+        progress: 0,
+        currentStep: 'Awaiting confirmation',
+        startedAt: new Date()
+      });
+    } else {
+      // Clear regeneration status and perform cleanup
+      await this.clearRegenerationStatusAndCleanup(weekId);
+    }
+  }
+
+  /**
+   * Clear regeneration status and perform comprehensive cleanup
+   */
+  private async clearRegenerationStatusAndCleanup(weekId: string): Promise<void> {
+    try {
+      // Clear the regeneration status completely
+      this.regenerationStatuses.delete(weekId);
+      
+      // Also clear any status that might be lingering in memory
+      // Force garbage collection of the status entry
+      if (this.regenerationStatuses.has(weekId)) {
+        this.regenerationStatuses.set(weekId, {
+          weekId,
+          status: 'idle',
+          progress: 0,
+          currentStep: 'Idle',
+          startedAt: new Date(),
+          completedAt: new Date()
+        });
+        this.regenerationStatuses.delete(weekId);
+      }
+      
+      // Release any locks that might be held
+      await this.releaseScheduleLocksForWeek(weekId);
+      
+      // Trigger UI refresh to reflect the updated state
+      this.notifyUIRefresh(weekId);
+      
+    } catch (error) {
+      console.warn(`Failed to complete cleanup for week ${weekId}:`, error);
+      // Don't throw - cleanup failures shouldn't break the main operation
+    }
+  }
+
+  /**
+   * Release all schedule locks for a specific week
+   */
+  private async releaseScheduleLocksForWeek(weekId: string): Promise<void> {
+    try {
+      // Force release any locks for this week
+      await this.scheduleRepository.forceReleaseScheduleLock(weekId);
+    } catch (error) {
+      console.warn(`Failed to release locks for week ${weekId}:`, error);
+      // Don't throw - lock cleanup failures shouldn't break the main operation
+    }
+  }
+
+  /**
+   * Notify UI to refresh after regeneration operations
+   */
+  private notifyUIRefresh(weekId: string): void {
+    try {
+      // Trigger global data refresh to update all UI components
+      applicationState.triggerDataRefresh();
+      
+      // Add a subtle notification that the schedule has been updated
+      applicationState.addNotification({
+        type: 'info',
+        title: 'Schedule Updated',
+        message: `Schedule for week ${weekId} has been updated. UI refreshed.`,
+        autoHide: true,
+        duration: 2000
+      });
+      
+    } catch (error) {
+      console.warn(`Failed to notify UI refresh for week ${weekId}:`, error);
+      // Don't throw - UI notification failures shouldn't break the main operation
+    }
+  }
+
+  /**
+   * Cleanup expired regeneration statuses and locks (maintenance operation)
+   */
+  async cleanupExpiredOperations(): Promise<void> {
+    const now = Date.now();
+    const OPERATION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+    
+    try {
+      // Clean up expired regeneration statuses
+      for (const [weekId, status] of this.regenerationStatuses.entries()) {
+        if (status.startedAt) {
+          const operationAge = now - status.startedAt.getTime();
+          
+          // If operation is older than timeout and not completed/failed, mark as failed
+          if (operationAge > OPERATION_TIMEOUT_MS && 
+              status.status !== 'completed' && 
+              status.status !== 'failed') {
+            
+            console.warn(`Cleaning up expired regeneration operation for week ${weekId}`);
+            
+            // Mark as failed due to timeout
+            this.setRegenerationStatus(weekId, {
+              ...status,
+              status: 'failed',
+              error: 'Operation timed out and was automatically cleaned up',
+              completedAt: new Date()
+            });
+            
+            // Perform cleanup
+            await this.clearRegenerationStatusAndCleanup(weekId);
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('Failed to cleanup expired operations:', error);
+    }
+  }
+
+  /**
+   * Check if regeneration is allowed for a week
+   */
+  async isRegenerationAllowed(weekId: string): Promise<boolean> {
+    const status = this.getRegenerationStatus(weekId);
+    // Allow regeneration if no status exists or if the operation is completed/failed
+    return !status || status.status === 'idle' || status.status === 'completed' || status.status === 'failed';
+  }
+
+  /**
+   * Force clear all regeneration statuses (for testing purposes)
+   */
+  forceCleanupAllRegenerationStatuses(): void {
+    this.regenerationStatuses.clear();
+  }
+
+  /**
+   * Emergency method to force clear a stuck regeneration lock
+   * This should only be used when a regeneration operation is genuinely stuck
+   */
+  async forceReleaseRegenerationLock(weekId: string): Promise<void> {
+    console.warn(`Force releasing regeneration lock for week ${weekId}`);
+    
+    try {
+      // Clear the regeneration status
+      this.regenerationStatuses.delete(weekId);
+      
+      // Clear any repository locks
+      await this.releaseScheduleLocksForWeek(weekId);
+      
+      // Trigger UI refresh
+      this.notifyUIRefresh(weekId);
+      
+      console.log(`Successfully force released regeneration lock for week ${weekId}`);
+    } catch (error) {
+      console.error(`Failed to force release regeneration lock for week ${weekId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate a new schedule for regeneration (uses current player availability)
+   */
+  private async generateNewScheduleForRegeneration(weekId: string): Promise<Schedule> {
+    // Get week information
+    const week = await this.weekRepository.findById(weekId);
+    if (!week) {
+      throw new Error(`Week ${weekId} not found`);
+    }
+
+    // Get all players for the season with current availability
+    const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+    
+    // Generate new schedule using current data
+    const newSchedule = await this.scheduleGenerator.generateScheduleForWeek(week, allPlayers);
+    
+    return newSchedule;
+  }
+
+  /**
+   * Replace existing schedule atomically
+   */
+  private async replaceScheduleAtomic(weekId: string, newSchedule: Schedule, backupId: string): Promise<void> {
+    try {
+      const existingSchedule = await this.scheduleRepository.findByWeekId(weekId);
+      if (!existingSchedule) {
+        throw new Error(`No existing schedule found for week ${weekId}`);
+      }
+
+      // Update the existing schedule with new data
+      const updatedSchedule = await this.scheduleRepository.update(existingSchedule.id, {
+        timeSlots: newSchedule.timeSlots,
+        lastModified: new Date()
+      });
+
+      if (!updatedSchedule) {
+        throw new Error('Failed to update schedule with new data');
+      }
+
+    } catch (error) {
+      // If atomic replacement fails, restore from backup
+      try {
+        await this.restoreFromBackup(weekId, backupId);
+      } catch (restoreError) {
+        console.error('Failed to restore backup after atomic replacement failure:', restoreError);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze changes between old and new schedules
+   */
+  private analyzeScheduleChanges(oldSchedule: Schedule, newSchedule: Schedule): RegenerationResult['changesDetected'] {
+    const oldPlayerIds = new Set(oldSchedule.getAllPlayers());
+    const newPlayerIds = new Set(newSchedule.getAllPlayers());
+
+    const playersAdded = Array.from(newPlayerIds).filter(id => !oldPlayerIds.has(id));
+    const playersRemoved = Array.from(oldPlayerIds).filter(id => !newPlayerIds.has(id));
+
+    // Count pairing changes (simplified - could be more sophisticated)
+    const oldPairings = this.getSchedulePairings(oldSchedule);
+    const newPairings = this.getSchedulePairings(newSchedule);
+    const pairingChanges = Math.abs(oldPairings.size - newPairings.size);
+
+    // Count time slot changes
+    const oldMorningCount = oldSchedule.timeSlots.morning.reduce((sum, f) => sum + f.players.length, 0);
+    const newMorningCount = newSchedule.timeSlots.morning.reduce((sum, f) => sum + f.players.length, 0);
+    const timeSlotChanges = Math.abs(oldMorningCount - newMorningCount);
+
+    return {
+      playersAdded,
+      playersRemoved,
+      pairingChanges,
+      timeSlotChanges
+    };
+  }
+
+  /**
+   * Get all pairings from a schedule
+   */
+  private getSchedulePairings(schedule: Schedule): Set<string> {
+    const pairings = new Set<string>();
+    const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
+
+    allFoursomes.forEach(foursome => {
+      const players = foursome.players;
+      for (let i = 0; i < players.length; i++) {
+        for (let j = i + 1; j < players.length; j++) {
+          const key = players[i].id < players[j].id 
+            ? `${players[i].id}-${players[j].id}` 
+            : `${players[j].id}-${players[i].id}`;
+          pairings.add(key);
+        }
+      }
+    });
+
+    return pairings;
+  }
+
+  /**
+   * Set regeneration status
+   */
+  private setRegenerationStatus(weekId: string, status: RegenerationStatus): void {
+    this.regenerationStatuses.set(weekId, status);
+  }
+
+  /**
+   * Update regeneration progress
+   */
+  private updateRegenerationProgress(weekId: string, progress: number, currentStep: string): void {
+    const existingStatus = this.regenerationStatuses.get(weekId);
+    if (existingStatus) {
+      this.setRegenerationStatus(weekId, {
+        ...existingStatus,
+        progress,
+        currentStep
+      });
+    }
+  }
+
+  /**
+   * Validate pre-regeneration constraints to ensure regeneration can proceed
+   */
+  async validatePreRegenerationConstraints(weekId: string): Promise<ValidationResult> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    try {
+      // Check if week exists
+      const week = await this.weekRepository.findById(weekId);
+      if (!week) {
+        errors.push(`Week ${weekId} not found`);
+        return { isValid: false, errors, warnings };
+      }
+
+      // Check if season exists and has players
+      const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+      if (allPlayers.length === 0) {
+        errors.push(`No players found for season ${week.seasonId}`);
+        return { isValid: false, errors, warnings };
+      }
+
+      // Check player availability
+      const availablePlayers = this.scheduleGenerator.filterAvailablePlayers(allPlayers, week);
+      
+      // Minimum player requirement
+      if (availablePlayers.length < 4) {
+        errors.push(`Insufficient available players: ${availablePlayers.length} available, minimum 4 required`);
+        
+        // Provide specific suggestions
+        const unavailablePlayers = allPlayers.filter(p => !availablePlayers.includes(p));
+        if (unavailablePlayers.length > 0) {
+          warnings.push(`Consider making these players available: ${unavailablePlayers.map(p => `${p.firstName} ${p.lastName}`).join(', ')}`);
+        }
+      }
+
+      // Check time preference distribution
+      const amPlayers = availablePlayers.filter(p => p.timePreference === 'AM');
+      const pmPlayers = availablePlayers.filter(p => p.timePreference === 'PM');
+      const eitherPlayers = availablePlayers.filter(p => p.timePreference === 'Either');
+
+      // Warn about extreme time preference imbalances
+      const totalFlexible = eitherPlayers.length;
+      const amDeficit = Math.max(0, 4 - amPlayers.length - totalFlexible);
+      const pmDeficit = Math.max(0, 4 - pmPlayers.length - totalFlexible);
+
+      if (amDeficit > 0) {
+        warnings.push(`Morning time slot may be understaffed (${amDeficit} players short)`);
+      }
+      if (pmDeficit > 0) {
+        warnings.push(`Afternoon time slot may be understaffed (${pmDeficit} players short)`);
+      }
+
+      // Check for concurrent operations (but allow the current operation to proceed)
+      // We only block if there's a status that indicates user interaction is needed
+      const currentStatus = this.getRegenerationStatus(weekId);
+      if (currentStatus && currentStatus.status === 'confirming') {
+        errors.push('Another regeneration operation is currently in progress');
+      }
+
+      // Check storage availability for backup creation
+      try {
+        const storageEstimate = this.estimateStorageRequirement(weekId);
+        const availableStorage = this.getAvailableStorage();
+        
+        if (storageEstimate > availableStorage) {
+          errors.push(`Insufficient storage space: ${storageEstimate}KB required, ${availableStorage}KB available`);
+        }
+      } catch (storageError) {
+        warnings.push('Could not verify storage availability');
+      }
+
+    } catch (error) {
+      errors.push(`Pre-validation check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    };
+  }
+
+  /**
+   * Validate schedule constraints comprehensively
+   */
+  async validateScheduleConstraints(schedule: Schedule, availablePlayers: Player[], week: Week): Promise<ValidationResult> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Use existing schedule generator validation as base
+    const baseValidation = this.scheduleGenerator.validateSchedule(schedule, availablePlayers);
+    errors.push(...baseValidation.errors);
+
+    // Additional constraint validations
+    const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
+
+    // Validate foursome constraints
+    for (const foursome of allFoursomes) {
+      // Check foursome size constraints
+      if (foursome.players.length === 0) {
+        errors.push(`Empty foursome found at position ${foursome.position} in ${foursome.timeSlot}`);
+      } else if (foursome.players.length > 4) {
+        errors.push(`Foursome at position ${foursome.position} in ${foursome.timeSlot} has ${foursome.players.length} players (maximum 4)`);
+      }
+
+      // Check player availability for this week
+      for (const player of foursome.players) {
+        if (!this.scheduleGenerator.filterAvailablePlayers([player], week).includes(player)) {
+          errors.push(`Player ${player.getFullName()} is scheduled but not available for week ${week.weekNumber}`);
+        }
+      }
+
+      // Check time preference violations (stricter than base validation)
+      if (foursome.timeSlot === 'morning') {
+        const pmOnlyPlayers = foursome.players.filter(p => p.timePreference === 'PM');
+        if (pmOnlyPlayers.length > 0) {
+          errors.push(`Morning foursome contains PM-only players: ${pmOnlyPlayers.map(p => p.getFullName()).join(', ')}`);
+        }
+      } else if (foursome.timeSlot === 'afternoon') {
+        const amOnlyPlayers = foursome.players.filter(p => p.timePreference === 'AM');
+        if (amOnlyPlayers.length > 0) {
+          errors.push(`Afternoon foursome contains AM-only players: ${amOnlyPlayers.map(p => p.getFullName()).join(', ')}`);
+        }
+      }
+
+      // Check for handedness balance (warning only)
+      const handedness = foursome.getHandednessDistribution();
+      if (foursome.players.length >= 3 && (handedness.left === 0 || handedness.right === 0)) {
+        warnings.push(`Foursome at position ${foursome.position} in ${foursome.timeSlot} has unbalanced handedness (${handedness.left} left, ${handedness.right} right)`);
+      }
+    }
+
+    // Validate schedule-level constraints
+    const totalPlayers = schedule.getTotalPlayerCount();
+    const availableCount = availablePlayers.length;
+    
+    if (totalPlayers > availableCount) {
+      errors.push(`Schedule contains ${totalPlayers} players but only ${availableCount} are available`);
+    }
+
+    // Check for reasonable distribution between time slots
+    const morningPlayerCount = schedule.timeSlots.morning.reduce((sum, f) => sum + f.players.length, 0);
+    const afternoonPlayerCount = schedule.timeSlots.afternoon.reduce((sum, f) => sum + f.players.length, 0);
+    
+    const imbalance = Math.abs(morningPlayerCount - afternoonPlayerCount);
+    if (imbalance > 4 && totalPlayers >= 8) {
+      warnings.push(`Significant time slot imbalance: ${morningPlayerCount} morning, ${afternoonPlayerCount} afternoon players`);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    };
+  }
+
+  /**
+   * Validate business rules for schedule generation
+   */
+  async validateBusinessRules(schedule: Schedule, week: Week): Promise<ValidationResult> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    try {
+      // Business Rule 1: Minimum viable foursomes
+      const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
+      const viableFoursomes = allFoursomes.filter(f => f.players.length >= 2);
+      
+      if (viableFoursomes.length === 0) {
+        errors.push('Schedule must contain at least one foursome with 2 or more players');
+      }
+
+      // Business Rule 2: No player should be scheduled in both time slots
+      const morningPlayers = new Set(schedule.timeSlots.morning.flatMap(f => f.players.map(p => p.id)));
+      const afternoonPlayers = new Set(schedule.timeSlots.afternoon.flatMap(f => f.players.map(p => p.id)));
+      
+      const duplicatePlayers = [...morningPlayers].filter(id => afternoonPlayers.has(id));
+      if (duplicatePlayers.length > 0) {
+        errors.push(`Players scheduled in both time slots: ${duplicatePlayers.join(', ')}`);
+      }
+
+      // Business Rule 3: Foursome position consistency
+      const morningPositions = schedule.timeSlots.morning.map(f => f.position).sort((a, b) => a - b);
+      const afternoonPositions = schedule.timeSlots.afternoon.map(f => f.position).sort((a, b) => a - b);
+      
+      // Check for gaps in positions
+      for (let i = 0; i < morningPositions.length - 1; i++) {
+        if (morningPositions[i + 1] - morningPositions[i] > 1) {
+          warnings.push(`Gap in morning foursome positions between ${morningPositions[i]} and ${morningPositions[i + 1]}`);
+        }
+      }
+      
+      for (let i = 0; i < afternoonPositions.length - 1; i++) {
+        if (afternoonPositions[i + 1] - afternoonPositions[i] > 1) {
+          warnings.push(`Gap in afternoon foursome positions between ${afternoonPositions[i]} and ${afternoonPositions[i + 1]}`);
+        }
+      }
+
+      // Business Rule 4: Season consistency
+      const allPlayers = schedule.getAllPlayers();
+      if (allPlayers.length > 0) {
+        const playerObjects = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon]
+          .flatMap(f => f.players);
+        
+        const seasons = new Set(playerObjects.map(p => p.seasonId));
+        if (seasons.size > 1) {
+          errors.push(`Schedule contains players from multiple seasons: ${Array.from(seasons).join(', ')}`);
+        }
+        
+        // Verify season matches week
+        if (seasons.size === 1 && !seasons.has(week.seasonId)) {
+          errors.push(`Schedule contains players from season ${Array.from(seasons)[0]} but week belongs to season ${week.seasonId}`);
+        }
+      }
+
+      // Business Rule 5: Reasonable schedule size
+      const totalPlayers = schedule.getTotalPlayerCount();
+      if (totalPlayers > 32) {
+        warnings.push(`Large schedule with ${totalPlayers} players may be difficult to manage`);
+      }
+
+      // Business Rule 6: Time slot utilization
+      if (schedule.timeSlots.morning.length === 0 && schedule.timeSlots.afternoon.length === 0) {
+        errors.push('Schedule must have at least one time slot with foursomes');
+      }
+
+    } catch (error) {
+      errors.push(`Business rule validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    };
+  }
+
+  /**
+   * Generate validation error report with suggested actions
+   */
+  generateValidationErrorReport(
+    preValidation: ValidationResult,
+    scheduleValidation?: ValidationResult,
+    businessRuleValidation?: ValidationResult
+  ): { errors: string[]; warnings: string[]; suggestions: string[] } {
+    const allErrors: string[] = [];
+    const allWarnings: string[] = [];
+    const suggestions: string[] = [];
+
+    // Collect all errors and warnings
+    allErrors.push(...preValidation.errors);
+    allWarnings.push(...preValidation.warnings);
+
+    if (scheduleValidation) {
+      allErrors.push(...scheduleValidation.errors);
+      allWarnings.push(...scheduleValidation.warnings);
+    }
+
+    if (businessRuleValidation) {
+      allErrors.push(...businessRuleValidation.errors);
+      allWarnings.push(...businessRuleValidation.warnings);
+    }
+
+    // Generate suggestions based on error patterns
+    for (const error of allErrors) {
+      if (error.includes('Insufficient available players')) {
+        suggestions.push('Update player availability for this week to include more players');
+      } else if (error.includes('PM-only players') && error.toLowerCase().includes('morning')) {
+        suggestions.push('Move PM-preference players to afternoon time slots');
+      } else if (error.includes('AM-only players') && error.toLowerCase().includes('afternoon')) {
+        suggestions.push('Move AM-preference players to morning time slots');
+      } else if (error.includes('both time slots')) {
+        suggestions.push('Remove duplicate player assignments between morning and afternoon');
+      } else if (error.includes('not available')) {
+        suggestions.push('Update player availability or remove unavailable players from schedule');
+      } else if (error.includes('storage space')) {
+        suggestions.push('Clear application data or free up browser storage space');
+      } else if (error.includes('operation is currently in progress')) {
+        suggestions.push('Wait for the current operation to complete or refresh the page');
+      } else if (error.includes('multiple seasons')) {
+        suggestions.push('Ensure all players belong to the same season as the week');
+      }
+    }
+
+    // Remove duplicate suggestions
+    const uniqueSuggestions = Array.from(new Set(suggestions));
+
+    return {
+      errors: allErrors,
+      warnings: allWarnings,
+      suggestions: uniqueSuggestions
+    };
+  }
+
+  /**
+   * Estimate storage requirement for backup creation
+   */
+  private estimateStorageRequirement(weekId: string): number {
+    // Rough estimate: 1KB per player in schedule, plus metadata
+    // This is a conservative estimate for localStorage usage
+    return 10; // 10KB base estimate
+  }
+
+  /**
+   * Get available storage space in KB
+   */
+  private getAvailableStorage(): number {
+    try {
+      // Test localStorage availability
+      const testKey = 'storage_test';
+      const testData = 'x'.repeat(1024); // 1KB test
+      
+      localStorage.setItem(testKey, testData);
+      localStorage.removeItem(testKey);
+      
+      // Return a conservative estimate
+      return 1024; // 1MB available (conservative)
+    } catch (error) {
+      return 0; // No storage available
+    }
   }
 }

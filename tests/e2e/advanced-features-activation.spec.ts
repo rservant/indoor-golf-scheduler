@@ -64,13 +64,13 @@ test.describe('Advanced Features Activation', () => {
     
     console.log('✓ Availability Management is working');
     
-    // Test schedule editing tab (should be available but may show no schedule message)
-    await page.click('button[data-tab="edit"]');
-    await page.waitForSelector('.schedule-editing', { timeout: 5000 });
+    // Test schedule tab (editing functionality is now integrated into the schedule tab)
+    await page.click('button[data-tab="schedule"]');
+    await page.waitForSelector('.schedule-display', { timeout: 5000 });
     
-    await expect(page.locator('.schedule-editing')).toBeVisible();
+    await expect(page.locator('.schedule-display')).toBeVisible();
     
-    console.log('✓ Schedule Editing UI is available');
+    console.log('✓ Schedule Display UI with integrated editing is available');
     
     console.log('=== ALL ADVANCED FEATURES SUCCESSFULLY ACTIVATED ===');
   });

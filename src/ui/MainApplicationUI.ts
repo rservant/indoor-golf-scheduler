@@ -6,7 +6,6 @@ import { SeasonManagementUI } from './SeasonManagementUI';
 import { PlayerManagementUI } from './PlayerManagementUI';
 import { AvailabilityManagementUI } from './AvailabilityManagementUI';
 import { ScheduleDisplayUI } from './ScheduleDisplayUI';
-import { ScheduleEditingUI } from './ScheduleEditingUI';
 import { ImportExportUI } from './ImportExportUI';
 
 // Import services
@@ -23,7 +22,7 @@ import { WeekRepository } from '../repositories/WeekRepository';
 
 export interface MainApplicationUIState {
   activeSeason: Season | null;
-  currentTab: 'seasons' | 'players' | 'availability' | 'schedule' | 'edit' | 'import-export';
+  currentTab: 'seasons' | 'players' | 'availability' | 'schedule' | 'import-export';
   isInitialized: boolean;
 }
 
@@ -37,7 +36,6 @@ export class MainApplicationUI {
   private playerUI!: PlayerManagementUI;
   private availabilityUI!: AvailabilityManagementUI;
   private scheduleDisplayUI!: ScheduleDisplayUI;
-  private scheduleEditingUI!: ScheduleEditingUI;
   private importExportUI!: ImportExportUI;
 
   // Service dependencies
@@ -90,7 +88,6 @@ export class MainApplicationUI {
     const playerContainer = document.createElement('div');
     const availabilityContainer = document.createElement('div');
     const scheduleDisplayContainer = document.createElement('div');
-    const scheduleEditingContainer = document.createElement('div');
     const importExportContainer = document.createElement('div');
 
     // Initialize UI components
@@ -106,7 +103,6 @@ export class MainApplicationUI {
       this.playerManager,
       scheduleDisplayContainer
     );
-    this.scheduleEditingUI = new ScheduleEditingUI(this.scheduleManager, scheduleEditingContainer);
     this.importExportUI = new ImportExportUI(importExportContainer, this.importExportService);
 
     // Set up callbacks
@@ -122,14 +118,9 @@ export class MainApplicationUI {
       this.handleActiveSeasonChange(season);
     });
 
-    // When schedule is generated, switch to editing tab
+    // When schedule is generated, stay on schedule tab (no longer switch to editing)
     this.scheduleDisplayUI.onScheduleGeneratedCallback((schedule) => {
       this.handleScheduleGenerated(schedule);
-    });
-
-    // When schedule is updated in editing, refresh display
-    this.scheduleEditingUI.onScheduleUpdatedCallback((schedule) => {
-      this.handleScheduleUpdated(schedule);
     });
   }
 
@@ -181,26 +172,22 @@ export class MainApplicationUI {
    * Handle schedule generation
    */
   private async handleScheduleGenerated(schedule: Schedule): Promise<void> {
-    const selectedWeek = this.scheduleDisplayUI.getSelectedWeek();
-    if (selectedWeek) {
-      await this.scheduleEditingUI.initialize(schedule, selectedWeek);
-      await this.switchTab('edit');
-    }
+    // Schedule generated - just refresh the display, no need to switch tabs
+    await this.scheduleDisplayUI.refresh();
   }
 
   /**
-   * Handle schedule update
+   * Handle schedule update (removed since editing is now integrated)
    */
   private async handleScheduleUpdated(_schedule: Schedule): Promise<void> {
     // Refresh the schedule display
     await this.scheduleDisplayUI.refresh();
-    await this.switchTab('schedule');
   }
 
   /**
    * Switch to a different tab
    */
-  private async switchTab(tab: 'seasons' | 'players' | 'availability' | 'schedule' | 'edit' | 'import-export'): Promise<void> {
+  private async switchTab(tab: 'seasons' | 'players' | 'availability' | 'schedule' | 'import-export'): Promise<void> {
     this.state.currentTab = tab;
     
     // Clear ALL tab contents first to prevent overlap
@@ -225,9 +212,6 @@ export class MainApplicationUI {
       await this.availabilityUI.refresh();
     } else if (tab === 'schedule') {
       await this.scheduleDisplayUI.refresh();
-    } else if (tab === 'edit') {
-      // Initialize with null schedule to show "no schedule" message
-      await this.scheduleEditingUI.initialize(null, null);
     } else if (tab === 'import-export') {
       this.importExportUI.render();
     }
@@ -304,7 +288,6 @@ export class MainApplicationUI {
           <button class="nav-tab" data-tab="players">Players</button>
           <button class="nav-tab" data-tab="availability">Availability</button>
           <button class="nav-tab" data-tab="schedule">Schedule</button>
-          <button class="nav-tab" data-tab="edit">Edit Schedule</button>
           <button class="nav-tab" data-tab="import-export">Import/Export</button>
         </nav>
 
@@ -313,7 +296,6 @@ export class MainApplicationUI {
           <div class="tab-content" data-tab-content="players"></div>
           <div class="tab-content" data-tab-content="availability"></div>
           <div class="tab-content" data-tab-content="schedule"></div>
-          <div class="tab-content" data-tab-content="edit"></div>
           <div class="tab-content" data-tab-content="import-export"></div>
         </main>
       </div>
@@ -348,7 +330,6 @@ export class MainApplicationUI {
     this.playerUI.container = this.container.querySelector('[data-tab-content="players"]') as HTMLElement;
     this.availabilityUI.container = this.container.querySelector('[data-tab-content="availability"]') as HTMLElement;
     this.scheduleDisplayUI.container = this.container.querySelector('[data-tab-content="schedule"]') as HTMLElement;
-    this.scheduleEditingUI.container = this.container.querySelector('[data-tab-content="edit"]') as HTMLElement;
     this.importExportUI.container = this.container.querySelector('[data-tab-content="import-export"]') as HTMLElement;
     
     // Only render the current active tab's content
@@ -430,7 +411,7 @@ export class MainApplicationUI {
       }
 
       // Update disabled state
-      const shouldBeDisabled = !this.state.activeSeason && (tab === 'players' || tab === 'availability' || tab === 'schedule' || tab === 'edit' || tab === 'import-export');
+      const shouldBeDisabled = !this.state.activeSeason && (tab === 'players' || tab === 'availability' || tab === 'schedule' || tab === 'import-export');
       
       if (shouldBeDisabled) {
         button.setAttribute('disabled', 'true');
@@ -471,8 +452,6 @@ export class MainApplicationUI {
       await this.availabilityUI.refresh();
     } else if (this.state.currentTab === 'schedule') {
       await this.scheduleDisplayUI.refresh();
-    } else if (this.state.currentTab === 'edit') {
-      await this.scheduleEditingUI.initialize(null, null);
     } else if (this.state.currentTab === 'import-export') {
       this.importExportUI.render();
     }

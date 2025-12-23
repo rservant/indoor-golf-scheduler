@@ -93,7 +93,13 @@ export class DebugInterface {
       (window as any).debug = {
         getErrors: () => this.getErrorDebugInfo(),
         getPerformance: () => this.getPerformanceMetrics(),
-        getState: () => applicationState.getState(),
+        getState: () => {
+          try {
+            return applicationState.getState();
+          } catch (error) {
+            return { error: 'State not available' };
+          }
+        },
         getStateHistory: () => this.getStateHistory(),
         clearErrors: () => this.clearErrorHistory(),
         clearPerformance: () => this.clearPerformanceHistory(),
@@ -113,19 +119,26 @@ export class DebugInterface {
    * Set up state monitoring
    */
   private setupStateMonitoring(): void {
-    applicationState.subscribeToAll((newState, oldState) => {
-      if (this.isDebugMode) {
-        this.recordStateChange(newState);
-        
-        if (this.config.enableConsoleLogging) {
-          console.log('🔄 State changed:', {
-            timestamp: new Date(),
-            changes: this.getStateChanges(oldState, newState),
-            newState
-          });
-        }
+    // Defer state monitoring setup to avoid initialization issues
+    setTimeout(() => {
+      try {
+        applicationState.subscribeToAll((newState, oldState) => {
+          if (this.isDebugMode) {
+            this.recordStateChange(newState);
+            
+            if (this.config.enableConsoleLogging) {
+              console.log('🔄 State changed:', {
+                timestamp: new Date(),
+                changes: this.getStateChanges(oldState, newState),
+                newState
+              });
+            }
+          }
+        });
+      } catch (error) {
+        console.warn('Failed to setup state monitoring:', error);
       }
-    });
+    }, 0);
   }
 
   /**
@@ -135,13 +148,23 @@ export class DebugInterface {
     // Monitor navigation timing
     if (typeof window !== 'undefined' && window.performance) {
       window.addEventListener('load', () => {
-        const navigation = window.performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-        if (navigation) {
-          this.recordPerformanceMetric('page-load', {
-            domContentLoaded: navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart,
-            loadComplete: navigation.loadEventEnd - navigation.loadEventStart,
-            totalTime: navigation.loadEventEnd - navigation.fetchStart
-          });
+        try {
+          // Check if getEntriesByType is available (not available in Jest/JSDOM)
+          if (typeof window.performance.getEntriesByType === 'function') {
+            const navigation = window.performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+            if (navigation) {
+              this.recordPerformanceMetric('page-load', {
+                domContentLoaded: navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart,
+                loadComplete: navigation.loadEventEnd - navigation.loadEventStart,
+                totalTime: navigation.loadEventEnd - navigation.fetchStart
+              });
+            }
+          }
+        } catch (error) {
+          // Silently ignore performance monitoring errors in test environments
+          if (this.config.enableConsoleLogging && process.env.NODE_ENV !== 'test') {
+            console.warn('Performance monitoring not available:', error);
+          }
         }
       });
     }
@@ -182,6 +205,27 @@ export class DebugInterface {
       ? errorMessage 
       : 'Unknown error';
 
+    let currentState: ApplicationState;
+    try {
+      currentState = applicationState.getState();
+    } catch (stateError) {
+      // Fallback state if applicationState is not available
+      currentState = {
+        isInitialized: false,
+        isLoading: false,
+        hasError: true,
+        activeSeason: null,
+        selectedWeek: null,
+        currentView: 'seasons',
+        seasons: [],
+        players: [],
+        weeks: [],
+        currentSchedule: null,
+        sidebarOpen: false,
+        notifications: []
+      };
+    }
+
     const debugError: DebugErrorInfo = {
       id: `debug_error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       error: error instanceof Error ? error : safeErrorMessage,
@@ -197,7 +241,7 @@ export class DebugInterface {
       stackTrace: error instanceof Error ? error.stack : undefined,
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
       url: typeof window !== 'undefined' ? window.location.href : 'Unknown',
-      applicationState: applicationState.getState()
+      applicationState: currentState
     };
 
     this.errorHistory.unshift(debugError);
@@ -371,7 +415,13 @@ export class DebugInterface {
       errors: this.errorHistory,
       performance: this.performanceMetrics,
       stateHistory: this.stateHistory,
-      currentState: applicationState.getState(),
+      currentState: (() => {
+        try {
+          return applicationState.getState();
+        } catch (error) {
+          return { error: 'State not available' };
+        }
+      })(),
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
       url: typeof window !== 'undefined' ? window.location.href : 'Unknown'
     };
@@ -385,7 +435,13 @@ export class DebugInterface {
   public createDebugReport(): string {
     const errors = this.errorHistory.slice(0, 5); // Last 5 errors
     const performance = this.performanceMetrics.slice(0, 10); // Last 10 metrics
-    const state = applicationState.getState();
+    
+    let state: any;
+    try {
+      state = applicationState.getState();
+    } catch (error) {
+      state = { error: 'State not available' };
+    }
 
     return `
 # Debug Report
@@ -426,7 +482,13 @@ ${performance.map(metric => `
     console.log('Debug Mode:', this.isDebugMode);
     console.log('Errors:', this.errorHistory.length);
     console.log('Performance Metrics:', this.performanceMetrics.length);
-    console.log('Current State:', applicationState.getState());
+    console.log('Current State:', (() => {
+      try {
+        return applicationState.getState();
+      } catch (error) {
+        return { error: 'State not available' };
+      }
+    })());
     console.groupEnd();
   }
 

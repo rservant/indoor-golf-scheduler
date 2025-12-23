@@ -8,7 +8,6 @@ import * as fc from 'fast-check';
 import { ImportExportService, BulkPlayerOperation } from './services/ImportExportService';
 import { PairingHistoryTracker } from './services/PairingHistoryTracker';
 import { AvailabilityManagementUI } from './ui/AvailabilityManagementUI';
-import { ScheduleEditingUI } from './ui/ScheduleEditingUI';
 
 // Import test utilities and mocks
 import { InMemoryPlayerManager } from './services/PlayerManager';
@@ -31,7 +30,6 @@ describe('Advanced Features Properties', () => {
   let importExportService: ImportExportService;
   let pairingHistoryTracker: PairingHistoryTracker;
   let availabilityUI: AvailabilityManagementUI;
-  let scheduleEditingUI: ScheduleEditingUI;
   
   let playerManager: InMemoryPlayerManager;
   let seasonManager: InMemorySeasonManager;
@@ -74,7 +72,6 @@ describe('Advanced Features Properties', () => {
     const scheduleEditingContainer = document.createElement('div');
     
     availabilityUI = new AvailabilityManagementUI(playerManager, weekRepository, availabilityContainer);
-    scheduleEditingUI = new ScheduleEditingUI(scheduleManager, scheduleEditingContainer);
     
     // Create and activate a test season
     const testSeason = await seasonManager.createSeason(
@@ -410,10 +407,9 @@ describe('Advanced Features Properties', () => {
           // Save the schedule
           await scheduleManager.createWeeklySchedule(testWeek.id);
           
-          // Property: Schedule editing UI should initialize without errors
-          await expect(
-            scheduleEditingUI.initialize(schedule, testWeek)
-          ).resolves.not.toThrow();
+          // Property: Schedule display UI should have editing capabilities integrated
+          expect(typeof scheduleDisplayUI.enableEditing).toBe('function');
+          expect(typeof scheduleDisplayUI.validateSchedule).toBe('function');
           
           // Property: Schedule should be retrievable and match what was saved
           const retrievedSchedule = await scheduleManager.getSchedule(testWeek.id);

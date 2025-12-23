@@ -4,6 +4,5 @@ export { SeasonManagementUI } from './SeasonManagementUI';
 export { PlayerManagementUI } from './PlayerManagementUI';
 export { AvailabilityManagementUI } from './AvailabilityManagementUI';
 export { ScheduleDisplayUI } from './ScheduleDisplayUI';
-export { ScheduleEditingUI } from './ScheduleEditingUI';
 export { MainApplicationUI } from './MainApplicationUI';
 export { ImportExportUI } from './ImportExportUI';

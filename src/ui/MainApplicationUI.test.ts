@@ -58,15 +58,7 @@ jest.mock('./ScheduleDisplayUI', () => {
   };
 });
 
-jest.mock('./ScheduleEditingUI', () => {
-  return {
-    ScheduleEditingUI: jest.fn().mockImplementation(() => ({
-      initialize: jest.fn().mockResolvedValue(undefined),
-      onScheduleUpdatedCallback: jest.fn(),
-      container: document.createElement('div')
-    }))
-  };
-});
+// No need to mock ScheduleEditingUI anymore since it's been merged into ScheduleDisplayUI
 
 describe('MainApplicationUI Navigation Bug Tests', () => {
   let mainUI: MainApplicationUI;
