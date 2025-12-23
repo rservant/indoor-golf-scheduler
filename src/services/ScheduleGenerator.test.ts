@@ -30,11 +30,11 @@ describe('ScheduleGenerator Property Tests', () => {
    * **Feature: indoor-golf-scheduler, Property 5: Schedule completeness and uniqueness**
    * **Validates: Requirements 3.1, 3.5**
    */
-  test('Property 5: Schedule completeness and uniqueness', () => {
-    fc.assert(
-      fc.property(playersArb, (availablePlayers) => {
+  test('Property 5: Schedule completeness and uniqueness', async () => {
+    await fc.assert(
+      fc.asyncProperty(playersArb, async (availablePlayers) => {
         const weekId = 'test-week-id';
-        const schedule = generator.generateSchedule(weekId, availablePlayers);
+        const schedule = await generator.generateSchedule(weekId, availablePlayers);
 
         // Get all scheduled player IDs
         const scheduledPlayerIds = schedule.getAllPlayers();
@@ -74,11 +74,11 @@ describe('ScheduleGenerator Property Tests', () => {
    * **Feature: indoor-golf-scheduler, Property 6: Time preference respect**
    * **Validates: Requirements 3.2, 6.1**
    */
-  test('Property 6: Time preference respect', () => {
-    fc.assert(
-      fc.property(playersArb, (availablePlayers) => {
+  test('Property 6: Time preference respect', async () => {
+    await fc.assert(
+      fc.asyncProperty(playersArb, async (availablePlayers) => {
         const weekId = 'test-week-id';
-        const schedule = generator.generateSchedule(weekId, availablePlayers);
+        const schedule = await generator.generateSchedule(weekId, availablePlayers);
 
         // Check that AM preference players are only in morning slots
         for (const foursome of schedule.timeSlots.morning) {
@@ -108,11 +108,11 @@ describe('ScheduleGenerator Property Tests', () => {
    * **Feature: indoor-golf-scheduler, Property 7: Foursome prioritization**
    * **Validates: Requirements 3.3, 6.3, 6.4**
    */
-  test('Property 7: Foursome prioritization', () => {
-    fc.assert(
-      fc.property(playersArb, (availablePlayers) => {
+  test('Property 7: Foursome prioritization', async () => {
+    await fc.assert(
+      fc.asyncProperty(playersArb, async (availablePlayers) => {
         const weekId = 'test-week-id';
-        const schedule = generator.generateSchedule(weekId, availablePlayers);
+        const schedule = await generator.generateSchedule(weekId, availablePlayers);
 
         // The algorithm should maximize complete foursomes within each time slot
         // Check morning time slot
@@ -192,11 +192,11 @@ describe('ScheduleGenerator Property Tests', () => {
    * **Feature: indoor-golf-scheduler, Property 8: Either preference balancing**
    * **Validates: Requirements 3.4, 6.2**
    */
-  test('Property 8: Either preference balancing', () => {
-    fc.assert(
-      fc.property(playersArb, (availablePlayers) => {
+  test('Property 8: Either preference balancing', async () => {
+    await fc.assert(
+      fc.asyncProperty(playersArb, async (availablePlayers) => {
         const weekId = 'test-week-id';
-        const schedule = generator.generateSchedule(weekId, availablePlayers);
+        const schedule = await generator.generateSchedule(weekId, availablePlayers);
 
         // Count players by preference in the original input
         const amPlayers = availablePlayers.filter(p => p.timePreference === 'AM');

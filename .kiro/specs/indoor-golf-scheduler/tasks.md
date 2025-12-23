@@ -76,18 +76,18 @@
   - **Property 8: Either preference balancing**
   - **Validates: Requirements 3.4, 6.2**
 
-- [ ] 7. Implement partner pairing optimization
+- [x] 7. Implement partner pairing optimization
   - Create PairingHistoryTracker to maintain player combination counts
   - Implement optimization algorithm to minimize repeat pairings
   - Add fairness distribution for unavoidable repeat pairings
   - Integrate pairing optimization with core scheduling algorithm
   - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-- [ ] 7.1 Write property test for pairing history tracking
+- [x] 7.1 Write property test for pairing history tracking
   - **Property 10: Pairing history tracking**
   - **Validates: Requirements 5.1, 7.5**
 
-- [ ] 7.2 Write property test for pairing optimization
+- [x] 7.2 Write property test for pairing optimization
   - **Property 11: Pairing optimization**
   - **Validates: Requirements 5.2, 5.3, 5.4**
 
