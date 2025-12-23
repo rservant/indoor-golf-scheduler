@@ -101,6 +101,13 @@ export class AvailabilityManagementUI {
   private async loadAvailabilityData(): Promise<void> {
     this.state.playerAvailability.clear();
 
+    if (this.state.weeks.length === 0) {
+      console.log('No weeks found, skipping availability data load');
+      return;
+    }
+
+    console.log(`Loading availability data for ${this.state.weeks.length} weeks and ${this.state.players.length} players`);
+
     for (const week of this.state.weeks) {
       const weekAvailability = new Map<string, boolean>();
       
@@ -109,12 +116,14 @@ export class AvailabilityManagementUI {
           const isAvailable = await this.playerManager.getPlayerAvailability(player.id, week.id);
           weekAvailability.set(player.id, isAvailable);
         } catch (error) {
+          console.warn(`Failed to get availability for player ${player.id} in week ${week.id}:`, error);
           // Default to false if there's an error
           weekAvailability.set(player.id, false);
         }
       }
       
       this.state.playerAvailability.set(week.id, weekAvailability);
+      console.log(`Loaded availability for week ${week.weekNumber}: ${Array.from(weekAvailability.values()).filter(Boolean).length}/${weekAvailability.size} available`);
     }
   }
 
@@ -126,17 +135,20 @@ export class AvailabilityManagementUI {
       const currentAvailability = this.getPlayerAvailability(playerId, weekId);
       const newAvailability = !currentAvailability;
 
-      await this.playerManager.setPlayerAvailability(playerId, weekId, newAvailability);
-
-      // Update local state
+      // Optimistically update UI state first
       const weekAvailability = this.state.playerAvailability.get(weekId);
       if (weekAvailability) {
         weekAvailability.set(playerId, newAvailability);
       }
+      this.render();
+
+      // Then update the backend
+      await this.playerManager.setPlayerAvailability(playerId, weekId, newAvailability);
 
       this.state.error = null;
-      this.render();
     } catch (error) {
+      // Revert the optimistic update by reloading data
+      await this.loadAvailabilityData();
       this.state.error = error instanceof Error ? error.message : 'Failed to update availability';
       this.render();
     }
@@ -146,27 +158,62 @@ export class AvailabilityManagementUI {
    * Set all players as available for a week
    */
   private async setAllAvailable(weekId: string, available: boolean): Promise<void> {
+    console.log(`Setting all players ${available ? 'available' : 'unavailable'} for week ${weekId}`);
+    
+    if (this.state.players.length === 0) {
+      this.state.error = 'No players found to update availability';
+      this.render();
+      return;
+    }
+
+    // Ensure we have availability data for this week
+    if (!this.state.playerAvailability.has(weekId)) {
+      console.log('Initializing availability data for week', weekId);
+      this.state.playerAvailability.set(weekId, new Map());
+    }
+
     this.state.isLoading = true;
+    this.state.error = null;
     this.render();
 
     try {
-      const promises = this.state.players.map(player => 
-        this.playerManager.setPlayerAvailability(player.id, weekId, available)
+      // Update each player individually and track results
+      const results = await Promise.allSettled(
+        this.state.players.map(player => 
+          this.playerManager.setPlayerAvailability(player.id, weekId, available)
+        )
       );
 
-      await Promise.all(promises);
+      // Check for any failures
+      const failures = results.filter(result => result.status === 'rejected');
+      
+      if (failures.length > 0) {
+        console.warn(`${failures.length} availability updates failed:`, failures);
+        this.state.error = `${failures.length} player(s) could not be updated. Some changes may have been saved.`;
+      } else {
+        console.log(`Successfully updated availability for all ${this.state.players.length} players`);
+      }
 
-      // Update local state
+      // Update local state for successful updates
       const weekAvailability = this.state.playerAvailability.get(weekId);
       if (weekAvailability) {
+        // Update state for all players (optimistic update)
+        // Individual failures will be corrected on next data reload
         for (const player of this.state.players) {
           weekAvailability.set(player.id, available);
         }
       }
 
-      this.state.error = null;
+      // If there were failures, reload the data to get the correct state
+      if (failures.length > 0) {
+        await this.loadAvailabilityData();
+      }
+
     } catch (error) {
+      console.error('Error in setAllAvailable:', error);
       this.state.error = error instanceof Error ? error.message : 'Failed to update availability';
+      // Reload data to ensure UI shows correct state
+      await this.loadAvailabilityData();
     } finally {
       this.state.isLoading = false;
       this.render();
@@ -178,7 +225,11 @@ export class AvailabilityManagementUI {
    */
   private getPlayerAvailability(playerId: string, weekId: string): boolean {
     const weekAvailability = this.state.playerAvailability.get(weekId);
-    return weekAvailability?.get(playerId) || false;
+    if (!weekAvailability) {
+      console.warn(`No availability data found for week ${weekId}`);
+      return false;
+    }
+    return weekAvailability.get(playerId) || false;
   }
 
   /**
@@ -195,6 +246,15 @@ export class AvailabilityManagementUI {
    * Render the UI
    */
   private render(): void {
+    console.log('AvailabilityManagementUI.render() called, state:', {
+      activeSeason: this.state.activeSeason?.name,
+      playersCount: this.state.players.length,
+      weeksCount: this.state.weeks.length,
+      selectedWeek: this.state.selectedWeek?.weekNumber,
+      isLoading: this.state.isLoading,
+      error: this.state.error
+    });
+
     if (!this.state.activeSeason) {
       this.container.innerHTML = `
         <div class="availability-management">
@@ -353,11 +413,14 @@ export class AvailabilityManagementUI {
     }
 
     // Bind methods to window for onclick handlers
+    // Use a unique namespace to avoid conflicts
     (window as any).availabilityUI = {
       toggleAvailability: (playerId: string, weekId: string) => {
+        console.log('Toggle availability called:', { playerId, weekId });
         this.togglePlayerAvailability(playerId, weekId);
       },
       setAllAvailable: (weekId: string, available: boolean) => {
+        console.log('Set all available called:', { weekId, available });
         this.setAllAvailable(weekId, available);
       }
     };
