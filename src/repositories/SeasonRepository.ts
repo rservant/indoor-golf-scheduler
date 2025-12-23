@@ -24,6 +24,26 @@ export class LocalSeasonRepository extends LocalStorageRepository<Season, Create
     return seasonModel.toJSON();
   }
 
+  // Override getStorageData to properly deserialize dates
+  protected getStorageData(): Season[] {
+    try {
+      const data = localStorage.getItem(this.storageKey);
+      if (!data) return [];
+      
+      const parsed = JSON.parse(data);
+      // Convert date strings back to Date objects
+      return parsed.map((season: any) => ({
+        ...season,
+        startDate: new Date(season.startDate),
+        endDate: new Date(season.endDate),
+        createdAt: new Date(season.createdAt)
+      }));
+    } catch (error) {
+      console.error(`Error reading from localStorage for key ${this.storageKey}:`, error);
+      return [];
+    }
+  }
+
   async getActiveSeason(): Promise<Season | null> {
     const allSeasons = await this.findAll();
     return allSeasons.find(season => season.isActive) || null;

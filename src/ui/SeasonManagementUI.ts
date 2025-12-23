@@ -83,7 +83,9 @@ export class SeasonManagementUI {
       this.state.seasons.push(newSeason);
       this.state.isCreating = false;
       this.state.error = null;
-      this.render();
+      
+      // Automatically activate the newly created season
+      await this.setActiveSeason(newSeason.id);
     } catch (error) {
       this.state.error = error instanceof Error ? error.message : 'Failed to create season';
       this.render();

@@ -28,6 +28,7 @@ export interface MainApplicationUIState {
 export class MainApplicationUI {
   private state: MainApplicationUIState;
   private container: HTMLElement;
+  private isStructureCreated: boolean = false;
   
   // UI Components
   private seasonUI!: SeasonManagementUI;
@@ -206,68 +207,179 @@ export class MainApplicationUI {
       return;
     }
 
+    // Check if we need to create the main structure
+    const mainApp = this.container.querySelector('.main-application');
+    
+    if (!mainApp) {
+      this.createMainStructure();
+    } else {
+      // Verify navigation listener is still there
+      const navigation = this.container.querySelector('.app-navigation');
+      const hasListenerSetup = navigation?.hasAttribute('data-listener-setup');
+      
+      if (!hasListenerSetup) {
+        this.setupNavigationListeners();
+      }
+    }
+
+    // Update the header content
+    this.updateHeader();
+
+    // Update navigation state
+    this.updateNavigationState();
+
+    // Update tab visibility
+    this.updateTabVisibility();
+  }
+
+  /**
+   * Create the main application structure (called only once)
+   */
+  private createMainStructure(): void {
+    if (this.isStructureCreated) {
+      return; // Prevent recreation
+    }
+
     this.container.innerHTML = `
       <div class="main-application">
         <header class="app-header">
           <h1>Indoor Golf Scheduler</h1>
-          <div class="active-season-display">
-            ${this.state.activeSeason ? `
-              <span class="active-season-label">Active Season:</span>
-              <span class="active-season-name">${this.state.activeSeason.name}</span>
-            ` : `
-              <span class="no-active-season">No Active Season</span>
-            `}
-          </div>
+          <div class="active-season-display"></div>
         </header>
 
         <nav class="app-navigation">
-          <button class="nav-tab ${this.state.currentTab === 'seasons' ? 'active' : ''}"
-                  onclick="mainAppUI.switchTab('seasons')">
-            Seasons
-          </button>
-          <button class="nav-tab ${this.state.currentTab === 'players' ? 'active' : ''}"
-                  onclick="mainAppUI.switchTab('players')"
-                  ${!this.state.activeSeason ? 'disabled' : ''}>
-            Players
-          </button>
-          <button class="nav-tab ${this.state.currentTab === 'availability' ? 'active' : ''}"
-                  onclick="mainAppUI.switchTab('availability')"
-                  ${!this.state.activeSeason ? 'disabled' : ''}>
-            Availability
-          </button>
-          <button class="nav-tab ${this.state.currentTab === 'schedule' ? 'active' : ''}"
-                  onclick="mainAppUI.switchTab('schedule')"
-                  ${!this.state.activeSeason ? 'disabled' : ''}>
-            Schedule
-          </button>
-          <button class="nav-tab ${this.state.currentTab === 'edit' ? 'active' : ''}"
-                  onclick="mainAppUI.switchTab('edit')"
-                  ${!this.state.activeSeason ? 'disabled' : ''}>
-            Edit Schedule
-          </button>
+          <button class="nav-tab" data-tab="seasons">Seasons</button>
+          <button class="nav-tab" data-tab="players">Players</button>
+          <button class="nav-tab" data-tab="availability">Availability</button>
+          <button class="nav-tab" data-tab="schedule">Schedule</button>
+          <button class="nav-tab" data-tab="edit">Edit Schedule</button>
         </nav>
 
         <main class="app-content">
-          <div class="tab-content ${this.state.currentTab === 'seasons' ? 'active' : ''}">
-            ${this.seasonUI.container.outerHTML}
-          </div>
-          <div class="tab-content ${this.state.currentTab === 'players' ? 'active' : ''}">
-            ${this.playerUI.container.outerHTML}
-          </div>
-          <div class="tab-content ${this.state.currentTab === 'availability' ? 'active' : ''}">
-            ${this.availabilityUI.container.outerHTML}
-          </div>
-          <div class="tab-content ${this.state.currentTab === 'schedule' ? 'active' : ''}">
-            ${this.scheduleDisplayUI.container.outerHTML}
-          </div>
-          <div class="tab-content ${this.state.currentTab === 'edit' ? 'active' : ''}">
-            ${this.scheduleEditingUI.container.outerHTML}
-          </div>
+          <div class="tab-content" data-tab="seasons"></div>
+          <div class="tab-content" data-tab="players"></div>
+          <div class="tab-content" data-tab="availability"></div>
+          <div class="tab-content" data-tab="schedule"></div>
+          <div class="tab-content" data-tab="edit"></div>
         </main>
       </div>
     `;
 
-    this.attachEventListeners();
+    // Assign containers to UI components (only once)
+    this.assignContainers();
+
+    // Set up navigation event listeners (only once)
+    this.setupNavigationListeners();
+
+    this.isStructureCreated = true;
+  }
+
+  /**
+   * Assign containers to UI components
+   */
+  private assignContainers(): void {
+    this.seasonUI.container = this.container.querySelector('[data-tab="seasons"]') as HTMLElement;
+    this.playerUI.container = this.container.querySelector('[data-tab="players"]') as HTMLElement;
+    this.availabilityUI.container = this.container.querySelector('[data-tab="availability"]') as HTMLElement;
+    this.scheduleDisplayUI.container = this.container.querySelector('[data-tab="schedule"]') as HTMLElement;
+    this.scheduleEditingUI.container = this.container.querySelector('[data-tab="edit"]') as HTMLElement;
+  }
+
+  /**
+   * Update the header content
+   */
+  private updateHeader(): void {
+    const activeSeasonDisplay = this.container.querySelector('.active-season-display');
+    if (activeSeasonDisplay) {
+      activeSeasonDisplay.innerHTML = this.state.activeSeason ? `
+        <span class="active-season-label">Active Season:</span>
+        <span class="active-season-name">${this.state.activeSeason.name}</span>
+      ` : `
+        <span class="no-active-season">No Active Season</span>
+      `;
+    }
+  }
+
+  /**
+   * Set up navigation event listeners using event delegation
+   */
+  private setupNavigationListeners(): void {
+    // Use event delegation on the navigation container instead of individual buttons
+    const navigation = this.container.querySelector('.app-navigation');
+    
+    if (navigation) {
+      // Remove any existing listeners first
+      navigation.removeEventListener('click', this.handleNavClick);
+      // Add the listener using event delegation
+      navigation.addEventListener('click', this.handleNavClick);
+      
+      // Test that the listener is working by adding a test attribute
+      navigation.setAttribute('data-listener-setup', 'true');
+    }
+  }
+
+  /**
+   * Handle navigation button clicks using event delegation
+   */
+  private handleNavClick = (event: Event) => {
+    const target = event.target as HTMLElement;
+    
+    // Check if the clicked element is a nav button
+    if (!target.classList.contains('nav-tab')) {
+      return;
+    }
+    
+    const button = target as HTMLButtonElement;
+    const tab = button.getAttribute('data-tab') as any;
+    const isDisabled = button.hasAttribute('disabled');
+    
+    if (tab && !isDisabled) {
+      this.switchTab(tab);
+    }
+  };
+
+  /**
+   * Update navigation button states
+   */
+  private updateNavigationState(): void {
+    const navButtons = this.container.querySelectorAll('.nav-tab');
+    
+    navButtons.forEach((button) => {
+      const tab = button.getAttribute('data-tab');
+      
+      // Update active state
+      if (tab === this.state.currentTab) {
+        button.classList.add('active');
+      } else {
+        button.classList.remove('active');
+      }
+
+      // Update disabled state
+      const shouldBeDisabled = !this.state.activeSeason && (tab === 'players' || tab === 'availability' || tab === 'schedule' || tab === 'edit');
+      
+      if (shouldBeDisabled) {
+        button.setAttribute('disabled', 'true');
+      } else {
+        button.removeAttribute('disabled');
+      }
+    });
+  }
+
+
+
+  /**
+   * Update tab content visibility
+   */
+  private updateTabVisibility(): void {
+    const tabContents = this.container.querySelectorAll('.tab-content');
+    tabContents.forEach(content => {
+      const tab = content.getAttribute('data-tab');
+      if (tab === this.state.currentTab) {
+        content.classList.add('active');
+      } else {
+        content.classList.remove('active');
+      }
+    });
   }
 
   /**
@@ -286,40 +398,6 @@ export class MainApplicationUI {
         </div>
       </div>
     `;
-  }
-
-  /**
-   * Attach event listeners
-   */
-  private attachEventListeners(): void {
-    // Bind methods to window for onclick handlers
-    (window as any).mainAppUI = {
-      switchTab: (tab: string) => {
-        this.switchTab(tab as any);
-      }
-    };
-
-    // Re-attach event listeners for active UI components
-    const activeTabContent = this.container.querySelector('.tab-content.active');
-    if (activeTabContent) {
-      switch (this.state.currentTab) {
-        case 'seasons':
-          this.seasonUI.container = activeTabContent as HTMLElement;
-          break;
-        case 'players':
-          this.playerUI.container = activeTabContent as HTMLElement;
-          break;
-        case 'availability':
-          this.availabilityUI.container = activeTabContent as HTMLElement;
-          break;
-        case 'schedule':
-          this.scheduleDisplayUI.container = activeTabContent as HTMLElement;
-          break;
-        case 'edit':
-          this.scheduleEditingUI.container = activeTabContent as HTMLElement;
-          break;
-      }
-    }
   }
 
   /**

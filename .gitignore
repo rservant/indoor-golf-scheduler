@@ -14,6 +14,16 @@ build/
 coverage/
 *.lcov
 
+# Test artifacts
+.nyc_output
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Playwright specific
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+
 # Runtime data
 pids
 *.pid
@@ -50,9 +60,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
-
-# Test artifacts
-.nyc_output
+*.backup
 
 # Optional npm cache directory
 .npm

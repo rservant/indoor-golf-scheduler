@@ -1,3 +1,4 @@
+
 /**
  * Simple Indoor Golf Scheduler Application
  * This is a basic implementation for demonstration purposes
@@ -52,247 +53,237 @@ class SimpleGolfScheduler {
     const activeSeason = this.seasons.find(s => s.id === this.activeSeason);
     const seasonPlayers = this.players.filter(p => p.seasonId === this.activeSeason);
     
-    const seasonsListHtml = this.seasons.map(season => {
-      const isActive = season.id === this.activeSeason;
-      return '<div class="season-item ' + (isActive ? 'active' : '') + '">' +
-        '<span>' + season.name + '</span>' +
-        '<button onclick="app.setActiveSeason(\'' + season.id + '\')" ' + (isActive ? 'disabled' : '') + '>' +
-        (isActive ? 'Active' : 'Activate') +
-        '</button>' +
-        '</div>';
-    }).join('');
-    
-    const playersListHtml = seasonPlayers.map(player => {
-      return '<div class="player-item">' +
-        '<span>' + player.firstName + ' ' + player.lastName + '</span>' +
-        '<span class="player-details">' + player.handedness + ' | ' + player.timePreference + '</span>' +
-        '</div>';
-    }).join('');
-    
-    const playersTabContent = activeSeason ? 
-      '<div class="form-group">' +
-        '<input type="text" id="player-first" placeholder="First name">' +
-        '<input type="text" id="player-last" placeholder="Last name">' +
-        '<select id="player-handedness">' +
-          '<option value="right">Right-handed</option>' +
-          '<option value="left">Left-handed</option>' +
-        '</select>' +
-        '<select id="player-preference">' +
-          '<option value="AM">Morning (AM)</option>' +
-          '<option value="PM">Afternoon (PM)</option>' +
-          '<option value="Either">Either</option>' +
-        '</select>' +
-        '<button id="add-player">Add Player</button>' +
-      '</div>' +
-      '<div class="players-list">' + playersListHtml + '</div>'
-      : '<p>Please select an active season first.</p>';
-    
-    const scheduleTabContent = (activeSeason && seasonPlayers.length >= 4) ?
-      '<button id="generate-schedule">Generate Weekly Schedule</button>' +
-      '<div id="schedule-display">' +
-        '<p>Click "Generate Weekly Schedule" to create an optimized schedule.</p>' +
-      '</div>'
-      : '<p>You need at least 4 players in the active season to generate schedules.</p>' +
-        '<p>Current players: ' + seasonPlayers.length + '</p>';
-    
-    this.container.innerHTML = 
-      '<div class="app-loaded">' +
-        '<div class="app-header">' +
-          '<h2>🏌️ Golf Scheduler</h2>' +
-          '<div class="season-info">' +
-            '<strong>Active Season:</strong> ' + (activeSeason ? activeSeason.name : 'No season selected') +
-          '</div>' +
-        '</div>' +
+    this.container.innerHTML = `
+      <div class="app-loaded">
+        <div class="app-header">
+          <h2>🏌️ Golf Scheduler</h2>
+          <div class="season-info">
+            <strong>Active Season:</strong> ${activeSeason ? activeSeason.name : 'No season selected'}
+          </div>
+        </div>
         
-        '<div class="app-tabs">' +
-          '<button class="tab-btn active" data-tab="seasons">Seasons</button>' +
-          '<button class="tab-btn" data-tab="players">Players</button>' +
-          '<button class="tab-btn" data-tab="schedule">Schedule</button>' +
-        '</div>' +
+        <div class="app-tabs">
+          <button class="tab-btn active" data-tab="seasons">Seasons</button>
+          <button class="tab-btn" data-tab="players">Players</button>
+          <button class="tab-btn" data-tab="schedule">Schedule</button>
+        </div>
         
-        '<div class="app-content">' +
-          '<div id="seasons-tab" class="tab-content active">' +
-            '<h3>Season Management</h3>' +
-            '<div class="form-group">' +
-              '<input type="text" id="season-name" placeholder="Season name (e.g., Spring 2024)">' +
-              '<button id="add-season">Add Season</button>' +
-            '</div>' +
-            '<div class="seasons-list">' + seasonsListHtml + '</div>' +
-          '</div>' +
+        <div class="app-content">
+          <div id="seasons-tab" class="tab-content active">
+            <h3>Season Management</h3>
+            <div class="form-group">
+              <input type="text" id="season-name" placeholder="Season name (e.g., Spring 2024)">
+              <button id="add-season">Add Season</button>
+            </div>
+            <div class="seasons-list">
+              ${this.seasons.map(season => `
+                <div class="season-item ${season.id === this.activeSeason ? 'active' : ''}">
+                  <span>${season.name}</span>
+                  <button onclick="app.setActiveSeason('${season.id}')" ${season.id === this.activeSeason ? 'disabled' : ''}>
+                    ${season.id === this.activeSeason ? 'Active' : 'Activate'}
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
           
-          '<div id="players-tab" class="tab-content">' +
-            '<h3>Player Management</h3>' +
-            playersTabContent +
-          '</div>' +
+          <div id="players-tab" class="tab-content">
+            <h3>Player Management</h3>
+            ${activeSeason ? `
+              <div class="form-group">
+                <input type="text" id="player-first" placeholder="First name">
+                <input type="text" id="player-last" placeholder="Last name">
+                <select id="player-handedness">
+                  <option value="right">Right-handed</option>
+                  <option value="left">Left-handed</option>
+                </select>
+                <select id="player-preference">
+                  <option value="AM">Morning (AM)</option>
+                  <option value="PM">Afternoon (PM)</option>
+                  <option value="Either">Either</option>
+                </select>
+                <button id="add-player">Add Player</button>
+              </div>
+              <div class="players-list">
+                ${seasonPlayers.map(player => `
+                  <div class="player-item">
+                    <span>${player.firstName} ${player.lastName}</span>
+                    <span class="player-details">${player.handedness} | ${player.timePreference}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<p>Please select an active season first.</p>'}
+          </div>
           
-          '<div id="schedule-tab" class="tab-content">' +
-            '<h3>Schedule Generation</h3>' +
-            scheduleTabContent +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    
-    // Add styles
-    this.addStyles();
-  }
-  
-  addStyles() {
-    if (document.getElementById('golf-scheduler-styles')) return;
-    
-    const style = document.createElement('style');
-    style.id = 'golf-scheduler-styles';
-    style.textContent = `
-      .app-loaded {
-        background: white;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      }
+          <div id="schedule-tab" class="tab-content">
+            <h3>Schedule Generation</h3>
+            ${activeSeason && seasonPlayers.length >= 4 ? `
+              <button id="generate-schedule">Generate Weekly Schedule</button>
+              <div id="schedule-display">
+                <p>Click "Generate Weekly Schedule" to create an optimized schedule.</p>
+              </div>
+            ` : `
+              <p>You need at least 4 players in the active season to generate schedules.</p>
+              <p>Current players: ${seasonPlayers.length}</p>
+            `}
+          </div>
+        </div>
+      </div>
       
-      .app-header {
-        background: #2e7d32;
-        color: white;
-        padding: 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      
-      .app-header h2 {
-        margin: 0;
-      }
-      
-      .season-info {
-        font-size: 0.9rem;
-      }
-      
-      .app-tabs {
-        display: flex;
-        background: #f5f5f5;
-        border-bottom: 1px solid #ddd;
-      }
-      
-      .tab-btn {
-        flex: 1;
-        padding: 15px;
-        border: none;
-        background: transparent;
-        cursor: pointer;
-        font-size: 1rem;
-        transition: background 0.2s;
-      }
-      
-      .tab-btn:hover {
-        background: #e0e0e0;
-      }
-      
-      .tab-btn.active {
-        background: white;
-        border-bottom: 2px solid #2e7d32;
-      }
-      
-      .app-content {
-        padding: 20px;
-      }
-      
-      .tab-content {
-        display: none;
-      }
-      
-      .tab-content.active {
-        display: block;
-      }
-      
-      .form-group {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-      }
-      
-      .form-group input, .form-group select, .form-group button {
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 1rem;
-      }
-      
-      .form-group button {
-        background: #2e7d32;
-        color: white;
-        border: none;
-        cursor: pointer;
-      }
-      
-      .form-group button:hover {
-        background: #1b5e20;
-      }
-      
-      .season-item, .player-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 15px;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        margin-bottom: 10px;
-      }
-      
-      .season-item.active {
-        background: #e8f5e8;
-        border-color: #2e7d32;
-      }
-      
-      .player-details {
-        font-size: 0.9rem;
-        color: #666;
-      }
-      
-      .schedule-display {
-        margin-top: 20px;
-        padding: 20px;
-        background: #f9f9f9;
-        border-radius: 8px;
-      }
-      
-      .time-slot {
-        margin-bottom: 20px;
-      }
-      
-      .time-slot h4 {
-        color: #2e7d32;
-        margin-bottom: 10px;
-      }
-      
-      .foursome {
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      }
-      
-      .foursome-title {
-        font-weight: bold;
-        margin-bottom: 8px;
-        color: #2e7d32;
-      }
-      
-      .foursome-players {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 5px;
-      }
-      
-      .player-name {
-        padding: 5px;
-        background: #f5f5f5;
-        border-radius: 4px;
-        font-size: 0.9rem;
-      }
+      <style>
+        .app-loaded {
+          background: white;
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .app-header {
+          background: #2e7d32;
+          color: white;
+          padding: 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .app-header h2 {
+          margin: 0;
+        }
+        
+        .season-info {
+          font-size: 0.9rem;
+        }
+        
+        .app-tabs {
+          display: flex;
+          background: #f5f5f5;
+          border-bottom: 1px solid #ddd;
+        }
+        
+        .tab-btn {
+          flex: 1;
+          padding: 15px;
+          border: none;
+          background: transparent;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: background 0.2s;
+        }
+        
+        .tab-btn:hover {
+          background: #e0e0e0;
+        }
+        
+        .tab-btn.active {
+          background: white;
+          border-bottom: 2px solid #2e7d32;
+        }
+        
+        .app-content {
+          padding: 20px;
+        }
+        
+        .tab-content {
+          display: none;
+        }
+        
+        .tab-content.active {
+          display: block;
+        }
+        
+        .form-group {
+          display: flex;
+          gap: 10px;
+          margin-bottom: 20px;
+          flex-wrap: wrap;
+        }
+        
+        .form-group input, .form-group select, .form-group button {
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 1rem;
+        }
+        
+        .form-group button {
+          background: #2e7d32;
+          color: white;
+          border: none;
+          cursor: pointer;
+        }
+        
+        .form-group button:hover {
+          background: #1b5e20;
+        }
+        
+        .season-item, .player-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 15px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          margin-bottom: 10px;
+        }
+        
+        .season-item.active {
+          background: #e8f5e8;
+          border-color: #2e7d32;
+        }
+        
+        .player-details {
+          font-size: 0.9rem;
+          color: #666;
+        }
+        
+        .schedule-display {
+          margin-top: 20px;
+          padding: 20px;
+          background: #f9f9f9;
+          border-radius: 8px;
+        }
+        
+        .time-slot {
+          margin-bottom: 20px;
+        }
+        
+        .time-slot h4 {
+          color: #2e7d32;
+          margin-bottom: 10px;
+        }
+        
+        .foursome {
+          background: white;
+          padding: 15px;
+          border-radius: 8px;
+          margin-bottom: 10px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .foursome-title {
+          font-weight: bold;
+          margin-bottom: 8px;
+          color: #2e7d32;
+        }
+        
+        .foursome-players {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 5px;
+        }
+        
+        .player-name {
+          padding: 5px;
+          background: #f5f5f5;
+          border-radius: 4px;
+          font-size: 0.9rem;
+        }
+      </style>
     `;
     
-    document.head.appendChild(style);
+    // CRITICAL FIX: Re-attach event listeners after DOM is recreated
+    this.setupEventListeners();
   }
   
   setupEventListeners() {
@@ -328,15 +319,13 @@ class SimpleGolfScheduler {
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.classList.remove('active');
     });
-    const activeBtn = document.querySelector('[data-tab="' + tabName + '"]');
-    if (activeBtn) activeBtn.classList.add('active');
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
     
     // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => {
       content.classList.remove('active');
     });
-    const activeContent = document.getElementById(tabName + '-tab');
-    if (activeContent) activeContent.classList.add('active');
+    document.getElementById(`${tabName}-tab`).classList.add('active');
   }
   
   addSeason() {
@@ -407,6 +396,9 @@ class SimpleGolfScheduler {
     const eitherPlayers = seasonPlayers.filter(p => p.timePreference === 'Either');
     
     // Distribute "Either" players to balance slots
+    const amTotal = amPlayers.length + Math.floor(eitherPlayers.length / 2);
+    const pmTotal = pmPlayers.length + Math.ceil(eitherPlayers.length / 2);
+    
     const amSlot = [...amPlayers, ...eitherPlayers.slice(0, Math.floor(eitherPlayers.length / 2))];
     const pmSlot = [...pmPlayers, ...eitherPlayers.slice(Math.floor(eitherPlayers.length / 2))];
     
@@ -433,41 +425,35 @@ class SimpleGolfScheduler {
   displaySchedule(schedule) {
     const display = document.getElementById('schedule-display');
     
-    let morningHtml = '';
-    schedule.morning.forEach((foursome, index) => {
-      let playersHtml = '';
-      foursome.forEach(player => {
-        playersHtml += '<div class="player-name">' + player.firstName + ' ' + player.lastName + ' (' + player.handedness + ')</div>';
-      });
+    display.innerHTML = `
+      <div class="time-slot">
+        <h4>🌅 Morning Session (10:30 AM)</h4>
+        ${schedule.morning.map((foursome, index) => `
+          <div class="foursome">
+            <div class="foursome-title">Group ${index + 1}</div>
+            <div class="foursome-players">
+              ${foursome.map(player => `
+                <div class="player-name">${player.firstName} ${player.lastName} (${player.handedness})</div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
       
-      morningHtml += '<div class="foursome">' +
-        '<div class="foursome-title">Group ' + (index + 1) + '</div>' +
-        '<div class="foursome-players">' + playersHtml + '</div>' +
-        '</div>';
-    });
-    
-    let afternoonHtml = '';
-    schedule.afternoon.forEach((foursome, index) => {
-      let playersHtml = '';
-      foursome.forEach(player => {
-        playersHtml += '<div class="player-name">' + player.firstName + ' ' + player.lastName + ' (' + player.handedness + ')</div>';
-      });
-      
-      afternoonHtml += '<div class="foursome">' +
-        '<div class="foursome-title">Group ' + (index + 1) + '</div>' +
-        '<div class="foursome-players">' + playersHtml + '</div>' +
-        '</div>';
-    });
-    
-    display.innerHTML = 
-      '<div class="time-slot">' +
-        '<h4>🌅 Morning Session (10:30 AM)</h4>' +
-        morningHtml +
-      '</div>' +
-      '<div class="time-slot">' +
-        '<h4>🌇 Afternoon Session (1:00 PM)</h4>' +
-        afternoonHtml +
-      '</div>';
+      <div class="time-slot">
+        <h4>🌇 Afternoon Session (1:00 PM)</h4>
+        ${schedule.afternoon.map((foursome, index) => `
+          <div class="foursome">
+            <div class="foursome-title">Group ${index + 1}</div>
+            <div class="foursome-players">
+              ${foursome.map(player => `
+                <div class="player-name">${player.firstName} ${player.lastName} (${player.handedness})</div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
   
   saveData() {
@@ -480,14 +466,6 @@ class SimpleGolfScheduler {
 // Initialize the application
 let app;
 document.addEventListener('DOMContentLoaded', () => {
-  try {
-    app = new SimpleGolfScheduler('golf-scheduler-app');
-    console.log('🏌️ Indoor Golf Scheduler loaded successfully!');
-  } catch (error) {
-    console.error('Failed to initialize Golf Scheduler:', error);
-    const container = document.getElementById('golf-scheduler-app');
-    if (container) {
-      container.innerHTML = '<div class="error">Failed to initialize application: ' + error.message + '</div>';
-    }
-  }
+  app = new SimpleGolfScheduler('golf-scheduler-app');
+  console.log('🏌️ Indoor Golf Scheduler loaded successfully!');
 });
