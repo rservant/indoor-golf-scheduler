@@ -50,8 +50,7 @@ describe('PlayerManager Property Tests', () => {
           const season = await seasonRepository.create({
             name: `Test Season Bulk ${seasonId}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
             startDate: new Date('2024-01-01'),
-            endDate: new Date('2024-12-31'),
-            playerIds: []
+            endDate: new Date('2024-12-31')
           });
 
           // Create week
@@ -215,8 +214,7 @@ describe('PlayerManager Property Tests', () => {
           const season = await seasonRepository.create({
             name: `Test Season Concurrent ${seasonId}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
             startDate: new Date('2024-01-01'),
-            endDate: new Date('2024-12-31'),
-            playerIds: []
+            endDate: new Date('2024-12-31')
           });
 
           // Create week

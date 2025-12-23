@@ -32,11 +32,12 @@ const localStorageMock = (() => {
 // Mock PlayerRepository
 class MockPlayerRepository {
   async findBySeasonId(seasonId: string): Promise<Player[]> {
+    const now = new Date();
     return [
-      { id: '1', firstName: 'Player1', lastName: 'Test', handedness: 'right', timePreference: 'AM', seasonId },
-      { id: '2', firstName: 'Player2', lastName: 'Test', handedness: 'left', timePreference: 'PM', seasonId },
-      { id: '3', firstName: 'Player3', lastName: 'Test', handedness: 'right', timePreference: 'Either', seasonId },
-      { id: '4', firstName: 'Player4', lastName: 'Test', handedness: 'left', timePreference: 'AM', seasonId }
+      { id: '1', firstName: 'Player1', lastName: 'Test', handedness: 'right', timePreference: 'AM', seasonId, createdAt: now },
+      { id: '2', firstName: 'Player2', lastName: 'Test', handedness: 'left', timePreference: 'PM', seasonId, createdAt: now },
+      { id: '3', firstName: 'Player3', lastName: 'Test', handedness: 'right', timePreference: 'Either', seasonId, createdAt: now },
+      { id: '4', firstName: 'Player4', lastName: 'Test', handedness: 'left', timePreference: 'AM', seasonId, createdAt: now }
     ];
   }
 }
@@ -89,7 +90,6 @@ describe('Regeneration Lock Timing Fix', () => {
       seasonId: 'test-season-id',
       weekNumber: 1,
       date: new Date('2024-01-08'),
-      scheduleId: null,
       playerAvailability: {
         '1': true,
         '2': true,

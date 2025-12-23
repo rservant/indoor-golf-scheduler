@@ -54,8 +54,7 @@ describe('Property Test: Operation Interruption Recovery', () => {
     testSeason = await seasonRepository.create({
       name: 'Test Season',
       startDate: new Date('2024-01-01'),
-      endDate: new Date('2024-12-31'),
-      isActive: true
+      endDate: new Date('2024-12-31')
     });
 
     // Create test week

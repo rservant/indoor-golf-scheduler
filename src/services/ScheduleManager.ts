@@ -1,6 +1,7 @@
 import { Schedule, ScheduleModel } from '../models/Schedule';
 import { FoursomeModel } from '../models/Foursome';
 import { Player } from '../models/Player';
+import { Week } from '../models/Week';
 import { ScheduleRepository } from '../repositories/ScheduleRepository';
 import { WeekRepository } from '../repositories/WeekRepository';
 import { PlayerRepository } from '../repositories/PlayerRepository';
@@ -715,7 +716,7 @@ export class ScheduleManager {
 
         return {
           success: true,
-          newScheduleId: existingSchedule?.id, // Use the existing schedule ID since we update in place
+          newScheduleId: existingSchedule?.id ?? '', // Use the existing schedule ID since we update in place
           backupId,
           changesDetected
         };
@@ -1294,7 +1295,7 @@ export class ScheduleManager {
     const error = new Error(message) as RegenerationError;
     error.code = code;
     error.weekId = weekId;
-    error.backupId = backupId || undefined;
+    error.backupId = backupId ?? '';
     error.retryable = retryable;
     error.category = category;
     error.name = 'RegenerationError';
@@ -1771,7 +1772,7 @@ export class ScheduleManager {
       // Check player availability for this week
       for (const player of foursome.players) {
         if (!this.scheduleGenerator.filterAvailablePlayers([player], week).includes(player)) {
-          errors.push(`Player ${player.getFullName()} is scheduled but not available for week ${week.weekNumber}`);
+          errors.push(`Player ${player.firstName} ${player.lastName} is scheduled but not available for week ${week.weekNumber}`);
         }
       }
 
@@ -1779,12 +1780,12 @@ export class ScheduleManager {
       if (foursome.timeSlot === 'morning') {
         const pmOnlyPlayers = foursome.players.filter(p => p.timePreference === 'PM');
         if (pmOnlyPlayers.length > 0) {
-          errors.push(`Morning foursome contains PM-only players: ${pmOnlyPlayers.map(p => p.getFullName()).join(', ')}`);
+          errors.push(`Morning foursome contains PM-only players: ${pmOnlyPlayers.map(p => `${p.firstName} ${p.lastName}`).join(', ')}`);
         }
       } else if (foursome.timeSlot === 'afternoon') {
         const amOnlyPlayers = foursome.players.filter(p => p.timePreference === 'AM');
         if (amOnlyPlayers.length > 0) {
-          errors.push(`Afternoon foursome contains AM-only players: ${amOnlyPlayers.map(p => p.getFullName()).join(', ')}`);
+          errors.push(`Afternoon foursome contains AM-only players: ${amOnlyPlayers.map(p => `${p.firstName} ${p.lastName}`).join(', ')}`);
         }
       }
 

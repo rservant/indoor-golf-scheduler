@@ -171,8 +171,7 @@ describe('AvailabilityErrorRecovery Property Tests', () => {
           const season = await seasonRepository.create({
             name: seasonData.name,
             startDate: seasonData.startDate,
-            endDate: seasonData.endDate,
-            isActive: true
+            endDate: seasonData.endDate
           });
           
           // Create players

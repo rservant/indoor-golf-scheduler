@@ -195,7 +195,6 @@ describe('Schedule Regeneration Integration Tests', () => {
       seasonId: 'test-season-id',
       weekNumber: 1,
       date: new Date('2024-01-08'),
-      scheduleId: null,
       playerAvailability: {
         '1': true,
         '2': true,
@@ -233,9 +232,9 @@ describe('Schedule Regeneration Integration Tests', () => {
     const mockConfirmationContainer = mockDocument.createElement('div');
 
     // Initialize UI components
-    confirmationUI = new ScheduleRegenerationConfirmationUI(mockConfirmationContainer);
-    progressTrackingUI = new ProgressTrackingUI(mockDocument.body);
-    operationLockUI = new OperationLockUI(mockContainer);
+    confirmationUI = new ScheduleRegenerationConfirmationUI(mockConfirmationContainer as unknown as HTMLElement);
+    progressTrackingUI = new ProgressTrackingUI(mockDocument.body as unknown as HTMLElement);
+    operationLockUI = new OperationLockUI(mockContainer as unknown as HTMLElement);
     
     scheduleDisplayUI = new ScheduleDisplayUI(
       scheduleManager,
@@ -244,7 +243,7 @@ describe('Schedule Regeneration Integration Tests', () => {
       exportService,
       pairingHistoryTracker,
       playerRepository as any,
-      mockContainer
+      mockContainer as unknown as HTMLElement
     );
 
     // Create original schedule
