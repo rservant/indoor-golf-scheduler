@@ -41,6 +41,12 @@ export type ApplicationView =
   | 'edit-schedule'
   | 'export';
 
+export interface NotificationAction {
+  label: string;
+  action: () => Promise<void> | void;
+  style: 'primary' | 'secondary' | 'danger';
+}
+
 export interface Notification {
   id: string;
   type: 'success' | 'error' | 'warning' | 'info';
@@ -49,6 +55,7 @@ export interface Notification {
   timestamp: Date;
   autoHide?: boolean | undefined;
   duration?: number | undefined; // in milliseconds
+  actions?: NotificationAction[] | undefined;
 }
 
 export type StateChangeListener<T = any> = (newValue: T, oldValue: T) => void;
@@ -297,6 +304,15 @@ export class ApplicationStateManager {
    */
   clearNotifications(): void {
     this.set('notifications', []);
+  }
+
+  /**
+   * Trigger a data refresh (used by error recovery)
+   */
+  triggerDataRefresh(): void {
+    // This method can be used to signal that data should be refreshed
+    // Components can subscribe to this event to refresh their data
+    this.notifyGlobalListeners(this.state, this.state);
   }
 
   /**
