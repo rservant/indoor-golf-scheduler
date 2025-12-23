@@ -12,6 +12,7 @@ import * as fc from 'fast-check';
 import { SeasonManagerService } from './services/SeasonManager';
 import { PlayerManagerService } from './services/PlayerManager';
 import { ScheduleManager } from './services/ScheduleManager';
+import { LocalScheduleBackupService } from './services/ScheduleBackupService';
 import { ScheduleGenerator } from './services/ScheduleGenerator';
 import { PairingHistoryTracker } from './services/PairingHistoryTracker';
 import { MainApplicationUI } from './ui/MainApplicationUI';
@@ -76,6 +77,7 @@ describe('Property 5: Feature Parity Preservation', () => {
   let seasonManager: SeasonManagerService;
   let playerManager: PlayerManagerService;
   let scheduleManager: ScheduleManager;
+  let backupService: LocalScheduleBackupService;
   let scheduleGenerator: ScheduleGenerator;
   let pairingHistoryTracker: PairingHistoryTracker;
   let mainUI: MainApplicationUI;
@@ -102,12 +104,15 @@ describe('Property 5: Feature Parity Preservation', () => {
     playerManager = new PlayerManagerService(playerRepository, weekRepository, scheduleRepository, seasonRepository);
     pairingHistoryTracker = new PairingHistoryTracker(pairingHistoryRepository);
     scheduleGenerator = new ScheduleGenerator({}, pairingHistoryTracker);
+    backupService = new LocalScheduleBackupService();
     scheduleManager = new ScheduleManager(
       scheduleRepository,
       weekRepository,
       playerRepository,
       scheduleGenerator,
       pairingHistoryTracker
+    ,
+      backupService
     );
 
     // Initialize UI (with mocked container)
@@ -305,12 +310,14 @@ describe('Property 5: Feature Parity Preservation', () => {
           const freshPairingHistoryTracker = new PairingHistoryTracker(freshPairingHistoryRepository);
           const freshScheduleGenerator = new ScheduleGenerator({}, freshPairingHistoryTracker);
           const freshScheduleManager = new ScheduleManager(
-            freshScheduleRepository,
-            freshWeekRepository,
-            freshPlayerRepository,
-            freshScheduleGenerator,
-            freshPairingHistoryTracker
-          );
+      freshScheduleRepository,
+      freshWeekRepository,
+      freshPlayerRepository,
+      freshScheduleGenerator,
+      freshPairingHistoryTracker
+          ,
+      backupService
+    );
 
           // Create season and add players
           const season = await freshSeasonManager.createSeason(seasonName, startDate, endDate);
@@ -456,12 +463,14 @@ describe('Property 5: Feature Parity Preservation', () => {
           const freshPairingHistoryTracker = new PairingHistoryTracker(freshPairingHistoryRepository);
           const freshScheduleGenerator = new ScheduleGenerator({}, freshPairingHistoryTracker);
           const freshScheduleManager = new ScheduleManager(
-            freshScheduleRepository,
-            freshWeekRepository,
-            freshPlayerRepository,
-            freshScheduleGenerator,
-            freshPairingHistoryTracker
-          );
+      freshScheduleRepository,
+      freshWeekRepository,
+      freshPlayerRepository,
+      freshScheduleGenerator,
+      freshPairingHistoryTracker
+          ,
+      backupService
+    );
 
           // Complete workflow test (equivalent to simple version workflow)
           

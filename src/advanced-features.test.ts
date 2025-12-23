@@ -10,6 +10,7 @@ import { PairingHistoryTracker } from './services/PairingHistoryTracker';
 import { AvailabilityManagementUI } from './ui/AvailabilityManagementUI';
 import { ScheduleDisplayUI } from './ui/ScheduleDisplayUI';
 import { ExportService } from './services/ExportService';
+import { LocalScheduleBackupService } from './services/ScheduleBackupService';
 
 // Import test utilities and mocks
 import { InMemoryPlayerManager } from './services/PlayerManager';
@@ -38,6 +39,7 @@ describe('Advanced Features Properties', () => {
   let seasonManager: InMemorySeasonManager;
   let weekRepository: LocalWeekRepository;
   let scheduleManager: ScheduleManager;
+  let backupService: LocalScheduleBackupService;
   
   beforeEach(async () => {
     // Clear localStorage before each test
@@ -53,6 +55,7 @@ describe('Advanced Features Properties', () => {
     weekRepository = new LocalWeekRepository();
     
     pairingHistoryTracker = new PairingHistoryTracker(pairingHistoryRepository);
+    backupService = new LocalScheduleBackupService();
     
     const scheduleGenerator = new ScheduleGenerator({
       prioritizeCompleteGroups: true,
@@ -65,7 +68,8 @@ describe('Advanced Features Properties', () => {
       weekRepository,
       playerRepository,
       scheduleGenerator,
-      pairingHistoryTracker
+      pairingHistoryTracker,
+      backupService
     );
     
     importExportService = new ImportExportService(playerManager, seasonManager);

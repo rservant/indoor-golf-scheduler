@@ -1,6 +1,7 @@
 import { SeasonManagerService } from './services/SeasonManager';
 import { PlayerManagerService } from './services/PlayerManager';
 import { ScheduleManager } from './services/ScheduleManager';
+import { LocalScheduleBackupService } from './services/ScheduleBackupService';
 import { ScheduleGenerator } from './services/ScheduleGenerator';
 import { ExportService } from './services/ExportService';
 import { PairingHistoryTracker } from './services/PairingHistoryTracker';
@@ -40,6 +41,7 @@ describe('End-to-End Integration Tests', () => {
   let seasonManager: SeasonManagerService;
   let playerManager: PlayerManagerService;
   let scheduleManager: ScheduleManager;
+  let backupService: LocalScheduleBackupService;
   let scheduleGenerator: ScheduleGenerator;
   let exportService: ExportService;
   let pairingHistoryTracker: PairingHistoryTracker;
@@ -65,12 +67,15 @@ describe('End-to-End Integration Tests', () => {
     playerManager = new PlayerManagerService(playerRepository, weekRepository, scheduleRepository, seasonRepository);
     pairingHistoryTracker = new PairingHistoryTracker(pairingHistoryRepository);
     scheduleGenerator = new ScheduleGenerator({}, pairingHistoryTracker);
+    backupService = new LocalScheduleBackupService();
     scheduleManager = new ScheduleManager(
       scheduleRepository,
       weekRepository,
       playerRepository,
       scheduleGenerator,
       pairingHistoryTracker
+    ,
+      backupService
     );
     exportService = new ExportService();
   });

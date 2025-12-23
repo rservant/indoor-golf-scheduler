@@ -18,6 +18,7 @@ import { ScheduleDisplayUI } from './ui/ScheduleDisplayUI';
 import { SeasonManagerService } from './services/SeasonManager';
 import { PlayerManagerService } from './services/PlayerManager';
 import { ScheduleManager } from './services/ScheduleManager';
+import { LocalScheduleBackupService } from './services/ScheduleBackupService';
 import { ScheduleGenerator } from './services/ScheduleGenerator';
 import { ExportService } from './services/ExportService';
 import { PairingHistoryTracker } from './services/PairingHistoryTracker';
@@ -119,13 +120,16 @@ describe('UI Component Service Access Properties', () => {
           );
           const pairingHistoryTracker = new PairingHistoryTracker(pairingHistoryRepository);
           const scheduleGenerator = new ScheduleGenerator({}, pairingHistoryTracker);
+    backupService = new LocalScheduleBackupService();
           const scheduleManager = new ScheduleManager(
-            scheduleRepository,
-            weekRepository,
-            playerRepository,
-            scheduleGenerator,
-            pairingHistoryTracker
-          );
+      scheduleRepository,
+      weekRepository,
+      playerRepository,
+      scheduleGenerator,
+      pairingHistoryTracker
+          ,
+      backupService
+    );
           const exportService = new ExportService();
 
           // Create container elements for UI components

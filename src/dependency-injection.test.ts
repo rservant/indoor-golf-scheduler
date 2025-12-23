@@ -11,6 +11,7 @@ import { IndoorGolfSchedulerApp } from './app';
 import { SeasonManagerService } from './services/SeasonManager';
 import { PlayerManagerService } from './services/PlayerManager';
 import { ScheduleManager } from './services/ScheduleManager';
+import { LocalScheduleBackupService } from './services/ScheduleBackupService';
 import { ScheduleGenerator } from './services/ScheduleGenerator';
 import { PairingHistoryTracker } from './services/PairingHistoryTracker';
 
@@ -144,6 +145,7 @@ describe('Dependency Injection Properties', () => {
             },
             pairingHistoryTracker
           );
+          const backupService = new LocalScheduleBackupService();
           expect(scheduleGenerator).toBeInstanceOf(ScheduleGenerator);
 
           const scheduleManager = new ScheduleManager(
@@ -151,7 +153,8 @@ describe('Dependency Injection Properties', () => {
             weekRepository,
             playerRepository,
             scheduleGenerator,
-            pairingHistoryTracker
+            pairingHistoryTracker,
+            backupService
           );
           expect(scheduleManager).toBeInstanceOf(ScheduleManager);
 
