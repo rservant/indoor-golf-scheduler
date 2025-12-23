@@ -1406,8 +1406,8 @@ export class ScheduleDisplayUI {
       const regenerationResult = await this.scheduleManager.regenerateSchedule(
         this.state.selectedWeek.id,
         {
-          forceOverwrite: result.forceOverwrite,
-          preserveManualEdits: result.preserveManualEdits
+          forceOverwrite: result.forceOverwrite ?? false,
+          preserveManualEdits: result.preserveManualEdits ?? false
         }
       );
 

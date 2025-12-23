@@ -120,16 +120,15 @@ describe('UI Component Service Access Properties', () => {
           );
           const pairingHistoryTracker = new PairingHistoryTracker(pairingHistoryRepository);
           const scheduleGenerator = new ScheduleGenerator({}, pairingHistoryTracker);
-    backupService = new LocalScheduleBackupService();
+          const backupService = new LocalScheduleBackupService();
           const scheduleManager = new ScheduleManager(
-      scheduleRepository,
-      weekRepository,
-      playerRepository,
-      scheduleGenerator,
-      pairingHistoryTracker
-          ,
-      backupService
-    );
+            scheduleRepository,
+            weekRepository,
+            playerRepository,
+            scheduleGenerator,
+            pairingHistoryTracker,
+            backupService
+          );
           const exportService = new ExportService();
 
           // Create container elements for UI components

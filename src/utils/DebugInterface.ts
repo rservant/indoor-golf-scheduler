@@ -11,9 +11,16 @@ import { applicationState, ApplicationState } from '../state/ApplicationState';
 export interface DebugErrorInfo {
   id: string;
   error: Error | string | any;
-  context: ErrorContext;
+  context: {
+    component?: string;
+    action?: string;
+    userId?: string;
+    sessionId?: string;
+    timestamp?: Date;
+    additionalData?: Record<string, any>;
+  };
   timestamp: Date;
-  stackTrace?: string;
+  stackTrace?: string | undefined;
   userAgent: string;
   url: string;
   applicationState: ApplicationState;
@@ -232,10 +239,10 @@ export class DebugInterface {
       context: {
         component: context.component || 'Unknown',
         action: context.action || 'unknown',
-        userId: context.userId,
-        sessionId: context.sessionId,
-        timestamp: context.timestamp,
-        additionalData: context.additionalData
+        ...(context.userId && { userId: context.userId }),
+        ...(context.sessionId && { sessionId: context.sessionId }),
+        ...(context.timestamp && { timestamp: context.timestamp }),
+        ...(context.additionalData && { additionalData: context.additionalData })
       },
       timestamp: new Date(),
       stackTrace: error instanceof Error ? error.stack : undefined,
@@ -310,7 +317,7 @@ export class DebugInterface {
       startTime,
       endTime,
       duration,
-      metadata
+      metadata: metadata || {}
     };
 
     this.recordPerformanceMetric(name, metadata, duration);
@@ -332,8 +339,8 @@ export class DebugInterface {
     const metric: PerformanceMetric = {
       name,
       startTime: performance.now(),
-      duration,
-      metadata
+      duration: duration || 0,
+      metadata: metadata || {}
     };
 
     this.performanceMetrics.unshift(metric);

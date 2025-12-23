@@ -1790,9 +1790,10 @@ export class ScheduleManager {
       }
 
       // Check for handedness balance (warning only)
-      const handedness = foursome.getHandednessDistribution();
-      if (foursome.players.length >= 3 && (handedness.left === 0 || handedness.right === 0)) {
-        warnings.push(`Foursome at position ${foursome.position} in ${foursome.timeSlot} has unbalanced handedness (${handedness.left} left, ${handedness.right} right)`);
+      const leftCount = foursome.players.filter(p => p.handedness === 'left').length;
+      const rightCount = foursome.players.filter(p => p.handedness === 'right').length;
+      if (foursome.players.length >= 3 && (leftCount === 0 || rightCount === 0)) {
+        warnings.push(`Foursome at position ${foursome.position} in ${foursome.timeSlot} has unbalanced handedness (${leftCount} left, ${rightCount} right)`);
       }
     }
 

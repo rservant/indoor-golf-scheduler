@@ -15,15 +15,17 @@ const playerGenerator = fc.record({
   id: fc.string({ minLength: 1, maxLength: 20 }),
   firstName: fc.string({ minLength: 1, maxLength: 15 }),
   lastName: fc.string({ minLength: 1, maxLength: 15 }),
-  handedness: fc.constantFrom('left', 'right'),
-  timePreference: fc.constantFrom('AM', 'PM', 'Either'),
-  seasonId: fc.string({ minLength: 1, maxLength: 20 })
+  handedness: fc.constantFrom('left' as const, 'right' as const),
+  timePreference: fc.constantFrom('AM' as const, 'PM' as const, 'Either' as const),
+  seasonId: fc.string({ minLength: 1, maxLength: 20 }),
+  createdAt: fc.date()
 });
 
 const foursomeGenerator = (timeSlot: 'morning' | 'afternoon') => fc.record({
   id: fc.string({ minLength: 1, maxLength: 20 }),
   players: fc.array(playerGenerator, { minLength: 1, maxLength: 4 }),
-  timeSlot: fc.constant(timeSlot)
+  timeSlot: fc.constant(timeSlot),
+  position: fc.integer({ min: 1, max: 10 })
 });
 
 const scheduleGenerator = fc.record({
@@ -43,7 +45,8 @@ const weekGenerator = fc.record({
   id: fc.string({ minLength: 1, maxLength: 20 }),
   seasonId: fc.string({ minLength: 1, maxLength: 20 }),
   weekNumber: fc.integer({ min: 1, max: 52 }),
-  date: fc.date()
+  date: fc.date(),
+  playerAvailability: fc.constant({} as Record<string, boolean>)
 });
 
 describe('ScheduleRegenerationConfirmationUI Property Tests', () => {
@@ -265,14 +268,26 @@ describe('ScheduleRegenerationConfirmationUI Property Tests', () => {
         // Create a schedule with intentional time preference conflicts
         const morningFoursome: Foursome = {
           id: 'morning-1',
-          players: players.map(p => ({ ...p, timePreference: 'PM' as const })), // PM players in morning
-          timeSlot: 'morning'
+          players: players.map(p => ({ 
+            ...p, 
+            timePreference: 'PM' as const, 
+            createdAt: new Date(),
+            handedness: p.handedness as 'left' | 'right'
+          })), // PM players in morning
+          timeSlot: 'morning',
+          position: 1
         };
 
         const afternoonFoursome: Foursome = {
           id: 'afternoon-1', 
-          players: players.map(p => ({ ...p, timePreference: 'AM' as const })), // AM players in afternoon
-          timeSlot: 'afternoon'
+          players: players.map(p => ({ 
+            ...p, 
+            timePreference: 'AM' as const, 
+            createdAt: new Date(),
+            handedness: p.handedness as 'left' | 'right'
+          })), // AM players in afternoon
+          timeSlot: 'afternoon',
+          position: 1
         };
 
         const schedule: Schedule = {
@@ -291,8 +306,13 @@ describe('ScheduleRegenerationConfirmationUI Property Tests', () => {
         // Show confirmation dialog
         confirmationUI.showConfirmation(
           schedule,
-          week,
-          players.concat(players), // All players available
+          { ...week, playerAvailability: {} },
+          players.concat(players).map(p => ({ 
+            ...p, 
+            createdAt: new Date(),
+            handedness: p.handedness as 'left' | 'right',
+            timePreference: p.timePreference as 'AM' | 'PM' | 'Either'
+          })), // All players available
           () => {},
           () => {}
         );

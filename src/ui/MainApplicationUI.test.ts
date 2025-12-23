@@ -144,6 +144,35 @@ describe('MainApplicationUI Navigation Bug Tests', () => {
       trackPairing: jest.fn()
     };
 
+    // Mock import export service
+    const mockImportExportService = {
+      playerManager: mockPlayerManager,
+      seasonManager: mockSeasonManager,
+      importPlayers: jest.fn(),
+      parseImportFile: jest.fn(),
+      validateImportData: jest.fn(),
+      exportPlayers: jest.fn(),
+      exportSchedules: jest.fn(),
+      exportSeasons: jest.fn(),
+      importFromCsv: jest.fn(),
+      exportToCsv: jest.fn(),
+      getImportTemplate: jest.fn(),
+      getExportFormats: jest.fn(),
+      validateFileFormat: jest.fn(),
+      processImportResults: jest.fn(),
+      generateExportFilename: jest.fn(),
+      handleImportErrors: jest.fn(),
+      createBackupBeforeImport: jest.fn(),
+      restoreFromBackup: jest.fn(),
+      cleanupTempFiles: jest.fn(),
+      logImportExportActivity: jest.fn(),
+      getImportHistory: jest.fn(),
+      getExportHistory: jest.fn(),
+      scheduleCleanup: jest.fn(),
+      initialize: jest.fn(),
+      destroy: jest.fn()
+    } as any;
+
     // Create MainApplicationUI instance
     mainUI = new MainApplicationUI(
       container,
@@ -153,6 +182,7 @@ describe('MainApplicationUI Navigation Bug Tests', () => {
       mockScheduleGenerator,
       mockWeekRepository,
       mockExportService,
+      mockImportExportService,
       mockPairingHistoryTracker
     );
   });

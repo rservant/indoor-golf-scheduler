@@ -22,6 +22,9 @@ export interface PlayerManager {
   setBulkAvailabilityAtomic(weekId: string, playerIds: string[], available: boolean): Promise<void>;
   verifyAvailabilityPersisted(playerId: string, weekId: string, expected: boolean): Promise<boolean>;
   rollbackAvailabilityChanges(weekId: string, originalState: Map<string, boolean>): Promise<void>;
+  
+  // Interruption management
+  getInterruptionManager(): OperationInterruptionManager;
 }
 
 export class PlayerManagerService implements PlayerManager {
@@ -1053,18 +1056,15 @@ export class InMemoryPlayerManager implements PlayerManager {
   }
 
   /**
-   * Get the interruption manager for external access (mock for testing)
+   * Get the interruption manager (mock implementation for testing)
    */
   getInterruptionManager(): OperationInterruptionManager {
     // Return a mock interruption manager for testing
     return {
-      startOperation: async () => 'mock-operation-id',
-      completeOperation: async () => {},
-      isOperationInProgress: () => false,
-      getActiveOperations: () => [],
-      clearAllOperations: async () => {},
-      detectInterruptions: async () => [],
-      recoverFromInterruption: async () => {}
-    } as any;
+      detectInterruptions: async () => ({ hasInterruption: false, interruptedOperations: [] }),
+      recoverFromInterruptions: async () => {},
+      hasActiveOperations: () => false,
+      getOperationState: () => null
+    } as unknown as OperationInterruptionManager;
   }
 }

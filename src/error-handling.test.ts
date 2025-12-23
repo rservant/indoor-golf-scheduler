@@ -142,7 +142,7 @@ describe('Enhanced Error Handling Property Tests', () => {
           const latestError = errorLog[0];
           expect(latestError.message).toBeDefined();
           expect(latestError.timestamp).toBeInstanceOf(Date);
-          expect(latestError.context).toEqual(context);
+          expect(latestError.context).toEqual(safeContext);
 
           // 2. User-friendly notification should be created
           expect(finalState.notifications.length).toBeGreaterThan(initialNotificationCount);
@@ -287,7 +287,7 @@ describe('Enhanced Error Handling Property Tests', () => {
           expect(latestDebugInfo.error).toBeDefined();
           expect(latestDebugInfo.context.component).toBe(context.component || 'Unknown');
           expect(latestDebugInfo.context.action).toBe(context.action || 'unknown');
-          expect(latestDebugInfo.context.additionalData).toBe(context.additionalData);
+          expect(latestDebugInfo.context.additionalData).toEqual(context.additionalData || {});
           expect(latestDebugInfo.timestamp).toBeInstanceOf(Date);
           expect(latestDebugInfo.stackTrace).toBeDefined();
         }

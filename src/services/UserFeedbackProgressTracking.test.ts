@@ -81,12 +81,20 @@ describe('User Feedback and Progress Tracking Property Tests', () => {
     scheduleGenerator = new ScheduleGenerator();
     pairingHistoryTracker = new PairingHistoryTracker(
       new (class {
-        async findBySeasonId() { return []; }
+        async findBySeasonId() { return null; }
         async create() { return {} as any; }
         async update() { return {} as any; }
         async delete() { return true; }
         async findById() { return null; }
         async findAll() { return []; }
+        async exists() { return false; }
+        async deleteBySeasonId() { return true; }
+        async addPairing() { return {} as any; }
+        async getPairingCount() { return 0; }
+        async getRecentPairings() { return []; }
+        async getMostFrequentPairings() { return []; }
+        async getAllPairingsForPlayer() { return []; }
+        async resetPairings() { return null; }
       })()
     );
     backupService = new LocalScheduleBackupService();

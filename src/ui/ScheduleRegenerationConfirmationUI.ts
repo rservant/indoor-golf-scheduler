@@ -32,8 +32,8 @@ export class ScheduleRegenerationConfirmationUI {
   private currentSchedule: Schedule | null = null;
   private currentWeek: Week | null = null;
   private allPlayers: Player[] = [];
-  private onConfirmCallback?: (result: ConfirmationResult) => void;
-  private onCancelCallback?: () => void;
+  private onConfirmCallback: ((result: ConfirmationResult) => void) | undefined;
+  private onCancelCallback: (() => void) | undefined;
 
   constructor(container: HTMLElement) {
     this.container = container;

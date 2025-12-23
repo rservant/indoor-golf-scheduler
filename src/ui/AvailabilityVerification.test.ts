@@ -36,8 +36,7 @@ describe('Availability Verification Methods Unit Tests', () => {
     season = await seasonRepository.create({
       name: `Test Season Verification ${Date.now()}`,
       startDate: new Date('2024-01-01'),
-      endDate: new Date('2024-12-31'),
-      playerIds: []
+      endDate: new Date('2024-12-31')
     });
 
     await seasonRepository.setActiveSeason(season.id);
@@ -131,8 +130,7 @@ describe('Availability Verification Methods Unit Tests', () => {
       const emptySeasonWithNoWeeks = await seasonRepository.create({
         name: `Empty Season ${Date.now()}`,
         startDate: new Date('2024-01-01'),
-        endDate: new Date('2024-12-31'),
-        playerIds: []
+        endDate: new Date('2024-12-31')
       });
 
       await availabilityUI.setActiveSeason(emptySeasonWithNoWeeks);

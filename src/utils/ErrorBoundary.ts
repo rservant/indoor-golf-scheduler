@@ -96,11 +96,11 @@ export class ErrorBoundary {
     }
 
     // Override DOM manipulation methods
-    this.container.appendChild = (node: Node) => {
+    this.container.appendChild = <T extends Node>(node: T): T => {
       try {
         const result = originalAppendChild.call(this.container, node);
         this.clearError();
-        return result;
+        return result as T;
       } catch (error) {
         this.handleError(error as Error, {
           componentStack: 'appendChild',
@@ -110,11 +110,11 @@ export class ErrorBoundary {
       }
     };
 
-    this.container.insertBefore = (newNode: Node, referenceNode: Node | null) => {
+    this.container.insertBefore = <T extends Node>(newNode: T, referenceNode: Node | null): T => {
       try {
         const result = originalInsertBefore.call(this.container, newNode, referenceNode);
         this.clearError();
-        return result;
+        return result as T;
       } catch (error) {
         this.handleError(error as Error, {
           componentStack: 'insertBefore',
@@ -124,11 +124,11 @@ export class ErrorBoundary {
       }
     };
 
-    this.container.replaceChild = (newChild: Node, oldChild: Node) => {
+    this.container.replaceChild = <T extends Node>(newChild: Node, oldChild: T): T => {
       try {
         const result = originalReplaceChild.call(this.container, newChild, oldChild);
         this.clearError();
-        return result;
+        return result as T;
       } catch (error) {
         this.handleError(error as Error, {
           componentStack: 'replaceChild',
