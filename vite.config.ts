@@ -1,72 +1,96 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
-export default defineConfig({
-  // Set the root to project root
-  root: '.',
+export default defineConfig(({ mode }) => {
+  const isDevelopment = mode === 'development';
+  const isProduction = mode === 'production';
   
-  // Build configuration
-  build: {
-    // Output directory
-    outDir: 'dist',
-    // Empty the output directory before building
-    emptyOutDir: true,
-    // Rollup options for advanced bundling
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html')
-      },
-      // Configure code splitting and chunk optimization
-      output: {
-        // Manual chunk splitting for better caching
-        manualChunks: {
-          // Vendor chunk for third-party libraries
-          vendor: ['fast-check', 'papaparse', 'jspdf', 'xlsx'],
-          // Core application logic
-          core: [
-            'src/models/index.ts',
-            'src/repositories/index.ts',
-            'src/services/index.ts'
-          ],
-          // UI components
-          ui: [
-            'src/ui/index.ts',
-            'src/state/ApplicationState.ts'
-          ]
+  return {
+    // Set the root to project root
+    root: '.',
+    
+    // Build configuration
+    build: {
+      // Output directory
+      outDir: 'dist',
+      // Empty the output directory before building
+      emptyOutDir: true,
+      // Rollup options for advanced bundling
+      rollupOptions: {
+        input: {
+          main: resolve(__dirname, 'index.html')
         },
-        // Optimize chunk file names for caching
-        chunkFileNames: (chunkInfo) => {
-          const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop().replace('.ts', '') : 'chunk';
-          return `js/${facadeModuleId}-[hash].js`;
+        // Configure code splitting and chunk optimization (production only)
+        output: isProduction ? {
+          // Manual chunk splitting for better caching
+          manualChunks: {
+            // Vendor chunk for third-party libraries
+            vendor: ['fast-check', 'papaparse', 'jspdf', 'xlsx'],
+            // Core application logic
+            core: [
+              'src/models/index.ts',
+              'src/repositories/index.ts',
+              'src/services/index.ts'
+            ],
+            // UI components
+            ui: [
+              'src/ui/index.ts',
+              'src/state/ApplicationState.ts'
+            ]
+          },
+          // Optimize chunk file names for caching
+          chunkFileNames: (chunkInfo) => {
+            const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop()?.replace('.ts', '') : 'chunk';
+            return `js/${facadeModuleId}-[hash].js`;
+          },
+          entryFileNames: 'js/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash].[ext]'
+        } : {
+          // Development: simpler output structure
+          chunkFileNames: 'js/[name].js',
+          entryFileNames: 'js/[name].js',
+          assetFileNames: 'assets/[name].[ext]'
         },
-        entryFileNames: 'js/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]'
+        // Tree shaking configuration (production only)
+        treeshake: isProduction ? {
+          // Enable aggressive tree shaking
+          moduleSideEffects: false,
+          // Remove unused imports
+          pureExternalModules: true,
+          // Optimize property access
+          propertyReadSideEffects: false
+        } : false
       },
-      // Tree shaking configuration
-      treeshake: {
-        // Enable aggressive tree shaking
-        moduleSideEffects: false,
-        // Remove unused imports
-        pureExternalModules: true,
-        // Optimize property access
-        propertyReadSideEffects: false
-      }
+      // Generate source maps for debugging (always in development, optional in production)
+      sourcemap: isDevelopment ? 'inline' : false,
+      // Target modern browsers for better optimization
+      target: ['es2020', 'chrome80', 'firefox78', 'safari14'],
+      // Enhanced minification for production only
+      minify: isProduction ? 'terser' : false,
+      // Terser options for better compression
+      terserOptions: isProduction ? {
+        compress: {
+          drop_console: true,
+          drop_debugger: true,
+          pure_funcs: ['console.log'],
+          passes: 2
+        },
+        mangle: {
+          toplevel: true
+        },
+        format: {
+          comments: false
+        }
+      } : undefined,
+      // Chunk size warnings
+      chunkSizeWarningLimit: 500,
+      // Optimize CSS
+      cssCodeSplit: isProduction,
+      // Report compressed size
+      reportCompressedSize: isProduction,
+      // Optimize assets
+      assetsInlineLimit: isProduction ? 4096 : 0
     },
-    // Generate source maps for debugging (always in development, optional in production)
-    sourcemap: process.env.NODE_ENV !== 'production' ? 'inline' : false,
-    // Target modern browsers for better optimization
-    target: ['es2020', 'chrome80', 'firefox78', 'safari14'],
-    // Enhanced minification for production
-    minify: 'esbuild',
-    // Chunk size warnings
-    chunkSizeWarningLimit: 500,
-    // Optimize CSS
-    cssCodeSplit: true,
-    // Report compressed size
-    reportCompressedSize: true,
-    // Optimize assets
-    assetsInlineLimit: 4096
-  },
   
   // Module resolution
   resolve: {
@@ -133,17 +157,17 @@ export default defineConfig({
   esbuild: {
     target: 'es2020',
     // Keep class names for debugging
-    keepNames: true,
+    keepNames: isDevelopment,
     // Drop console and debugger statements in production
-    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
+    drop: isProduction ? ['console', 'debugger'] : [],
     // Generate source maps for better debugging
-    sourcemap: process.env.NODE_ENV !== 'production'
+    sourcemap: isDevelopment
   },
   
   // CSS configuration
   css: {
     // Enable CSS source maps in development
-    devSourcemap: true,
+    devSourcemap: isDevelopment,
     // Configure CSS modules if needed
     modules: {
       localsConvention: 'camelCase'
@@ -152,12 +176,12 @@ export default defineConfig({
   
   // Define environment variables
   define: {
-    __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
+    __DEV__: JSON.stringify(isDevelopment),
     __VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0')
   },
   
   // Logging configuration
-  logLevel: process.env.NODE_ENV === 'development' ? 'info' : 'warn',
+  logLevel: isDevelopment ? 'info' : 'warn',
   clearScreen: false,
   
   // Optimize dependencies
@@ -172,4 +196,5 @@ export default defineConfig({
       target: 'es2020'
     }
   }
+  };
 });
