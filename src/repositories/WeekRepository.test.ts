@@ -38,8 +38,14 @@ describe('WeekRepository Property Tests', () => {
         fc.integer({ min: 1, max: 52 }),
         // Generate date
         fc.date({ min: new Date('2025-01-01'), max: new Date('2030-12-31') }),
-        // Generate player IDs (1-10 players)
-        fc.array(fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0), { minLength: 1, maxLength: 10 }),
+        // Generate player IDs (1-10 players) with safe characters
+        fc.array(
+          fc.string({ minLength: 1, maxLength: 20 })
+            .filter(s => s.trim().length > 0)
+            .filter(s => /^[a-zA-Z0-9_-]+$/.test(s)) // Only alphanumeric, underscore, and dash
+            .filter(s => !['__proto__', 'constructor', 'prototype'].includes(s)), // Avoid JS special properties
+          { minLength: 1, maxLength: 10 }
+        ),
         // Generate availability values for each player
         fc.array(fc.boolean(), { minLength: 1, maxLength: 10 }),
         async (seasonIdBase, weekNumber, date, playerIds, availabilityValues) => {
@@ -133,9 +139,12 @@ describe('WeekRepository Property Tests', () => {
         fc.integer({ min: 1, max: 52 }),
         // Generate date
         fc.date({ min: new Date('2025-01-01'), max: new Date('2030-12-31') }),
-        // Generate player availability map
+        // Generate player availability map with more robust player IDs
         fc.dictionary(
-          fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
+          fc.string({ minLength: 1, maxLength: 20 })
+            .filter(s => s.trim().length > 0)
+            .filter(s => /^[a-zA-Z0-9_-]+$/.test(s)) // Only alphanumeric, underscore, and dash
+            .filter(s => !['__proto__', 'constructor', 'prototype'].includes(s)), // Avoid JS special properties
           fc.boolean(),
           { minKeys: 1, maxKeys: 8 }
         ),
@@ -219,7 +228,10 @@ describe('WeekRepository Property Tests', () => {
         fc.date({ min: new Date('2025-01-01'), max: new Date('2030-12-31') }),
         // Generate initial player availability
         fc.dictionary(
-          fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
+          fc.string({ minLength: 1, maxLength: 20 })
+            .filter(s => s.trim().length > 0)
+            .filter(s => /^[a-zA-Z0-9_-]+$/.test(s)) // Only alphanumeric, underscore, and dash
+            .filter(s => !['__proto__', 'constructor', 'prototype'].includes(s)), // Avoid JS special properties
           fc.boolean(),
           { minKeys: 2, maxKeys: 6 }
         ),

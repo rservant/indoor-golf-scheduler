@@ -8,6 +8,8 @@ import * as fc from 'fast-check';
 import { ImportExportService, BulkPlayerOperation } from './services/ImportExportService';
 import { PairingHistoryTracker } from './services/PairingHistoryTracker';
 import { AvailabilityManagementUI } from './ui/AvailabilityManagementUI';
+import { ScheduleDisplayUI } from './ui/ScheduleDisplayUI';
+import { ExportService } from './services/ExportService';
 
 // Import test utilities and mocks
 import { InMemoryPlayerManager } from './services/PlayerManager';
@@ -30,6 +32,7 @@ describe('Advanced Features Properties', () => {
   let importExportService: ImportExportService;
   let pairingHistoryTracker: PairingHistoryTracker;
   let availabilityUI: AvailabilityManagementUI;
+  let scheduleDisplayUI: ScheduleDisplayUI;
   
   let playerManager: InMemoryPlayerManager;
   let seasonManager: InMemorySeasonManager;
@@ -72,6 +75,18 @@ describe('Advanced Features Properties', () => {
     const scheduleEditingContainer = document.createElement('div');
     
     availabilityUI = new AvailabilityManagementUI(playerManager, weekRepository, availabilityContainer);
+    
+    // Create export service and schedule display UI
+    const exportService = new ExportService();
+    scheduleDisplayUI = new ScheduleDisplayUI(
+      scheduleManager,
+      scheduleGenerator,
+      weekRepository,
+      exportService,
+      pairingHistoryTracker,
+      playerManager,
+      scheduleEditingContainer
+    );
     
     // Create and activate a test season
     const testSeason = await seasonManager.createSeason(

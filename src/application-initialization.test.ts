@@ -149,10 +149,10 @@ describe('Application Initialization and Bootstrap', () => {
       expect(navigation).toBeTruthy();
 
       const navTabs = navigation?.querySelectorAll('.nav-tab');
-      expect(navTabs?.length).toBe(6); // seasons, players, availability, schedule, edit, import-export
+      expect(navTabs?.length).toBe(5); // seasons, players, availability, schedule, import-export (edit merged into schedule)
 
       // Verify all expected tabs exist
-      const expectedTabs = ['seasons', 'players', 'availability', 'schedule', 'edit', 'import-export'];
+      const expectedTabs = ['seasons', 'players', 'availability', 'schedule', 'import-export'];
       expectedTabs.forEach(tabName => {
         const tab = navigation?.querySelector(`[data-tab="${tabName}"]`);
         expect(tab).toBeTruthy();
@@ -203,12 +203,12 @@ describe('Application Initialization and Bootstrap', () => {
       const playerTab = navigation?.querySelector('[data-tab="players"]') as HTMLButtonElement;
       const availabilityTab = navigation?.querySelector('[data-tab="availability"]') as HTMLButtonElement;
       const scheduleTab = navigation?.querySelector('[data-tab="schedule"]') as HTMLButtonElement;
-      const editTab = navigation?.querySelector('[data-tab="edit"]') as HTMLButtonElement;
+      const importExportTab = navigation?.querySelector('[data-tab="import-export"]') as HTMLButtonElement;
 
       expect(playerTab.hasAttribute('disabled')).toBe(false);
       expect(availabilityTab.hasAttribute('disabled')).toBe(false);
       expect(scheduleTab.hasAttribute('disabled')).toBe(false);
-      expect(editTab.hasAttribute('disabled')).toBe(false);
+      expect(importExportTab.hasAttribute('disabled')).toBe(false);
 
       // Clean up
       await app.stop();

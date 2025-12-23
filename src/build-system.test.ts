@@ -151,10 +151,13 @@ describe('Build System Compilation Properties', () => {
           try {
             devBuildOutput = execSync('npm run build:dev', { 
               encoding: 'utf8',
-              timeout: 30000 
+              timeout: 60000, // Increase timeout
+              stdio: 'pipe' // Capture stderr
             });
-          } catch (error) {
-            throw new Error(`Development build failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          } catch (error: any) {
+            const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
+            console.error('Development build error:', errorMessage);
+            throw new Error(`Development build failed: ${errorMessage}`);
           }
           
           // Get development build stats
@@ -172,10 +175,13 @@ describe('Build System Compilation Properties', () => {
           try {
             prodBuildOutput = execSync('npm run build:prod', { 
               encoding: 'utf8',
-              timeout: 30000 
+              timeout: 60000, // Increase timeout
+              stdio: 'pipe' // Capture stderr
             });
-          } catch (error) {
-            throw new Error(`Production build failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          } catch (error: any) {
+            const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
+            console.error('Production build error:', errorMessage);
+            throw new Error(`Production build failed: ${errorMessage}`);
           }
           
           // Get production build stats

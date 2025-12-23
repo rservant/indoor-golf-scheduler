@@ -363,7 +363,7 @@ test.describe('Getting Started Workflow', () => {
     const insufficientPlayersMessage = page.locator('p:has-text("You need at least 4 players to generate a schedule")');
     await expect(insufficientPlayersMessage).toBeVisible();
     
-    const currentPlayersCount = page.locator('p:has-text("Current players: 0")');
+    const currentPlayersCount = page.locator('p:has-text("Current players: 2")');
     await expect(currentPlayersCount).toBeVisible();
     
     console.log('✓ Application correctly handles insufficient players scenario');

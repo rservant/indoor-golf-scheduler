@@ -175,7 +175,7 @@ describe('MainApplicationUI Navigation Bug Tests', () => {
       expect(container.querySelector('.app-navigation')).toBeTruthy();
       
       const navButtons = container.querySelectorAll('.nav-tab');
-      expect(navButtons).toHaveLength(6); // Updated to include Import/Export tab
+      expect(navButtons).toHaveLength(5); // seasons, players, availability, schedule, import-export (edit merged into schedule)
       
       console.log('Initial navigation buttons found:', navButtons.length);
       

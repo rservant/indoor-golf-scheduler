@@ -588,7 +588,7 @@ export class ScheduleManager {
     try {
       // Check if regeneration is already in progress for this week
       const currentStatus = this.getRegenerationStatus(weekId);
-      if (currentStatus && ['confirming', 'backing_up', 'generating', 'replacing'].includes(currentStatus.status)) {
+      if (currentStatus && ['backing_up', 'generating', 'replacing'].includes(currentStatus.status)) {
         const operationDuration = Date.now() - startTime;
         return {
           success: false,

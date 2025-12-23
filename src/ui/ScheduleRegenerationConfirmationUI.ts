@@ -55,6 +55,9 @@ export class ScheduleRegenerationConfirmationUI {
     this.onConfirmCallback = onConfirm;
     this.onCancelCallback = onCancel;
 
+    // Make sure container is visible
+    this.container.style.display = 'block';
+
     const impactAnalysis = this.analyzeRegenerationImpact(schedule, allPlayers);
     this.render(impactAnalysis);
   }
@@ -64,6 +67,7 @@ export class ScheduleRegenerationConfirmationUI {
    */
   hide(): void {
     this.container.innerHTML = '';
+    this.container.style.display = 'none';
     this.currentSchedule = null;
     this.currentWeek = null;
     this.allPlayers = [];

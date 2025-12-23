@@ -1400,9 +1400,6 @@ export class ScheduleDisplayUI {
     if (!this.state.selectedWeek) return;
 
     try {
-      // Set regeneration lock ONLY after user confirms
-      await this.scheduleManager.setRegenerationLock(this.state.selectedWeek.id, true);
-
       // Show progress tracking with detailed steps
       this.showRegenerationProgress();
 
@@ -1460,6 +1457,9 @@ export class ScheduleDisplayUI {
       this.operationLockUI.unlockUI();
       this.stopRegenerationStatusTracking();
       
+      // Hide the confirmation dialog after everything is complete
+      this.confirmationUI.hide();
+      
       // Always release regeneration lock in finally block
       if (this.state.selectedWeek) {
         try {
@@ -1477,6 +1477,9 @@ export class ScheduleDisplayUI {
    * Handle regeneration cancellation
    */
   private async handleRegenerationCancellation(): Promise<void> {
+    // Hide the confirmation dialog
+    this.confirmationUI.hide();
+    
     // Since we no longer set the lock before confirmation,
     // we don't need to clear it on cancellation
     // This method is kept for consistency and future extensibility
