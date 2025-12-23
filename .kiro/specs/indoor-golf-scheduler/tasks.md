@@ -23,7 +23,7 @@
   - **Property 3: Player data integrity**
   - **Validates: Requirements 2.1, 2.2, 2.3**
 
-- [ ] 3. Create storage and repository layer
+- [x] 3. Create storage and repository layer
   - Implement base repository interface and local storage implementation
   - Create SeasonRepository with CRUD operations
   - Create PlayerRepository with season-scoped operations
@@ -31,7 +31,7 @@
   - Implement PairingHistoryRepository for tracking player combinations
   - _Requirements: 1.4, 2.3, 5.1_
 
-- [ ] 3.1 Write property test for active season context isolation
+- [x] 3.1 Write property test for active season context isolation
   - **Property 2: Active season context isolation**
   - **Validates: Requirements 1.3, 1.4**
 
