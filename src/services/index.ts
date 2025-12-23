@@ -5,3 +5,4 @@ export * from './ScheduleGenerator';
 export * from './PairingHistoryTracker';
 export * from './ScheduleManager';
 export * from './ExportService';
+export * from './ImportExportService';

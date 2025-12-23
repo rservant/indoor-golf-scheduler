@@ -142,7 +142,7 @@
   - Show player availability status and conflict indicators
   - _Requirements: 5.5, 6.5, 7.1, 4.5_
 
-- [ ] 14. Add data import/export features
+- [x] 14. Add data import/export features
   - Implement player data import from CSV/Excel
   - Add bulk player management operations
   - Create schedule export in multiple formats

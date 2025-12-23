@@ -6,3 +6,4 @@ export { AvailabilityManagementUI } from './AvailabilityManagementUI';
 export { ScheduleDisplayUI } from './ScheduleDisplayUI';
 export { ScheduleEditingUI } from './ScheduleEditingUI';
 export { MainApplicationUI } from './MainApplicationUI';
+export { ImportExportUI } from './ImportExportUI';
