@@ -18,6 +18,7 @@ export interface ScheduleDisplayUIState {
   isGenerating: boolean;
   error: string | null;
   showExportOptions: boolean;
+  showAddWeekForm: boolean;
   allPlayers: Player[];
   availablePlayers: Player[];
   unavailablePlayers: Player[];
@@ -59,6 +60,7 @@ export class ScheduleDisplayUI {
       isGenerating: false,
       error: null,
       showExportOptions: false,
+      showAddWeekForm: false,
       allPlayers: [],
       availablePlayers: [],
       unavailablePlayers: [],
@@ -103,6 +105,7 @@ export class ScheduleDisplayUI {
       this.state.availablePlayers = [];
       this.state.unavailablePlayers = [];
       this.state.pairingMetrics = null;
+      this.state.showAddWeekForm = false;
     }
     this.render();
   }
@@ -208,6 +211,116 @@ export class ScheduleDisplayUI {
   }
 
   /**
+   * Add a new week to the season
+   */
+  private async addNewWeek(): Promise<void> {
+    if (!this.state.activeSeason) return;
+
+    const dateInput = this.container.querySelector('#new-week-date') as HTMLInputElement;
+    if (!dateInput || !dateInput.value) {
+      this.state.error = 'Please select a date for the new week';
+      this.render();
+      return;
+    }
+
+    try {
+      // Calculate next week number
+      const maxWeekNumber = Math.max(...this.state.weeks.map(w => w.weekNumber), 0);
+      const nextWeekNumber = maxWeekNumber + 1;
+
+      // Create the new week
+      const weekData = {
+        seasonId: this.state.activeSeason.id,
+        weekNumber: nextWeekNumber,
+        date: new Date(dateInput.value)
+      };
+
+      const newWeek = await this.weekRepository.create(weekData);
+      
+      // Update state
+      this.state.weeks.push(newWeek);
+      this.state.weeks.sort((a, b) => a.weekNumber - b.weekNumber);
+      this.state.selectedWeek = newWeek;
+      this.state.schedule = null; // New week has no schedule yet
+      this.state.showAddWeekForm = false;
+      this.state.error = null;
+      
+      this.render();
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to add new week';
+      this.render();
+    }
+  }
+
+  /**
+   * Create the first week for a season and generate its schedule
+   */
+  private async createFirstWeek(): Promise<void> {
+    console.log('createFirstWeek called');
+    
+    if (!this.state.activeSeason) {
+      console.log('No active season, returning');
+      return;
+    }
+
+    const dateInput = this.container.querySelector('#first-week-date') as HTMLInputElement;
+    let weekDate: Date;
+    
+    if (dateInput && dateInput.value) {
+      weekDate = new Date(dateInput.value);
+    } else {
+      // Use default date - next Monday from today
+      const today = new Date();
+      const nextMonday = new Date(today);
+      nextMonday.setDate(today.getDate() + (1 + 7 - today.getDay()) % 7);
+      weekDate = nextMonday;
+    }
+
+    this.state.isGenerating = true;
+    this.state.error = null;
+    this.render();
+
+    try {
+      // Create the first week
+      const weekData = {
+        seasonId: this.state.activeSeason.id,
+        weekNumber: 1,
+        date: weekDate
+      };
+      
+      console.log('Creating first week with data:', weekData);
+
+      const newWeek = await this.weekRepository.create(weekData);
+      console.log('Week created successfully:', newWeek);
+      
+      // Generate schedule for the new week
+      console.log('Generating schedule for week:', newWeek.id);
+      const schedule = await this.scheduleManager.createWeeklySchedule(newWeek.id);
+      console.log('Schedule generated successfully:', schedule);
+      
+      // Update state
+      this.state.weeks = [newWeek];
+      this.state.selectedWeek = newWeek;
+      this.state.schedule = schedule;
+      
+      // Load player data for the new week
+      await this.loadPlayerAvailability();
+      await this.loadPairingMetrics();
+      
+      if (this.onScheduleGenerated) {
+        this.onScheduleGenerated(schedule);
+      }
+      
+      console.log('First week creation completed successfully');
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : 'Failed to create first week and schedule';
+    } finally {
+      this.state.isGenerating = false;
+      this.render();
+    }
+  }
+
+  /**
    * Generate a new schedule for the selected week
    */
   private async generateSchedule(): Promise<void> {
@@ -276,6 +389,15 @@ export class ScheduleDisplayUI {
    * Render the UI
    */
   private render(): void {
+    console.log('ScheduleDisplayUI.render() called, state:', {
+      activeSeason: this.state.activeSeason?.name,
+      weeksCount: this.state.weeks.length,
+      selectedWeek: this.state.selectedWeek?.weekNumber,
+      hasSchedule: !!this.state.schedule,
+      isGenerating: this.state.isGenerating,
+      error: this.state.error
+    });
+    
     if (!this.state.activeSeason) {
       this.container.innerHTML = `
         <div class="schedule-display">
@@ -305,19 +427,56 @@ export class ScheduleDisplayUI {
 
         ${this.state.weeks.length === 0 ? `
           <div class="no-weeks">
-            <p>No weeks found for this season. Weeks are created automatically when generating schedules.</p>
+            <h3>No Weeks Created Yet</h3>
+            <p>Start by creating your first week and generating a schedule.</p>
+            <div class="first-week-creation">
+              <div class="form-group">
+                <label for="first-week-date">Week 1 Date:</label>
+                <input type="date" id="first-week-date" class="form-control">
+              </div>
+              <button class="btn btn-primary" onclick="scheduleDisplayUI.createFirstWeek()">
+                Generate Schedule
+              </button>
+            </div>
           </div>
         ` : `
           <div class="week-selector">
-            <label for="week-select">Select Week:</label>
-            <select id="week-select">
-              ${this.state.weeks.map(week => `
-                <option value="${week.id}" ${this.state.selectedWeek?.id === week.id ? 'selected' : ''}>
-                  Week ${week.weekNumber} - ${this.formatDate(week.date)}
-                  ${week.scheduleId ? ' (Scheduled)' : ' (No Schedule)'}
-                </option>
-              `).join('')}
-            </select>
+            <div class="week-selector-header">
+              <div class="week-select-group">
+                <label for="week-select">Select Week:</label>
+                <select id="week-select">
+                  ${this.state.weeks.map(week => `
+                    <option value="${week.id}" ${this.state.selectedWeek?.id === week.id ? 'selected' : ''}>
+                      Week ${week.weekNumber} - ${this.formatDate(week.date)}
+                      ${week.scheduleId ? ' (Scheduled)' : ' (No Schedule)'}
+                    </option>
+                  `).join('')}
+                </select>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="scheduleDisplayUI.showAddWeekForm()">
+                Add Week
+              </button>
+            </div>
+            
+            ${this.state.showAddWeekForm ? `
+              <div class="add-week-form">
+                <h4>Add New Week</h4>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="new-week-date">Week Date:</label>
+                    <input type="date" id="new-week-date" class="form-control">
+                  </div>
+                  <div class="form-actions">
+                    <button class="btn btn-primary btn-sm" onclick="scheduleDisplayUI.addNewWeek()">
+                      Add Week
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="scheduleDisplayUI.hideAddWeekForm()">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ` : ''}
           </div>
 
           ${this.renderScheduleContent()}
@@ -382,8 +541,8 @@ export class ScheduleDisplayUI {
         ${this.state.showPairingHistory ? this.renderPairingHistory() : ''}
 
         <div class="schedule-grid">
-          ${this.renderTimeSlot('Morning (10:30 AM)', this.state.schedule.timeSlots.morning)}
-          ${this.renderTimeSlot('Afternoon (1:00 PM)', this.state.schedule.timeSlots.afternoon)}
+          ${this.renderTimeSlot('Morning Session', this.state.schedule.timeSlots.morning)}
+          ${this.renderTimeSlot('Afternoon Session', this.state.schedule.timeSlots.afternoon)}
         </div>
 
         <div class="schedule-summary">
@@ -727,7 +886,7 @@ export class ScheduleDisplayUI {
     const totalPlayers = this.state.allPlayers.length;
     const availableCount = this.state.availablePlayers.length;
     const unavailableCount = this.state.unavailablePlayers.length;
-    const scheduledPlayers = this.state.schedule ? this.state.schedule.getAllPlayers() : [];
+    const scheduledPlayers = this.state.schedule ? this.getScheduledPlayerIds(this.state.schedule) : [];
 
     // Find conflicts - players scheduled but not available
     const conflicts = scheduledPlayers.filter(playerId => 
@@ -851,6 +1010,21 @@ export class ScheduleDisplayUI {
   }
 
   /**
+   * Get all player IDs from the current schedule
+   */
+  private getScheduledPlayerIds(schedule: Schedule): string[] {
+    const playerIds = new Set<string>();
+    
+    [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon].forEach(foursome => {
+      foursome.players.forEach(player => {
+        playerIds.add(player.id);
+      });
+    });
+
+    return Array.from(playerIds);
+  }
+
+  /**
    * Format date for display
    */
   private formatDate(date: Date): string {
@@ -878,6 +1052,20 @@ export class ScheduleDisplayUI {
 
     // Bind methods to window for onclick handlers
     (window as any).scheduleDisplayUI = {
+      createFirstWeek: () => {
+        this.createFirstWeek();
+      },
+      showAddWeekForm: () => {
+        this.state.showAddWeekForm = true;
+        this.render();
+      },
+      hideAddWeekForm: () => {
+        this.state.showAddWeekForm = false;
+        this.render();
+      },
+      addNewWeek: () => {
+        this.addNewWeek();
+      },
       generateSchedule: () => {
         this.generateSchedule();
       },
