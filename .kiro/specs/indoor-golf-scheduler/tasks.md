@@ -42,14 +42,14 @@
   - Handle season lifecycle (creation, activation, archiving)
   - _Requirements: 1.1, 1.2, 1.3, 1.5_
 
-- [ ] 5. Implement player management service
+- [x] 5. Implement player management service
   - Create PlayerManager class with season-scoped player operations
   - Implement player CRUD operations with validation
   - Add player availability tracking per week
   - Handle player removal with graceful schedule cleanup
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 5.1 Write property test for player removal graceful handling
+- [x] 5.1 Write property test for player removal graceful handling
   - **Property 4: Player removal graceful handling**
   - **Validates: Requirements 2.4**
 
