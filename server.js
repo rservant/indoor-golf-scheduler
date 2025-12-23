@@ -2,7 +2,7 @@
 
 /**
  * Simple HTTP server for the Indoor Golf Scheduler
- * Serves the built application with proper MIME types
+ * Serves the built TypeScript application with proper MIME types
  */
 
 const http = require('http');
@@ -90,10 +90,9 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log(`🏌️ Indoor Golf Scheduler server running at http://localhost:${PORT}`);
   console.log('');
-  console.log('📁 Serving files from:');
-  console.log('   - public/ (static files)');
-  console.log('   - dist/ (compiled JavaScript)');
-  console.log('   - src/ (development files)');
+  console.log('📁 Serving TypeScript application from:');
+  console.log('   - public/ (static files and HTML entry point)');
+  console.log('   - dist/ (compiled TypeScript application)');
   console.log('');
   console.log('🚀 Open http://localhost:' + PORT + ' in your browser');
   console.log('');

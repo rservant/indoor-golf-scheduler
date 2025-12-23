@@ -429,4 +429,44 @@ export class ScheduleManager {
     // Delete the schedule
     return await this.scheduleRepository.delete(schedule.id);
   }
+
+  /**
+   * Generate weeks for a season
+   */
+  async generateWeeksForSeason(seasonId: string, numberOfWeeks: number): Promise<import('../models/Week').Week[]> {
+    if (!seasonId || seasonId.trim().length === 0) {
+      throw new Error('Season ID is required');
+    }
+    
+    if (numberOfWeeks <= 0) {
+      throw new Error('Number of weeks must be greater than 0');
+    }
+
+    const weeks: import('../models/Week').Week[] = [];
+    const startDate = new Date(); // Start from current date
+
+    for (let i = 0; i < numberOfWeeks; i++) {
+      const weekDate = new Date(startDate);
+      weekDate.setDate(startDate.getDate() + (i * 7)); // Each week is 7 days apart
+
+      const weekData = {
+        seasonId,
+        weekNumber: i + 1,
+        date: weekDate
+      };
+
+      const week = await this.weekRepository.create(weekData);
+      weeks.push(week);
+    }
+
+    return weeks;
+  }
+
+  /**
+   * Generate a schedule for a specific week
+   * Alias for createWeeklySchedule for API compatibility
+   */
+  async generateSchedule(weekId: string): Promise<Schedule> {
+    return await this.createWeeklySchedule(weekId);
+  }
 }

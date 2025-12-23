@@ -92,6 +92,13 @@ export class ScheduleGenerator {
    * Filter players based on their availability for a specific week
    */
   filterAvailablePlayers(allPlayers: Player[], week: Week | WeekModel): Player[] {
+    // If no availability data is set, assume all players are available
+    const hasAvailabilityData = Object.keys(week.playerAvailability).length > 0;
+    
+    if (!hasAvailabilityData) {
+      return allPlayers;
+    }
+
     if (week instanceof WeekModel) {
       return allPlayers.filter(player => week.isPlayerAvailable(player.id));
     } else {

@@ -13,6 +13,7 @@ export * from './models';
 export * from './services';
 export * from './repositories';
 export * from './ui';
+export * from './utils';
 
 // Export the main application class and factory functions
 export * from './app';

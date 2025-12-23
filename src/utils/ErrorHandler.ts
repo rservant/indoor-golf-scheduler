@@ -6,6 +6,7 @@
  */
 
 import { applicationState } from '../state/ApplicationState';
+import { debugInterface } from './DebugInterface';
 
 export interface ErrorContext {
   component?: string;
@@ -80,6 +81,11 @@ export class ErrorHandler {
   handleError(error: Error | string | any, context: ErrorContext = {}): void {
     const errorEntry = this.createErrorLogEntry(error, context);
     this.logError(errorEntry);
+
+    // Record error for debugging
+    if (debugInterface) {
+      debugInterface.recordError(error, context);
+    }
 
     // Determine user-friendly message
     const userMessage = this.getUserFriendlyMessage(error, context);
@@ -200,6 +206,11 @@ export class ErrorHandler {
   private getUserFriendlyMessage(error: any, context: ErrorContext): string {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
+    // Handle empty or whitespace-only messages
+    if (!errorMessage || errorMessage.trim().length === 0) {
+      return 'An unexpected error occurred. Please try again or contact support if the problem persists.';
+    }
+
     // Map technical errors to user-friendly messages
     const errorMappings: Record<string, string> = {
       'Network Error': 'Unable to connect to the server. Please check your internet connection.',
@@ -240,6 +251,11 @@ export class ErrorHandler {
    * Show user feedback
    */
   private showUserFeedback(options: UserFeedbackOptions): void {
+    // Ensure we have a valid message
+    if (!options.message || options.message.trim().length === 0) {
+      options.message = 'An error occurred. Please try again.';
+    }
+
     applicationState.addNotification({
       type: options.type,
       title: options.title || this.getDefaultTitle(options.type),

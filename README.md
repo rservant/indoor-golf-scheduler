@@ -44,24 +44,27 @@ npm test
 
 ### Running the Application
 
-#### Option 1: Web Application (Recommended)
+#### Option 1: Production Build (Recommended)
 ```bash
-# Build and start the web application
-npm run webapp
+# Build and start the application
+npm run build
+npm run serve
 
-# Or run the steps separately:
-npm run build:webapp  # Build the web app
-npm run serve         # Start the web server
+# Or use the combined command:
+npm start
 ```
 
 Then open http://localhost:3000 in your web browser.
 
 #### Option 2: Development Mode
 ```bash
-# Build the TypeScript code
-npm run build
+# Start development server with hot reload
+npm run dev
+```
 
-# Start the development server
+#### Option 3: Development with Node.js Server
+```bash
+# Build and run with Node.js server
 npm run dev:server
 ```
 
@@ -129,12 +132,12 @@ await exportService.exportToCSV(schedule, 'week-1-schedule.csv');
 
 ## 🏗️ Architecture
 
-The application follows a clean architecture pattern with clear separation of concerns:
+The TypeScript application follows a clean architecture pattern with clear separation of concerns:
 
 ### Layers
-- **Presentation Layer**: Web-based UI with responsive design
-- **Business Logic Layer**: Services for season, player, and schedule management
-- **Data Access Layer**: Repository pattern with local storage support
+- **Presentation Layer**: Modern web-based UI with TypeScript and responsive design
+- **Business Logic Layer**: TypeScript services for season, player, and schedule management
+- **Data Access Layer**: Repository pattern with localStorage and future database support
 - **External Interfaces**: Export functionality and data import capabilities
 
 ### Key Components

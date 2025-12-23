@@ -39,6 +39,11 @@ export class SeasonManagementUI {
   async initialize(): Promise<void> {
     await this.loadSeasons();
     this.render();
+    
+    // If there's an active season, notify listeners
+    if (this.state.activeSeason && this.onSeasonChange) {
+      this.onSeasonChange(this.state.activeSeason);
+    }
   }
 
   /**

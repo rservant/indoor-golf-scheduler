@@ -164,7 +164,7 @@ describe('Application Initialization and Bootstrap', () => {
 
       // Verify tab content containers exist
       expectedTabs.forEach(tabName => {
-        const tabContent = mainContent?.querySelector(`[data-tab="${tabName}"]`);
+        const tabContent = mainContent?.querySelector(`[data-tab-content="${tabName}"]`);
         expect(tabContent).toBeTruthy();
       });
 
@@ -199,16 +199,16 @@ describe('Application Initialization and Bootstrap', () => {
       expect(seasonsTab).toBeTruthy();
       expect(seasonsTab.hasAttribute('disabled')).toBe(false);
 
-      // Test that other tabs are disabled without active season
+      // With demo data enabled, there should be an active season, so other tabs should be enabled
       const playerTab = navigation?.querySelector('[data-tab="players"]') as HTMLButtonElement;
       const availabilityTab = navigation?.querySelector('[data-tab="availability"]') as HTMLButtonElement;
       const scheduleTab = navigation?.querySelector('[data-tab="schedule"]') as HTMLButtonElement;
       const editTab = navigation?.querySelector('[data-tab="edit"]') as HTMLButtonElement;
 
-      expect(playerTab.hasAttribute('disabled')).toBe(true);
-      expect(availabilityTab.hasAttribute('disabled')).toBe(true);
-      expect(scheduleTab.hasAttribute('disabled')).toBe(true);
-      expect(editTab.hasAttribute('disabled')).toBe(true);
+      expect(playerTab.hasAttribute('disabled')).toBe(false);
+      expect(availabilityTab.hasAttribute('disabled')).toBe(false);
+      expect(scheduleTab.hasAttribute('disabled')).toBe(false);
+      expect(editTab.hasAttribute('disabled')).toBe(false);
 
       // Clean up
       await app.stop();

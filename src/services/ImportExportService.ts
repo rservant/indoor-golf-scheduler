@@ -499,4 +499,37 @@ export class ImportExportService extends ExportService {
       errors
     };
   }
+
+  /**
+   * Export all application data (seasons, players, schedules)
+   */
+  async exportData(): Promise<{
+    seasons: any[];
+    players: any[];
+    schedules: any[];
+    weeks: any[];
+  }> {
+    try {
+      // Get all seasons
+      const seasons = await this.seasonManager.getAllSeasons();
+      
+      // Get all players
+      const allPlayers: any[] = [];
+      for (const season of seasons) {
+        const seasonPlayers = await this.playerManager.getAllPlayers(season.id);
+        allPlayers.push(...seasonPlayers);
+      }
+
+      // For now, return empty arrays for schedules and weeks
+      // These could be implemented later if needed
+      return {
+        seasons,
+        players: allPlayers,
+        schedules: [],
+        weeks: []
+      };
+    } catch (error) {
+      throw new Error(`Failed to export data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }

@@ -114,11 +114,11 @@ export class ExportService {
     const csvData = data.map(row => [
       row.weekId,
       row.timeSlot,
-      row.foursomeNumber.toString(),
+      (row.foursomeNumber || 0).toString(),
       row.playerName,
       row.handedness,
       row.timePreference,
-      row.position.toString()
+      (row.position || 0).toString()
     ]);
 
     const csv = Papa.unparse({
@@ -281,5 +281,51 @@ export class ExportService {
     }
 
     return true;
+  }
+
+  /**
+   * Export player data to CSV format
+   */
+  async exportPlayersToCSV(players: any[]): Promise<string> {
+    const headers = ['First Name', 'Last Name', 'Handedness', 'Time Preference'];
+    const csvData = players.map(player => [
+      player.firstName,
+      player.lastName,
+      player.handedness,
+      player.timePreference
+    ]);
+
+    return Papa.unparse({
+      fields: headers,
+      data: csvData
+    });
+  }
+
+  /**
+   * Export player data to Excel format
+   */
+  async exportPlayersToExcel(players: any[]): Promise<Buffer> {
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(players.map(player => ({
+      'First Name': player.firstName,
+      'Last Name': player.lastName,
+      'Handedness': player.handedness,
+      'Time Preference': player.timePreference
+    })));
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Players');
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  }
+
+  /**
+   * Export player data to PDF format
+   */
+  async exportPlayersToPDF(players: any[]): Promise<string> {
+    // Simple text-based PDF representation
+    let pdfContent = 'Player List\n\n';
+    players.forEach(player => {
+      pdfContent += `${player.firstName} ${player.lastName} - ${player.handedness} - ${player.timePreference}\n`;
+    });
+    return pdfContent;
   }
 }

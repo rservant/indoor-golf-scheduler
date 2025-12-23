@@ -27,7 +27,14 @@ import { PairingHistoryTracker } from './services/PairingHistoryTracker';
 // Import state management and utilities
 import { applicationState, ApplicationStateManager } from './state/ApplicationState';
 import { errorHandler, ErrorHandler } from './utils/ErrorHandler';
+import { ErrorBoundary, GlobalErrorBoundary } from './utils/ErrorBoundary';
+import { debugInterface, DebugInterface } from './utils/DebugInterface';
+import { enhancedErrorHandling, initializeEnhancedErrorHandling } from './utils/EnhancedErrorHandling';
 import { applicationRouter, ApplicationRouter } from './routing/ApplicationRouter';
+
+// Import UI components
+import { NotificationUI } from './ui/NotificationUI';
+import { DebugUI } from './ui/DebugUI';
 
 export interface ApplicationConfig {
   containerElementId: string;
@@ -71,9 +78,13 @@ export class IndoorGolfSchedulerApp {
   private stateManager!: ApplicationStateManager;
   private errorHandler!: ErrorHandler;
   private router!: ApplicationRouter;
+  private errorBoundary!: GlobalErrorBoundary;
+  private debugInterface!: DebugInterface;
 
-  // UI instance
+  // UI instances
   private mainUI!: MainApplicationUI;
+  private notificationUI!: NotificationUI;
+  private debugUI!: DebugUI;
 
   constructor(config: ApplicationConfig) {
     this.config = {
@@ -112,6 +123,16 @@ export class IndoorGolfSchedulerApp {
       // Use global instances
       this.stateManager = applicationState;
       this.errorHandler = errorHandler;
+      this.debugInterface = debugInterface;
+      
+      // Initialize enhanced error handling system
+      initializeEnhancedErrorHandling(this.container, {
+        debugMode: this.config.debugMode,
+        enableConsoleLogging: this.config.debugMode
+      });
+      
+      // Set up global error boundary
+      this.errorBoundary = GlobalErrorBoundary.create(this.container);
       
       if (this.config.enableRouting) {
         this.router = applicationRouter;
@@ -209,6 +230,9 @@ export class IndoorGolfSchedulerApp {
         this.importExportService,
         this.pairingHistoryTracker
       );
+
+      // Enhanced error handling system already initializes notification and debug UI
+      // No need to create them separately here
 
       if (this.config.debugMode) {
         console.log('UI initialized successfully');
@@ -388,6 +412,11 @@ export class IndoorGolfSchedulerApp {
         
         await this.seasonManager.setActiveSeason(demoSeason.id);
         
+        // Re-initialize the SeasonUI to trigger the active season callback
+        if (this.mainUI) {
+          await this.mainUI.seasonUI.initialize();
+        }
+        
         // Add some demo players
         const demoPlayers = [
           { firstName: 'John', lastName: 'Smith', handedness: 'right' as const, timePreference: 'AM' as const },
@@ -423,6 +452,13 @@ export class IndoorGolfSchedulerApp {
         isInitialized: false,
         isLoading: false
       });
+
+      // Clean up enhanced error handling system
+      enhancedErrorHandling.destroy();
+
+      if (this.errorBoundary) {
+        this.errorBoundary.destroy();
+      }
 
       // Clear the container
       this.container.innerHTML = '';
@@ -547,7 +583,9 @@ export class IndoorGolfSchedulerApp {
     return {
       stateManager: this.stateManager,
       errorHandler: this.errorHandler,
-      router: this.router
+      router: this.router,
+      errorBoundary: this.errorBoundary,
+      debugInterface: this.debugInterface
     };
   }
 
