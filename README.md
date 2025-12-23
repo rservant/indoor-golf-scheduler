@@ -44,12 +44,28 @@ npm test
 
 ### Running the Application
 
-#### Option 1: Web Browser (Recommended)
-1. Open `src/ui/demo.html` in your web browser
-2. The application will automatically initialize with demo data
-3. Start by creating a season and adding players
+#### Option 1: Web Application (Recommended)
+```bash
+# Build and start the web application
+npm run webapp
 
-#### Option 2: Programmatic Usage
+# Or run the steps separately:
+npm run build:webapp  # Build the web app
+npm run serve         # Start the web server
+```
+
+Then open http://localhost:3000 in your web browser.
+
+#### Option 2: Development Mode
+```bash
+# Build the TypeScript code
+npm run build
+
+# Start the development server
+npm run dev:server
+```
+
+#### Option 3: Programmatic Usage
 ```typescript
 import { initializeGolfScheduler } from './src/index';
 

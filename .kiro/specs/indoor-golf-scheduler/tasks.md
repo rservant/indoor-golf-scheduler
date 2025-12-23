@@ -161,5 +161,5 @@
   - Test player management across multiple weeks
   - Test schedule generation with various constraint scenarios
 
-- [ ] 16. Final checkpoint - Ensure all tests pass
+- [x] 16. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

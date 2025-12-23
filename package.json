@@ -9,7 +9,12 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "dev": "tsc --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "serve": "node server.js",
+    "start": "npm run build && npm run serve",
+    "dev:server": "npm run build && node server.js",
+    "build:webapp": "node build-webapp.js",
+    "webapp": "npm run build:webapp && npm run serve"
   },
   "keywords": [
     "golf",
