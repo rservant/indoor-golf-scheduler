@@ -113,7 +113,7 @@
   - **Property 12: Manual edit validation**
   - **Validates: Requirements 7.3**
 
-- [ ] 10. Checkpoint - Ensure all tests pass
+- [x] 10. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 11. Create export functionality
@@ -123,7 +123,7 @@
   - Include all required information (names, time slots, foursomes, handedness)
   - _Requirements: 8.1, 8.2, 8.4, 8.5_
 
-- [ ] 11.1 Write property test for export data accuracy
+- [x] 11.1 Write property test for export data accuracy
   - **Property 13: Export data accuracy**
   - **Validates: Requirements 8.1, 8.2, 8.4**
 

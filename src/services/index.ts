@@ -4,3 +4,4 @@ export * from './PlayerManager';
 export * from './ScheduleGenerator';
 export * from './PairingHistoryTracker';
 export * from './ScheduleManager';
+export * from './ExportService';
