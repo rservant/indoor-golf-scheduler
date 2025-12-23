@@ -29,7 +29,7 @@ export class LocalScheduleRepository extends LocalStorageRepository<Schedule, Sc
 
   protected createEntity(data: ScheduleCreateData): Schedule {
     const scheduleModel = new ScheduleModel(data);
-    return scheduleModel.toJSON();
+    return scheduleModel;
   }
 
   async findByWeekId(weekId: string): Promise<Schedule | null> {
@@ -100,8 +100,8 @@ export class LocalScheduleRepository extends LocalStorageRepository<Schedule, Sc
       if (!data) return [];
       
       const parsed = JSON.parse(data);
-      // Convert date strings back to Date objects
-      return parsed.map((schedule: any) => ({
+      // Convert date strings back to Date objects and create ScheduleModel instances
+      return parsed.map((schedule: any) => new ScheduleModel({
         ...schedule,
         createdAt: new Date(schedule.createdAt),
         lastModified: new Date(schedule.lastModified)

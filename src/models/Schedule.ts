@@ -9,6 +9,8 @@ export interface Schedule {
   };
   createdAt: Date;
   lastModified: Date;
+  getAllPlayers(): string[];
+  getTotalPlayerCount(): number;
 }
 
 export class ScheduleModel implements Schedule {
@@ -134,7 +136,7 @@ export class ScheduleModel implements Schedule {
     this.lastModified = new Date();
   }
 
-  toJSON(): Schedule {
+  toJSON(): Omit<Schedule, 'getAllPlayers' | 'getTotalPlayerCount'> {
     return {
       id: this.id,
       weekId: this.weekId,

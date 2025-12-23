@@ -53,26 +53,26 @@
   - **Property 4: Player removal graceful handling**
   - **Validates: Requirements 2.4**
 
-- [ ] 6. Create core scheduling algorithm
+- [x] 6. Create core scheduling algorithm
   - Implement constraint satisfaction engine for player assignment
   - Create time slot balancing algorithm using "Either" preference players
   - Implement foursome formation logic prioritizing complete groups
   - Add preference respect validation (AM/PM players in correct slots)
   - _Requirements: 3.1, 3.2, 3.3, 6.1, 6.2, 6.3_
 
-- [ ] 6.1 Write property test for schedule completeness and uniqueness
+- [x] 6.1 Write property test for schedule completeness and uniqueness
   - **Property 5: Schedule completeness and uniqueness**
   - **Validates: Requirements 3.1, 3.5**
 
-- [ ] 6.2 Write property test for time preference respect
+- [x] 6.2 Write property test for time preference respect
   - **Property 6: Time preference respect**
   - **Validates: Requirements 3.2, 6.1**
 
-- [ ] 6.3 Write property test for foursome prioritization
+- [x] 6.3 Write property test for foursome prioritization
   - **Property 7: Foursome prioritization**
   - **Validates: Requirements 3.3, 6.3, 6.4**
 
-- [ ] 6.4 Write property test for either preference balancing
+- [x] 6.4 Write property test for either preference balancing
   - **Property 8: Either preference balancing**
   - **Validates: Requirements 3.4, 6.2**
 
