@@ -1,6 +1,7 @@
 import { Player } from '../models/Player';
 import { Schedule, ScheduleModel } from '../models/Schedule';
 import { Foursome, FoursomeModel, TimeSlot } from '../models/Foursome';
+import { Week, WeekModel } from '../models/Week';
 import { PairingHistoryTracker } from './PairingHistoryTracker';
 
 export interface ScheduleGeneratorOptions {
@@ -74,6 +75,29 @@ export class ScheduleGenerator {
     afternoonFoursomes.forEach(foursome => schedule.addFoursome(foursome));
 
     return schedule;
+  }
+
+  /**
+   * Generate a schedule for a specific week, filtering by player availability
+   */
+  async generateScheduleForWeek(week: Week | WeekModel, allPlayers: Player[]): Promise<Schedule> {
+    // Filter players by availability for this week
+    const availablePlayers = this.filterAvailablePlayers(allPlayers, week);
+    
+    // Generate schedule with available players
+    return this.generateSchedule(week.id, availablePlayers, week.seasonId);
+  }
+
+  /**
+   * Filter players based on their availability for a specific week
+   */
+  filterAvailablePlayers(allPlayers: Player[], week: Week | WeekModel): Player[] {
+    if (week instanceof WeekModel) {
+      return allPlayers.filter(player => week.isPlayerAvailable(player.id));
+    } else {
+      // Handle plain Week interface
+      return allPlayers.filter(player => week.playerAvailability[player.id] === true);
+    }
   }
 
   /**

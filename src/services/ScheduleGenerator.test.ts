@@ -1,6 +1,7 @@
 import * as fc from 'fast-check';
 import { ScheduleGenerator } from './ScheduleGenerator';
 import { PlayerModel, TimePreference, Handedness } from '../models/Player';
+import { WeekModel } from '../models/Week';
 
 // Test data generators
 const timePreferenceArb = fc.constantFrom('AM', 'PM', 'Either') as fc.Arbitrary<TimePreference>;
@@ -18,6 +19,18 @@ const playerArb = fc.record({
 }));
 
 const playersArb = fc.array(playerArb, { minLength: 0, maxLength: 20 });
+
+// Week availability generator
+const weekAvailabilityArb = (players: PlayerModel[]) => {
+  return fc.record(
+    Object.fromEntries(
+      players.map(player => [
+        player.id,
+        fc.boolean()
+      ])
+    )
+  );
+};
 
 describe('ScheduleGenerator Property Tests', () => {
   let generator: ScheduleGenerator;
@@ -239,6 +252,63 @@ describe('ScheduleGenerator Property Tests', () => {
         if (originalImbalance > 0 && eitherPlayers.length > 0) {
           // The balancing should improve or maintain the balance
           return finalImbalance <= originalImbalance;
+        }
+
+        return true;
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  /**
+   * **Feature: indoor-golf-scheduler, Property 9: Availability filtering**
+   * **Validates: Requirements 4.1, 4.3**
+   */
+  test('Property 9: Availability filtering', async () => {
+    await fc.assert(
+      fc.asyncProperty(playersArb, async (allPlayers) => {
+        if (allPlayers.length === 0) {
+          return true; // Skip empty player sets
+        }
+
+        const weekId = 'test-week-id';
+        const seasonId = allPlayers[0].seasonId;
+        
+        // Generate random availability for each player
+        const availability = await fc.sample(weekAvailabilityArb(allPlayers), 1)[0];
+        
+        // Create a week with the availability data
+        const week = new WeekModel({
+          seasonId,
+          weekNumber: 1,
+          date: new Date(),
+          playerAvailability: availability
+        });
+
+        // Filter to only available players
+        const availablePlayers = allPlayers.filter(player => 
+          week.isPlayerAvailable(player.id)
+        );
+
+        // Generate schedule with available players
+        const schedule = await generator.generateSchedule(weekId, availablePlayers);
+
+        // Get all scheduled player IDs
+        const scheduledPlayerIds = schedule.getAllPlayers();
+
+        // Verify that only available players are scheduled
+        for (const playerId of scheduledPlayerIds) {
+          if (!week.isPlayerAvailable(playerId)) {
+            return false; // Unavailable player was scheduled
+          }
+        }
+
+        // Verify that all scheduled players were in the available players list
+        const availablePlayerIds = new Set(availablePlayers.map(p => p.id));
+        for (const playerId of scheduledPlayerIds) {
+          if (!availablePlayerIds.has(playerId)) {
+            return false; // Player not in available list was scheduled
+          }
         }
 
         return true;

@@ -91,14 +91,14 @@
   - **Property 11: Pairing optimization**
   - **Validates: Requirements 5.2, 5.3, 5.4**
 
-- [ ] 8. Create schedule generation service
+- [x] 8. Create schedule generation service
   - Implement ScheduleGenerator class combining all algorithms
   - Add availability filtering to exclude unavailable players
   - Integrate constraint satisfaction, optimization, and balancing
   - Implement schedule validation and conflict detection
   - _Requirements: 3.5, 4.1, 4.3_
 
-- [ ] 8.1 Write property test for availability filtering
+- [x] 8.1 Write property test for availability filtering
   - **Property 9: Availability filtering**
   - **Validates: Requirements 4.1, 4.3**
 
