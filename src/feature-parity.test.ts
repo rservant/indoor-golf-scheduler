@@ -124,6 +124,7 @@ describe('Property 5: Feature Parity Preservation', () => {
       scheduleGenerator,
       weekRepository,
       {} as any, // exportService - not needed for this test
+      {} as any, // importExportService - not needed for this test
       pairingHistoryTracker
     );
   });

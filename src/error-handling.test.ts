@@ -123,7 +123,15 @@ describe('Enhanced Error Handling Property Tests', () => {
           const initialNotificationCount = applicationState.getState().notifications.length;
           const initialErrorState = applicationState.getState().hasError;
 
-          errorHandler.handleError(error, context);
+          // Ensure context has required string values
+          const safeContext = {
+            component: context.component ?? 'Unknown',
+            action: context.action ?? 'unknown',
+            userId: context.userId ?? 'anonymous',
+            additionalData: context.additionalData ?? {}
+          };
+
+          errorHandler.handleError(error, safeContext);
 
           // Verify error handling robustness
           const finalState = applicationState.getState();
@@ -231,7 +239,7 @@ describe('Enhanced Error Handling Property Tests', () => {
           // Verify error boundary behavior
           expect(boundaryTriggered).toBe(true);
           expect(errorCaught).toBeInstanceOf(Error);
-          expect(errorCaught.message).toBe(errorMessage);
+          expect(errorCaught!.message).toBe(errorMessage);
 
           if (shouldRecover) {
             expect(result).toBeNull();
@@ -261,7 +269,14 @@ describe('Enhanced Error Handling Property Tests', () => {
           // Enable debug mode
           debugInterface.setDebugMode(true);
           
-          errorHandler.handleError(error, context);
+          // Ensure context has required string values
+          const safeContext = {
+            component: context.component ?? 'Unknown',
+            action: context.action ?? 'unknown',
+            additionalData: context.additionalData ?? {}
+          };
+          
+          errorHandler.handleError(error, safeContext);
 
           // Should have debug information available
           const debugInfo = debugInterface.getErrorDebugInfo();
