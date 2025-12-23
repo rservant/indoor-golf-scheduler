@@ -102,14 +102,14 @@
   - **Property 9: Availability filtering**
   - **Validates: Requirements 4.1, 4.3**
 
-- [ ] 9. Implement schedule management service
+- [x] 9. Implement schedule management service
   - Create ScheduleManager class for schedule CRUD operations
   - Add manual schedule editing with constraint validation
   - Implement schedule finalization and pairing history updates
   - Add conflict detection and resolution for manual edits
   - _Requirements: 7.1, 7.2, 7.3, 7.5_
 
-- [ ] 9.1 Write property test for manual edit validation
+- [x] 9.1 Write property test for manual edit validation
   - **Property 12: Manual edit validation**
   - **Validates: Requirements 7.3**
 
