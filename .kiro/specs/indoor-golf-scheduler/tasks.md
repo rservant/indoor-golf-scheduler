@@ -116,7 +116,7 @@
 - [x] 10. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Create export functionality
+- [x] 11. Create export functionality
   - Implement export service supporting multiple formats (PDF, Excel, CSV)
   - Add schedule formatting for print and digital sharing
   - Ensure exported data matches current schedule state exactly
@@ -127,7 +127,7 @@
   - **Property 13: Export data accuracy**
   - **Validates: Requirements 8.1, 8.2, 8.4**
 
-- [ ] 12. Build user interface components
+- [x] 12. Build user interface components
   - Create season management UI (create, select, view seasons)
   - Build player management interface (add, edit, remove players)
   - Implement weekly availability management interface

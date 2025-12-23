@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indoor Golf Scheduler - UI Demo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- The MainApplicationUI will be initialized here -->
+    </div>
+
+    <script>
+        // This is a demo placeholder
+        // In a real implementation, you would initialize the MainApplicationUI here
+        // with proper service dependencies
+        
+        document.getElementById('app-container').innerHTML = `
+            <div class="main-application">
+                <header class="app-header">
+                    <h1>Indoor Golf Scheduler</h1>
+                    <div class="active-season-display">
+                        <span class="active-season-label">Active Season:</span>
+                        <span class="active-season-name">Spring 2024</span>
+                    </div>
+                </header>
+
+                <nav class="app-navigation">
+                    <button class="nav-tab active">Seasons</button>
+                    <button class="nav-tab">Players</button>
+                    <button class="nav-tab">Availability</button>
+                    <button class="nav-tab">Schedule</button>
+                    <button class="nav-tab">Edit Schedule</button>
+                </nav>
+
+                <main class="app-content">
+                    <div class="tab-content active">
+                        <div class="season-management">
+                            <div class="season-header">
+                                <h2>Season Management</h2>
+                                <button class="btn btn-primary">Create New Season</button>
+                            </div>
+
+                            <div class="active-season">
+                                <h3>Active Season</h3>
+                                <div class="season-card active">
+                                    <div class="season-info">
+                                        <h4>Spring 2024</h4>
+                                        <p>Mar 1, 2024 - May 31, 2024</p>
+                                        <p>12 players</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="seasons-list">
+                                <h3>All Seasons</h3>
+                                <div class="seasons-grid">
+                                    <div class="season-card active">
+                                        <div class="season-info">
+                                            <h4>Spring 2024</h4>
+                                            <p>Mar 1, 2024 - May 31, 2024</p>
+                                            <p>12 players, 8 weeks</p>
+                                        </div>
+                                        <div class="season-actions">
+                                            <span class="active-badge">Active</span>
+                                            <button class="btn btn-sm btn-danger" disabled>Delete</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="season-card">
+                                        <div class="season-info">
+                                            <h4>Winter 2024</h4>
+                                            <p>Dec 1, 2023 - Feb 29, 2024</p>
+                                            <p>10 players, 12 weeks</p>
+                                        </div>
+                                        <div class="season-actions">
+                                            <button class="btn btn-sm btn-primary">Activate</button>
+                                            <button class="btn btn-sm btn-danger" disabled>Delete</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        `;
+    </script>
+</body>
+</html>
