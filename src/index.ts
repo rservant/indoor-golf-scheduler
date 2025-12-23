@@ -5,6 +5,9 @@
  * for both programmatic usage and direct browser usage.
  */
 
+// Import CSS styles
+import './ui/styles.css';
+
 // Export all models, services, repositories, and UI components
 export * from './models';
 export * from './services';

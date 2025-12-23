@@ -8,14 +8,16 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test --reporter=line",
+    "test:e2e:ui": "playwright test --ui",
     "dev": "vite",
     "clean": "rm -rf dist",
     "serve": "vite preview",
     "start": "npm run build && npm run serve",
     "dev:server": "npm run build && node server.js",
-    "build:webapp": "node build-webapp.js",
-    "webapp": "npm run build:webapp && npm run serve",
-    "preview": "vite preview"
+    "preview": "vite preview --port 3000",
+    "type-check": "tsc --noEmit",
+    "lint": "tsc --noEmit --skipLibCheck"
   },
   "keywords": [
     "golf",

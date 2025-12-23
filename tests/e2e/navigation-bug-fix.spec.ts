@@ -25,16 +25,20 @@ test.describe('Navigation Bug Fix Test', () => {
     
     // Create first season
     await page.fill('#season-name', 'Test Season 1');
+    await page.fill('#start-date', '2025-01-01');
+    await page.fill('#end-date', '2025-06-30');
     await page.click('#add-season');
     await page.waitForTimeout(500);
     
     // Create second season  
     await page.fill('#season-name', 'Test Season 2');
+    await page.fill('#start-date', '2025-07-01');
+    await page.fill('#end-date', '2025-12-31');
     await page.click('#add-season');
     await page.waitForTimeout(500);
     
     // Verify seasons were created
-    const seasonItems = page.locator('.season-item');
+    const seasonItems = page.locator('.seasons-list .season-card');
     const seasonCount = await seasonItems.count();
     console.log(`Created ${seasonCount} seasons`);
     expect(seasonCount).toBeGreaterThanOrEqual(2);
@@ -92,7 +96,7 @@ test.describe('Navigation Bug Fix Test', () => {
     console.log('Step 5: Switching to different season...');
     
     // Find an inactive season to activate
-    const inactiveSeasons = page.locator('.season-item:not(.active)');
+    const inactiveSeasons = page.locator('.seasons-list .season-card:not(.active)');
     const inactiveCount = await inactiveSeasons.count();
     console.log(`Found ${inactiveCount} inactive seasons`);
     
@@ -142,7 +146,7 @@ test.describe('Navigation Bug Fix Test', () => {
     await page.waitForTimeout(200);
     
     // Find another inactive season if available
-    const inactiveSeasonsAgain = page.locator('.season-item:not(.active)');
+    const inactiveSeasonsAgain = page.locator('.seasons-list .season-card:not(.active)');
     const inactiveCountAgain = await inactiveSeasonsAgain.count();
     
     if (inactiveCountAgain > 0) {
@@ -169,11 +173,13 @@ test.describe('Navigation Bug Fix Test', () => {
     
     // Create a season to trigger DOM changes
     await page.fill('#season-name', 'Event Test Season');
+    await page.fill('#start-date', '2025-01-01');
+    await page.fill('#end-date', '2025-12-31');
     await page.click('#add-season');
     await page.waitForTimeout(500);
     
     // Find an inactive season to activate (this triggers a DOM re-render)
-    const inactiveSeasons = page.locator('.season-item:not(.active)');
+    const inactiveSeasons = page.locator('.seasons-list .season-card:not(.active)');
     const inactiveCount = await inactiveSeasons.count();
     
     if (inactiveCount > 0) {

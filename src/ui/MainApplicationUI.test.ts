@@ -183,7 +183,7 @@ describe('MainApplicationUI Navigation Bug Tests', () => {
       expect(container.querySelector('.app-navigation')).toBeTruthy();
       
       const navButtons = container.querySelectorAll('.nav-tab');
-      expect(navButtons).toHaveLength(5);
+      expect(navButtons).toHaveLength(6); // Updated to include Import/Export tab
       
       console.log('Initial navigation buttons found:', navButtons.length);
       

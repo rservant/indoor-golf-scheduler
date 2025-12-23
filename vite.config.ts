@@ -2,19 +2,19 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  // Set the root to public directory where index.html is located
-  root: 'public',
+  // Set the root to project root
+  root: '.',
   
   // Build configuration
   build: {
-    // Output directory relative to root (public)
-    outDir: '../dist',
+    // Output directory
+    outDir: 'dist',
     // Empty the output directory before building
     emptyOutDir: true,
     // Rollup options for advanced bundling
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'public/index.html')
+        main: resolve(__dirname, 'index.html')
       }
     },
     // Generate source maps for debugging
@@ -28,9 +28,18 @@ export default defineConfig({
   // Module resolution
   resolve: {
     alias: {
-      // Create alias for src directory
-      '@': resolve(__dirname, 'src')
-    }
+      // Create comprehensive aliases for clean imports
+      '@': resolve(__dirname, 'src'),
+      '@/models': resolve(__dirname, 'src/models'),
+      '@/services': resolve(__dirname, 'src/services'),
+      '@/repositories': resolve(__dirname, 'src/repositories'),
+      '@/ui': resolve(__dirname, 'src/ui'),
+      '@/state': resolve(__dirname, 'src/state'),
+      '@/utils': resolve(__dirname, 'src/utils'),
+      '@/routing': resolve(__dirname, 'src/routing')
+    },
+    // Ensure proper extension resolution
+    extensions: ['.ts', '.js', '.json']
   },
   
   // Development server configuration
@@ -40,7 +49,9 @@ export default defineConfig({
     // Enable hot module replacement
     hmr: true,
     // Open browser automatically
-    open: false
+    open: false,
+    // Configure CORS for development
+    cors: true
   },
   
   // Preview server configuration (for production builds)
@@ -51,11 +62,20 @@ export default defineConfig({
   
   // TypeScript configuration
   esbuild: {
-    target: 'es2020'
+    target: 'es2020',
+    // Keep class names for debugging
+    keepNames: true
   },
   
   // Define environment variables
   define: {
     __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production')
+  },
+  
+  // Optimize dependencies
+  optimizeDeps: {
+    include: ['fast-check', 'papaparse', 'jspdf', 'xlsx'],
+    // Force pre-bundling of these dependencies
+    force: false
   }
 });

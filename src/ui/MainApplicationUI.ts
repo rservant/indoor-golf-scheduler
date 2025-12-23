@@ -7,6 +7,7 @@ import { PlayerManagementUI } from './PlayerManagementUI';
 import { AvailabilityManagementUI } from './AvailabilityManagementUI';
 import { ScheduleDisplayUI } from './ScheduleDisplayUI';
 import { ScheduleEditingUI } from './ScheduleEditingUI';
+import { ImportExportUI } from './ImportExportUI';
 
 // Import services
 import { SeasonManager } from '../services/SeasonManager';
@@ -14,6 +15,7 @@ import { PlayerManager } from '../services/PlayerManager';
 import { ScheduleManager } from '../services/ScheduleManager';
 import { ScheduleGenerator } from '../services/ScheduleGenerator';
 import { ExportService } from '../services/ExportService';
+import { ImportExportService } from '../services/ImportExportService';
 import { PairingHistoryTracker } from '../services/PairingHistoryTracker';
 
 // Import repositories
@@ -21,7 +23,7 @@ import { WeekRepository } from '../repositories/WeekRepository';
 
 export interface MainApplicationUIState {
   activeSeason: Season | null;
-  currentTab: 'seasons' | 'players' | 'availability' | 'schedule' | 'edit';
+  currentTab: 'seasons' | 'players' | 'availability' | 'schedule' | 'edit' | 'import-export';
   isInitialized: boolean;
 }
 
@@ -36,6 +38,7 @@ export class MainApplicationUI {
   private availabilityUI!: AvailabilityManagementUI;
   private scheduleDisplayUI!: ScheduleDisplayUI;
   private scheduleEditingUI!: ScheduleEditingUI;
+  private importExportUI!: ImportExportUI;
 
   // Service dependencies
   private seasonManager: SeasonManager;
@@ -44,6 +47,7 @@ export class MainApplicationUI {
   private scheduleGenerator: ScheduleGenerator;
   private weekRepository: WeekRepository;
   private exportService: ExportService;
+  private importExportService: ImportExportService;
   private pairingHistoryTracker: PairingHistoryTracker;
 
   constructor(
@@ -54,6 +58,7 @@ export class MainApplicationUI {
     scheduleGenerator: ScheduleGenerator,
     weekRepository: WeekRepository,
     exportService: ExportService,
+    importExportService: ImportExportService,
     pairingHistoryTracker: PairingHistoryTracker
   ) {
     this.container = container;
@@ -63,6 +68,7 @@ export class MainApplicationUI {
     this.scheduleGenerator = scheduleGenerator;
     this.weekRepository = weekRepository;
     this.exportService = exportService;
+    this.importExportService = importExportService;
     this.pairingHistoryTracker = pairingHistoryTracker;
 
     this.state = {
@@ -85,6 +91,7 @@ export class MainApplicationUI {
     const availabilityContainer = document.createElement('div');
     const scheduleDisplayContainer = document.createElement('div');
     const scheduleEditingContainer = document.createElement('div');
+    const importExportContainer = document.createElement('div');
 
     // Initialize UI components
     this.seasonUI = new SeasonManagementUI(this.seasonManager, seasonContainer);
@@ -100,6 +107,7 @@ export class MainApplicationUI {
       scheduleDisplayContainer
     );
     this.scheduleEditingUI = new ScheduleEditingUI(this.scheduleManager, scheduleEditingContainer);
+    this.importExportUI = new ImportExportUI(importExportContainer, this.importExportService);
 
     // Set up callbacks
     this.setupCallbacks();
@@ -134,15 +142,19 @@ export class MainApplicationUI {
       await this.seasonUI.initialize();
       this.state.activeSeason = this.seasonUI.getActiveSeason();
 
-      // Initialize other components with the active season
+      // Initialize other components with the active season but DON'T render them yet
+      // They will be rendered when their tabs are activated
       await Promise.all([
-        this.playerUI.initialize(this.state.activeSeason),
-        this.availabilityUI.initialize(this.state.activeSeason),
-        this.scheduleDisplayUI.initialize(this.state.activeSeason)
+        this.playerUI.setActiveSeason(this.state.activeSeason),
+        this.availabilityUI.setActiveSeason(this.state.activeSeason),
+        this.scheduleDisplayUI.setActiveSeason(this.state.activeSeason)
       ]);
 
       this.state.isInitialized = true;
-      this.render();
+      await this.render();
+      
+      // Add app-loaded class to indicate successful initialization
+      this.container.classList.add('app-loaded');
     } catch (error) {
       console.error('Failed to initialize application:', error);
       this.renderError('Failed to initialize application. Please refresh the page.');
@@ -162,7 +174,7 @@ export class MainApplicationUI {
       this.scheduleDisplayUI.setActiveSeason(season)
     ]);
 
-    this.render();
+    await this.render();
   }
 
   /**
@@ -172,7 +184,7 @@ export class MainApplicationUI {
     const selectedWeek = this.scheduleDisplayUI.getSelectedWeek();
     if (selectedWeek) {
       await this.scheduleEditingUI.initialize(schedule, selectedWeek);
-      this.switchTab('edit');
+      await this.switchTab('edit');
     }
   }
 
@@ -182,21 +194,54 @@ export class MainApplicationUI {
   private async handleScheduleUpdated(_schedule: Schedule): Promise<void> {
     // Refresh the schedule display
     await this.scheduleDisplayUI.refresh();
-    this.switchTab('schedule');
+    await this.switchTab('schedule');
   }
 
   /**
    * Switch to a different tab
    */
-  private switchTab(tab: 'seasons' | 'players' | 'availability' | 'schedule' | 'edit'): void {
+  private async switchTab(tab: 'seasons' | 'players' | 'availability' | 'schedule' | 'edit' | 'import-export'): Promise<void> {
     this.state.currentTab = tab;
-    this.render();
+    
+    // Clear ALL tab contents first to prevent overlap
+    const tabContents = this.container.querySelectorAll('.tab-content');
+    tabContents.forEach(content => {
+      content.innerHTML = '';
+      content.classList.remove('active');
+    });
+    
+    // Set the active tab content
+    const activeTabContent = this.container.querySelector(`[data-tab-content="${tab}"]`);
+    if (activeTabContent) {
+      activeTabContent.classList.add('active');
+    }
+    
+    // Render specific UI components when their tab is activated
+    if (tab === 'seasons') {
+      await this.seasonUI.refresh();
+    } else if (tab === 'players') {
+      await this.playerUI.refresh();
+    } else if (tab === 'availability') {
+      await this.availabilityUI.refresh();
+    } else if (tab === 'schedule') {
+      await this.scheduleDisplayUI.refresh();
+    } else if (tab === 'edit') {
+      // Initialize with null schedule to show "no schedule" message
+      await this.scheduleEditingUI.initialize(null, null);
+    } else if (tab === 'import-export') {
+      this.importExportUI.render();
+    }
+    
+    // Update navigation state
+    this.updateNavigationState();
   }
 
   /**
    * Render the main application UI
    */
-  private render(): void {
+  private async render(): Promise<void> {
+    console.log('MainApplicationUI.render() called, isInitialized:', this.state.isInitialized);
+    
     if (!this.state.isInitialized) {
       this.container.innerHTML = `
         <div class="app-loading">
@@ -209,13 +254,16 @@ export class MainApplicationUI {
 
     // Check if we need to create the main structure
     const mainApp = this.container.querySelector('.main-application');
+    console.log('Existing main app element:', mainApp);
     
     if (!mainApp) {
-      this.createMainStructure();
+      console.log('Creating main structure...');
+      await this.createMainStructure();
     } else {
       // Verify navigation listener is still there
       const navigation = this.container.querySelector('.app-navigation');
       const hasListenerSetup = navigation?.hasAttribute('data-listener-setup');
+      console.log('Navigation element:', navigation, 'Has listener setup:', hasListenerSetup);
       
       if (!hasListenerSetup) {
         this.setupNavigationListeners();
@@ -229,17 +277,21 @@ export class MainApplicationUI {
     this.updateNavigationState();
 
     // Update tab visibility
-    this.updateTabVisibility();
+    await this.updateTabVisibility();
+    
+    console.log('MainApplicationUI.render() completed, currentTab:', this.state.currentTab);
   }
 
   /**
    * Create the main application structure (called only once)
    */
-  private createMainStructure(): void {
+  private async createMainStructure(): Promise<void> {
     if (this.isStructureCreated) {
+      console.log('Structure already created, skipping...');
       return; // Prevent recreation
     }
 
+    console.log('Creating main application structure...');
     this.container.innerHTML = `
       <div class="main-application">
         <header class="app-header">
@@ -253,36 +305,59 @@ export class MainApplicationUI {
           <button class="nav-tab" data-tab="availability">Availability</button>
           <button class="nav-tab" data-tab="schedule">Schedule</button>
           <button class="nav-tab" data-tab="edit">Edit Schedule</button>
+          <button class="nav-tab" data-tab="import-export">Import/Export</button>
         </nav>
 
         <main class="app-content">
-          <div class="tab-content" data-tab="seasons"></div>
-          <div class="tab-content" data-tab="players"></div>
-          <div class="tab-content" data-tab="availability"></div>
-          <div class="tab-content" data-tab="schedule"></div>
-          <div class="tab-content" data-tab="edit"></div>
+          <div class="tab-content" data-tab-content="seasons"></div>
+          <div class="tab-content" data-tab-content="players"></div>
+          <div class="tab-content" data-tab-content="availability"></div>
+          <div class="tab-content" data-tab-content="schedule"></div>
+          <div class="tab-content" data-tab-content="edit"></div>
+          <div class="tab-content" data-tab-content="import-export"></div>
         </main>
       </div>
     `;
 
-    // Assign containers to UI components (only once)
-    this.assignContainers();
+    console.log('HTML structure created, DOM structure:');
+    console.log('Container:', this.container);
+    console.log('Main app:', this.container.querySelector('.main-application'));
+    console.log('Navigation:', this.container.querySelector('.app-navigation'));
+    console.log('Content:', this.container.querySelector('.app-content'));
 
+    console.log('HTML structure created, assigning containers...');
+    // Assign containers to UI components (only once)
+    await this.assignContainers();
+
+    console.log('Setting up navigation listeners...');
     // Set up navigation event listeners (only once)
     this.setupNavigationListeners();
 
     this.isStructureCreated = true;
+    console.log('Main structure creation completed');
   }
 
   /**
    * Assign containers to UI components
    */
-  private assignContainers(): void {
-    this.seasonUI.container = this.container.querySelector('[data-tab="seasons"]') as HTMLElement;
-    this.playerUI.container = this.container.querySelector('[data-tab="players"]') as HTMLElement;
-    this.availabilityUI.container = this.container.querySelector('[data-tab="availability"]') as HTMLElement;
-    this.scheduleDisplayUI.container = this.container.querySelector('[data-tab="schedule"]') as HTMLElement;
-    this.scheduleEditingUI.container = this.container.querySelector('[data-tab="edit"]') as HTMLElement;
+  private async assignContainers(): Promise<void> {
+    const seasonsContainer = this.container.querySelector('[data-tab-content="seasons"]') as HTMLElement;
+    console.log('Assigning seasons container:', seasonsContainer);
+    
+    this.seasonUI.container = seasonsContainer;
+    this.playerUI.container = this.container.querySelector('[data-tab-content="players"]') as HTMLElement;
+    this.availabilityUI.container = this.container.querySelector('[data-tab-content="availability"]') as HTMLElement;
+    this.scheduleDisplayUI.container = this.container.querySelector('[data-tab-content="schedule"]') as HTMLElement;
+    this.scheduleEditingUI.container = this.container.querySelector('[data-tab-content="edit"]') as HTMLElement;
+    this.importExportUI.container = this.container.querySelector('[data-tab-content="import-export"]') as HTMLElement;
+    
+    // Only render the current active tab's content
+    if (this.state.currentTab === 'seasons') {
+      console.log('Calling seasonUI.refresh() for active tab');
+      await this.seasonUI.refresh();
+      console.log('seasonUI.refresh() completed');
+    }
+    // Other components will be refreshed when their tabs are activated via tab switching
   }
 
   /**
@@ -321,7 +396,7 @@ export class MainApplicationUI {
   /**
    * Handle navigation button clicks using event delegation
    */
-  private handleNavClick = (event: Event) => {
+  private handleNavClick = async (event: Event) => {
     const target = event.target as HTMLElement;
     
     // Check if the clicked element is a nav button
@@ -334,7 +409,7 @@ export class MainApplicationUI {
     const isDisabled = button.hasAttribute('disabled');
     
     if (tab && !isDisabled) {
-      this.switchTab(tab);
+      await this.switchTab(tab);
     }
   };
 
@@ -355,7 +430,7 @@ export class MainApplicationUI {
       }
 
       // Update disabled state
-      const shouldBeDisabled = !this.state.activeSeason && (tab === 'players' || tab === 'availability' || tab === 'schedule' || tab === 'edit');
+      const shouldBeDisabled = !this.state.activeSeason && (tab === 'players' || tab === 'availability' || tab === 'schedule' || tab === 'edit' || tab === 'import-export');
       
       if (shouldBeDisabled) {
         button.setAttribute('disabled', 'true');
@@ -370,16 +445,37 @@ export class MainApplicationUI {
   /**
    * Update tab content visibility
    */
-  private updateTabVisibility(): void {
+  private async updateTabVisibility(): Promise<void> {
     const tabContents = this.container.querySelectorAll('.tab-content');
+    console.log('updateTabVisibility: Found', tabContents.length, 'tab contents, currentTab:', this.state.currentTab);
+    
     tabContents.forEach(content => {
-      const tab = content.getAttribute('data-tab');
+      const tab = content.getAttribute('data-tab-content');
       if (tab === this.state.currentTab) {
         content.classList.add('active');
+        console.log('Setting tab', tab, 'as active');
       } else {
         content.classList.remove('active');
+        // Clear inactive tab content to prevent overlap
+        content.innerHTML = '';
+        console.log('Setting tab', tab, 'as inactive and clearing content');
       }
     });
+
+    // Re-render the active tab content
+    if (this.state.currentTab === 'seasons') {
+      await this.seasonUI.refresh();
+    } else if (this.state.currentTab === 'players') {
+      await this.playerUI.refresh();
+    } else if (this.state.currentTab === 'availability') {
+      await this.availabilityUI.refresh();
+    } else if (this.state.currentTab === 'schedule') {
+      await this.scheduleDisplayUI.refresh();
+    } else if (this.state.currentTab === 'edit') {
+      await this.scheduleEditingUI.initialize(null, null);
+    } else if (this.state.currentTab === 'import-export') {
+      this.importExportUI.render();
+    }
   }
 
   /**

@@ -3,16 +3,16 @@ import { ExportFormat } from '../services/ExportService';
 import { Schedule } from '../models/Schedule';
 
 export class ImportExportUI {
-  private container: HTMLElement;
+  public container: HTMLElement;
   private importExportService: ImportExportService;
 
   constructor(container: HTMLElement, importExportService: ImportExportService) {
     this.container = container;
     this.importExportService = importExportService;
-    this.render();
+    // Don't render in constructor - wait for proper container assignment
   }
 
-  private render(): void {
+  public render(): void {
     this.container.innerHTML = `
       <div class="import-export-container">
         <div class="section-header">

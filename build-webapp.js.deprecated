@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+
+/**
+ * DEPRECATED: This build script is no longer used
+ * 
+ * This file created a simple JavaScript bundle that conflicts with the TypeScript application.
+ * The TypeScript application now uses Vite for building and bundling.
+ * 
+ * Use the following commands instead:
+ * - npm run build (for production build)
+ * - npm run dev (for development)
+ * - npm run serve (to serve built application)
+ * 
+ * This file has been renamed to .deprecated to prevent conflicts.
+ */
+
+console.log('❌ This build script is deprecated.');
+console.log('🔄 Please use: npm run build');
+console.log('📖 See package.json scripts for available commands.');

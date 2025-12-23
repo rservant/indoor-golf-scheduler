@@ -34,13 +34,15 @@ test.describe('Getting Started Workflow', () => {
     await page.waitForTimeout(300);
     
     // Create a new season
-    const seasonName = 'Spring 2024 Test Season';
+    const seasonName = 'Spring 2025 Test Season';
     await page.fill('#season-name', seasonName);
+    await page.fill('#start-date', '2025-03-01');
+    await page.fill('#end-date', '2025-05-31');
     await page.click('#add-season');
     await page.waitForTimeout(500);
     
     // Verify season was created
-    const seasonItem = page.locator('.season-item').filter({ hasText: seasonName });
+    const seasonItem = page.locator('.seasons-list .season-card').filter({ hasText: seasonName });
     await expect(seasonItem).toBeVisible();
     console.log(`✓ Created season: ${seasonName}`);
     
@@ -56,7 +58,7 @@ test.describe('Getting Started Workflow', () => {
     }
     
     // Verify active season is displayed in header
-    const activeSeasonInfo = page.locator('.season-info');
+    const activeSeasonInfo = page.locator('.active-season-display');
     const activeSeasonText = await activeSeasonInfo.textContent();
     expect(activeSeasonText).toContain(seasonName);
     console.log('✓ Active season is displayed in header');
@@ -71,8 +73,7 @@ test.describe('Getting Started Workflow', () => {
     await page.waitForTimeout(300);
     
     // Verify we're on the players tab and it shows the form
-    await expect(page.locator('#players-tab')).toHaveClass(/active/);
-    await expect(page.locator('#player-first')).toBeVisible();
+    await expect(page.locator('[data-tab="players"]')).toHaveClass(/active/);
     console.log('✓ Navigated to Players tab');
     
     // Add multiple players with different preferences
@@ -86,30 +87,35 @@ test.describe('Getting Started Workflow', () => {
     ];
     
     for (const player of players) {
-      await page.fill('#player-first', player.firstName);
-      await page.fill('#player-last', player.lastName);
-      await page.selectOption('#player-handedness', player.handedness);
-      await page.selectOption('#player-preference', player.preference);
-      await page.click('#add-player');
+      // Click "Add Player" button to show the form (needed for each player)
+      await page.click('button:has-text("Add Player")');
+      await page.waitForTimeout(300);
+      
+      await page.fill('#first-name', player.firstName);
+      await page.fill('#last-name', player.lastName);
+      await page.selectOption('#handedness', player.handedness);
+      await page.selectOption('#time-preference', player.preference);
+      await page.click('button[type="submit"]');
       await page.waitForTimeout(300);
       
       // Verify player was added
-      const playerItem = page.locator('.player-item').filter({ 
+      const playerItem = page.locator('.player-row').filter({ 
         hasText: `${player.firstName} ${player.lastName}` 
       });
       await expect(playerItem).toBeVisible();
       
       // Verify player details are correct
-      const playerDetails = playerItem.locator('.player-details');
-      const detailsText = await playerDetails.textContent();
-      expect(detailsText).toContain(player.handedness);
-      expect(detailsText).toContain(player.preference);
+      const handednessElement = playerItem.locator('.handedness-badge');
+      const preferenceElement = playerItem.locator('.preference-badge');
+      
+      await expect(handednessElement).toContainText(player.handedness === 'left' ? 'Left' : 'Right');
+      await expect(preferenceElement).toContainText(player.preference);
       
       console.log(`✓ Added player: ${player.firstName} ${player.lastName} (${player.handedness}, ${player.preference})`);
     }
     
     // Verify we have enough players for scheduling
-    const playerItems = page.locator('.player-item');
+    const playerItems = page.locator('.player-row');
     const playerCount = await playerItems.count();
     expect(playerCount).toBeGreaterThanOrEqual(4);
     console.log(`✓ Added ${playerCount} players total (minimum 4 required for scheduling)`);
@@ -129,11 +135,11 @@ test.describe('Getting Started Workflow', () => {
     await page.waitForTimeout(300);
     
     // Verify we're on the schedule tab
-    await expect(page.locator('#schedule-tab')).toHaveClass(/active/);
+    await expect(page.locator('[data-tab="schedule"]')).toHaveClass(/active/);
     console.log('✓ Navigated to Schedule tab');
     
     // Verify generate schedule button is available (should be since we have 4+ players)
-    const generateButton = page.locator('#generate-schedule');
+    const generateButton = page.locator('button:has-text("Generate Schedule")');
     await expect(generateButton).toBeVisible();
     console.log('✓ Generate Schedule button is available');
     
@@ -237,11 +243,13 @@ test.describe('Getting Started Workflow', () => {
     
     // Create a season
     await page.fill('#season-name', 'Test Season - Few Players');
+    await page.fill('#start-date', '2025-01-01');
+    await page.fill('#end-date', '2025-12-31');
     await page.click('#add-season');
     await page.waitForTimeout(500);
     
     // Activate the season
-    const seasonItem = page.locator('.season-item').filter({ hasText: 'Test Season - Few Players' });
+    const seasonItem = page.locator('.seasons-list .season-card').filter({ hasText: 'Test Season - Few Players' });
     const activateButton = seasonItem.locator('button:has-text("Activate")');
     const activateButtonCount = await activateButton.count();
     if (activateButtonCount > 0) {
@@ -260,11 +268,11 @@ test.describe('Getting Started Workflow', () => {
     ];
     
     for (const player of players) {
-      await page.fill('#player-first', player.firstName);
-      await page.fill('#player-last', player.lastName);
-      await page.selectOption('#player-handedness', player.handedness);
-      await page.selectOption('#player-preference', player.preference);
-      await page.click('#add-player');
+      await page.fill('#first-name', player.firstName);
+      await page.fill('#last-name', player.lastName);
+      await page.selectOption('#handedness', player.handedness);
+      await page.selectOption('#time-preference', player.preference);
+      await page.click('button[type="submit"]');
       await page.waitForTimeout(300);
     }
     

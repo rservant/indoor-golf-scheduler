@@ -21,6 +21,7 @@ import { PlayerManagerService } from './services/PlayerManager';
 import { ScheduleManager } from './services/ScheduleManager';
 import { ScheduleGenerator } from './services/ScheduleGenerator';
 import { ExportService } from './services/ExportService';
+import { ImportExportService } from './services/ImportExportService';
 import { PairingHistoryTracker } from './services/PairingHistoryTracker';
 
 // Import state management and utilities
@@ -63,6 +64,7 @@ export class IndoorGolfSchedulerApp {
   private scheduleManager!: ScheduleManager;
   private scheduleGenerator!: ScheduleGenerator;
   private exportService!: ExportService;
+  private importExportService!: ImportExportService;
   private pairingHistoryTracker!: PairingHistoryTracker;
 
   // System instances
@@ -178,6 +180,11 @@ export class IndoorGolfSchedulerApp {
 
       this.exportService = new ExportService();
 
+      this.importExportService = new ImportExportService(
+        this.playerManager,
+        this.seasonManager
+      );
+
       if (this.config.debugMode) {
         console.log('Services initialized successfully');
       }
@@ -199,6 +206,7 @@ export class IndoorGolfSchedulerApp {
         this.scheduleGenerator,
         this.weekRepository,
         this.exportService,
+        this.importExportService,
         this.pairingHistoryTracker
       );
 
@@ -514,6 +522,7 @@ export class IndoorGolfSchedulerApp {
       scheduleManager: this.scheduleManager,
       scheduleGenerator: this.scheduleGenerator,
       exportService: this.exportService,
+      importExportService: this.importExportService,
       pairingHistoryTracker: this.pairingHistoryTracker
     };
   }
