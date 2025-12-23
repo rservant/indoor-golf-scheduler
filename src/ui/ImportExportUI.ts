@@ -427,7 +427,7 @@ export class ImportExportUI {
   }
 
   private downloadFile(data: string | Buffer, filename: string, mimeType: string): void {
-    const blob = new Blob([data], { type: mimeType });
+    const blob = new Blob([data as BlobPart], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -542,10 +542,6 @@ export class ImportExportUI {
     const resultsContainer = this.container.querySelector('#export-results') as HTMLElement;
     resultsContainer.style.display = 'block';
     resultsContainer.innerHTML = `<div class="message ${type}">${message}</div>`;
-  }
-
-  private showBulkSuccess(message: string): void {
-    this.showBulkMessage(message, 'success');
   }
 
   private showBulkError(message: string): void {

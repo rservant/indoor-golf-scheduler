@@ -3,89 +3,212 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Indoor Golf Scheduler - UI Demo</title>
+    <title>Indoor Golf Scheduler - Demo</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Additional demo-specific styles */
+        .demo-header {
+            background: linear-gradient(135deg, #2e7d32, #4caf50);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .demo-instructions {
+            background: #f5f5f5;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #2e7d32;
+        }
+        
+        .demo-instructions h3 {
+            margin-top: 0;
+            color: #2e7d32;
+        }
+        
+        .demo-instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .demo-instructions li {
+            margin: 5px 0;
+        }
+        
+        .app-loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2e7d32;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .app-error-state {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .error-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        
+        .error-content h2 {
+            color: #d32f2f;
+            margin-bottom: 15px;
+        }
+        
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+            border-left: 4px solid #d32f2f;
+        }
+        
+        .error-actions {
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 0 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #2e7d32;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1b5e20;
+        }
+        
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #424242;
+        }
+    </style>
 </head>
 <body>
-    <div id="app-container">
-        <!-- The MainApplicationUI will be initialized here -->
+    <div class="demo-header">
+        <h1>🏌️ Indoor Golf Scheduler</h1>
+        <p>Complete Golf Scheduling System Demo</p>
+    </div>
+    
+    <div class="demo-instructions">
+        <h3>Getting Started</h3>
+        <p>This demo shows the complete Indoor Golf Scheduler application with all components integrated:</p>
+        <ol>
+            <li><strong>Create a Season:</strong> Start by creating and activating a new golf season</li>
+            <li><strong>Add Players:</strong> Add players with their preferences (AM/PM/Either) and handedness</li>
+            <li><strong>Set Availability:</strong> Mark which players are available for each week</li>
+            <li><strong>Generate Schedules:</strong> Create optimized schedules that balance time slots and minimize repeat pairings</li>
+            <li><strong>Edit & Export:</strong> Make manual adjustments and export schedules in various formats</li>
+        </ol>
+        <p><strong>Features:</strong> Season management, player tracking, availability management, automated scheduling with optimization, manual editing, and multi-format export (CSV, Excel, PDF).</p>
     </div>
 
-    <script>
-        // This is a demo placeholder
-        // In a real implementation, you would initialize the MainApplicationUI here
-        // with proper service dependencies
+    <!-- Main application container -->
+    <div id="golf-scheduler-app">
+        <div class="app-loading">
+            <div class="loading-spinner"></div>
+            <p>Loading Indoor Golf Scheduler...</p>
+        </div>
+    </div>
+
+    <!-- Application JavaScript -->
+    <script type="module">
+        // Import and initialize the application
+        import { initializeGolfScheduler } from '../index.js';
         
-        document.getElementById('app-container').innerHTML = `
-            <div class="main-application">
-                <header class="app-header">
-                    <h1>Indoor Golf Scheduler</h1>
-                    <div class="active-season-display">
-                        <span class="active-season-label">Active Season:</span>
-                        <span class="active-season-name">Spring 2024</span>
-                    </div>
-                </header>
-
-                <nav class="app-navigation">
-                    <button class="nav-tab active">Seasons</button>
-                    <button class="nav-tab">Players</button>
-                    <button class="nav-tab">Availability</button>
-                    <button class="nav-tab">Schedule</button>
-                    <button class="nav-tab">Edit Schedule</button>
-                </nav>
-
-                <main class="app-content">
-                    <div class="tab-content active">
-                        <div class="season-management">
-                            <div class="season-header">
-                                <h2>Season Management</h2>
-                                <button class="btn btn-primary">Create New Season</button>
-                            </div>
-
-                            <div class="active-season">
-                                <h3>Active Season</h3>
-                                <div class="season-card active">
-                                    <div class="season-info">
-                                        <h4>Spring 2024</h4>
-                                        <p>Mar 1, 2024 - May 31, 2024</p>
-                                        <p>12 players</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="seasons-list">
-                                <h3>All Seasons</h3>
-                                <div class="seasons-grid">
-                                    <div class="season-card active">
-                                        <div class="season-info">
-                                            <h4>Spring 2024</h4>
-                                            <p>Mar 1, 2024 - May 31, 2024</p>
-                                            <p>12 players, 8 weeks</p>
-                                        </div>
-                                        <div class="season-actions">
-                                            <span class="active-badge">Active</span>
-                                            <button class="btn btn-sm btn-danger" disabled>Delete</button>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="season-card">
-                                        <div class="season-info">
-                                            <h4>Winter 2024</h4>
-                                            <p>Dec 1, 2023 - Feb 29, 2024</p>
-                                            <p>10 players, 12 weeks</p>
-                                        </div>
-                                        <div class="season-actions">
-                                            <button class="btn btn-sm btn-primary">Activate</button>
-                                            <button class="btn btn-sm btn-danger" disabled>Delete</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </main>
-            </div>
-        `;
+        // The application will auto-initialize when the DOM is ready
+        // You can also manually initialize with:
+        // const app = await initializeGolfScheduler('golf-scheduler-app');
+        
+        // Add some demo data after initialization
+        window.addEventListener('load', async () => {
+            // Wait a bit for the app to fully initialize
+            setTimeout(async () => {
+                if (window.golfSchedulerApp) {
+                    try {
+                        const services = window.golfSchedulerApp.getServices();
+                        
+                        // Check if we already have data
+                        const existingSeasons = await services.seasonManager.getAllSeasons();
+                        
+                        if (existingSeasons.length === 0) {
+                            console.log('Setting up demo data...');
+                            
+                            // Create a demo season
+                            const currentDate = new Date();
+                            const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+                            const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 3, 0);
+                            
+                            const demoSeason = await services.seasonManager.createSeason(
+                                'Demo Season - ' + currentDate.getFullYear(),
+                                startDate,
+                                endDate
+                            );
+                            
+                            await services.seasonManager.setActiveSeason(demoSeason.id);
+                            
+                            // Add some demo players
+                            const demoPlayers = [
+                                { firstName: 'John', lastName: 'Smith', handedness: 'right', timePreference: 'AM' },
+                                { firstName: 'Jane', lastName: 'Doe', handedness: 'left', timePreference: 'PM' },
+                                { firstName: 'Bob', lastName: 'Johnson', handedness: 'right', timePreference: 'Either' },
+                                { firstName: 'Alice', lastName: 'Williams', handedness: 'left', timePreference: 'Either' },
+                                { firstName: 'Charlie', lastName: 'Brown', handedness: 'right', timePreference: 'AM' },
+                                { firstName: 'Diana', lastName: 'Davis', handedness: 'left', timePreference: 'PM' }
+                            ];
+                            
+                            for (const playerData of demoPlayers) {
+                                await services.playerManager.addPlayer(playerData);
+                            }
+                            
+                            console.log('Demo data created successfully!');
+                            
+                            // Refresh the UI to show the new data
+                            const mainUI = window.golfSchedulerApp.getUI();
+                            await mainUI.refreshAll();
+                        }
+                    } catch (error) {
+                        console.error('Failed to set up demo data:', error);
+                    }
+                }
+            }, 1000);
+        });
     </script>
 </body>
 </html>

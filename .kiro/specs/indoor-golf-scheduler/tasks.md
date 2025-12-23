@@ -149,14 +149,14 @@
   - Add data validation and error reporting for imports
   - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 15. Integrate all components
+- [x] 15. Integrate all components
   - Wire together all services and UI components
   - Implement application state management
   - Add error handling and user feedback throughout
   - Create application routing and navigation
   - _Requirements: All requirements integration_
 
-- [ ] 15.1 Write integration tests for end-to-end workflows
+- [x] 15.1 Write integration tests for end-to-end workflows
   - Test complete season creation to schedule export workflow
   - Test player management across multiple weeks
   - Test schedule generation with various constraint scenarios
