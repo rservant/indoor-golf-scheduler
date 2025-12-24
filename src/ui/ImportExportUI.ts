@@ -503,7 +503,18 @@ export class ImportExportUI {
   private showImportMessage(message: string, type: string): void {
     const resultsContainer = this.container.querySelector('#import-results') as HTMLElement;
     resultsContainer.style.display = 'block';
-    resultsContainer.innerHTML = `<div class="message ${type}">${message}</div>`;
+
+    // Clear previous content safely
+    while (resultsContainer.firstChild) {
+      resultsContainer.removeChild(resultsContainer.firstChild);
+    }
+
+    // Create message element without using innerHTML to avoid XSS
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${type}`;
+    messageElement.textContent = message;
+
+    resultsContainer.appendChild(messageElement);
   }
 
   private clearImportResults(): void {
@@ -526,7 +537,18 @@ export class ImportExportUI {
   private showExportMessage(message: string, type: string): void {
     const resultsContainer = this.container.querySelector('#export-results') as HTMLElement;
     resultsContainer.style.display = 'block';
-    resultsContainer.innerHTML = `<div class="message ${type}">${message}</div>`;
+
+    // Clear previous content safely
+    while (resultsContainer.firstChild) {
+      resultsContainer.removeChild(resultsContainer.firstChild);
+    }
+
+    // Create message element without using innerHTML to avoid XSS
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${type}`;
+    messageElement.textContent = message;
+
+    resultsContainer.appendChild(messageElement);
   }
 
   private showBulkError(message: string): void {
@@ -540,7 +562,18 @@ export class ImportExportUI {
   private showBulkMessage(message: string, type: string): void {
     const resultsContainer = this.container.querySelector('#bulk-results') as HTMLElement;
     resultsContainer.style.display = 'block';
-    resultsContainer.innerHTML = `<div class="message ${type}">${message}</div>`;
+
+    // Clear previous content safely
+    while (resultsContainer.firstChild) {
+      resultsContainer.removeChild(resultsContainer.firstChild);
+    }
+
+    // Create message element without using innerHTML to avoid XSS
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${type}`;
+    messageElement.textContent = message;
+
+    resultsContainer.appendChild(messageElement);
   }
 
   private clearBulkResults(): void {
