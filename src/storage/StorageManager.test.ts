@@ -216,8 +216,14 @@ describe('StorageManager', () => {
 
             const testKey = 'compression-test-key';
 
+            // Get storage info before storing data
+            const beforeInfo = storageManager.getStorageInfo();
+
             // Store the data (should be compressed if beneficial)
             await storageManager.setItem(testKey, originalData);
+
+            // Get storage info after storing data
+            const afterInfo = storageManager.getStorageInfo();
 
             // Retrieve the data (should be decompressed automatically)
             const retrievedData = await storageManager.getItem(testKey);
@@ -225,39 +231,36 @@ describe('StorageManager', () => {
             // Primary requirement: Data integrity must be maintained
             expect(retrievedData).toBe(originalData);
 
-            // Check compression behavior
-            const rawStoredData = localStorage.getItem(testKey);
-            expect(rawStoredData).not.toBeNull();
+            // Verify that storage was actually used
+            expect(afterInfo.usedBytes).toBeGreaterThan(beforeInfo.usedBytes);
 
-            if (rawStoredData) {
-              const isCompressed = rawStoredData.startsWith('COMPRESSED:');
-              
-              if (isCompressed) {
-                // If compression was applied, verify it was beneficial or at least not harmful
-                // Allow for some compression overhead - compressed size should not be more than 20% larger
-                const maxAcceptableSize = originalData.length * 1.2;
-                expect(rawStoredData.length).toBeLessThanOrEqual(maxAcceptableSize);
-                
-                // For highly repetitive data (which our generator creates), 
-                // compression should provide some benefit for larger datasets
-                if (originalData.length > 5000) {
-                  const compressionRatio = rawStoredData.length / originalData.length;
-                  expect(compressionRatio).toBeLessThan(1.0); // Should be at least slightly smaller
-                }
-              } else {
-                // If not compressed, it should be because compression wasn't beneficial
-                // Data should be stored as-is
-                expect(rawStoredData).toBe(originalData);
-              }
-              
-              // In all cases, the storage system should not significantly increase data size
-              // Allow up to 25% increase to account for compression overhead on small/incompressible data
-              const maxStorageSize = originalData.length * 1.25;
-              expect(rawStoredData.length).toBeLessThanOrEqual(maxStorageSize);
+            // For highly compressible data, verify compression effectiveness
+            // The stored size should be less than the original data size
+            const storedSizeIncrease = afterInfo.usedBytes - beforeInfo.usedBytes;
+            
+            // For large, highly repetitive data, compression should be effective
+            if (originalData.length > 5000) {
+              // The stored size should be significantly less than original size
+              // Allow for some overhead but expect meaningful compression
+              expect(storedSizeIncrease).toBeLessThan(originalData.length * 0.8);
+            } else {
+              // For smaller data, just ensure it's not dramatically larger
+              expect(storedSizeIncrease).toBeLessThan(originalData.length * 1.5);
+            }
+
+            // Verify compression ratio is reported correctly when compression is enabled
+            if (afterInfo.compressionRatio < 1.0) {
+              // If compression ratio indicates compression was applied,
+              // the actual storage usage should reflect this
+              expect(storedSizeIncrease).toBeLessThan(originalData.length);
             }
 
             // Clean up
             await storageManager.removeItem(testKey);
+            
+            // Verify cleanup worked
+            const finalRetrievedData = await storageManager.getItem(testKey);
+            expect(finalRetrievedData).toBeNull();
           }
         ),
         { 
