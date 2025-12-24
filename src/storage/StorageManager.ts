@@ -115,7 +115,13 @@ export class StorageManager implements IStorageManager {
         const isolatedStorage = this.storageIsolationManager.createIsolatedStorageProvider(activeStorage);
         value = await isolatedStorage.getItem(key);
       } else if (typeof localStorage !== 'undefined') {
+        // First try isolated key (for data stored via StorageManager)
         value = localStorage.getItem(isolatedKey);
+        
+        // If not found and isolation is enabled, try original key for backward compatibility
+        if (value === null && this.storageIsolationManager.isIsolationEnabled()) {
+          value = localStorage.getItem(key);
+        }
       } else {
         // localStorage not available, activate fallback and retry
         this.persistenceFallback.activate('storage_unavailable');
@@ -172,7 +178,11 @@ export class StorageManager implements IStorageManager {
         const isolatedStorage = this.storageIsolationManager.createIsolatedStorageProvider(activeStorage);
         await isolatedStorage.removeItem(key);
       } else if (typeof localStorage !== 'undefined') {
+        // Remove both isolated and original key for backward compatibility
         localStorage.removeItem(isolatedKey);
+        if (this.storageIsolationManager.isIsolationEnabled()) {
+          localStorage.removeItem(key);
+        }
       } else {
         // localStorage not available, activate fallback and retry
         this.persistenceFallback.activate('storage_unavailable');

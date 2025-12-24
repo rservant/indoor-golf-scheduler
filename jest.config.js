@@ -42,7 +42,7 @@ module.exports = {
   testTimeout: process.env.CI === 'true' ? 10000 : 30000,
   
   // Parallel execution configuration
-  maxWorkers: process.env.CI === 'true' ? 1 : '50%', // Single worker in CI to prevent resource contention
+  maxWorkers: process.env.CI === 'true' ? 2 : '50%', // Limited workers in CI to prevent resource contention
   
   // Memory management for CI
   workerIdleMemoryLimit: process.env.CI === 'true' ? '512MB' : '1GB',
