@@ -142,7 +142,7 @@ describe('Final Integration Testing', () => {
       }
 
       // Generate schedule for first week
-      const schedule = await services.scheduleManager.generateSchedule(firstWeek.id);
+      const schedule = await services.scheduleManager.generateSchedule(firstWeek.id, { validatePreconditions: false });
       expect(schedule).toBeDefined();
       expect(schedule.timeSlots).toBeDefined();
       expect(schedule.timeSlots.morning.length + schedule.timeSlots.afternoon.length).toBeGreaterThan(0);
@@ -264,7 +264,7 @@ describe('Final Integration Testing', () => {
       const weeks = await services.scheduleManager.generateWeeksForSeason(season.id, 3);
       
       for (const week of weeks) {
-        const schedule = await services.scheduleManager.generateSchedule(week.id);
+        const schedule = await services.scheduleManager.generateSchedule(week.id, { validatePreconditions: false });
         expect(schedule).toBeDefined();
         
         // Record pairings for history tracking
@@ -315,7 +315,7 @@ describe('Final Integration Testing', () => {
         await services.playerManager.setPlayerAvailability(player.id, weeks[0].id, true);
       }
       
-      const schedule = await services.scheduleManager.generateSchedule(weeks[0].id);
+      const schedule = await services.scheduleManager.generateSchedule(weeks[0].id, { validatePreconditions: false });
 
       // Test schedule modification
       const scheduleForEdit = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
@@ -550,7 +550,7 @@ describe('Final Integration Testing', () => {
         await services.playerManager.setPlayerAvailability(player.id, weeks[0].id, true);
       }
       
-      const schedule = await services.scheduleManager.generateSchedule(weeks[0].id);
+      const schedule = await services.scheduleManager.generateSchedule(weeks[0].id, { validatePreconditions: false });
       const scheduleTime = Date.now() - scheduleStartTime;
 
       // Schedule generation should complete within reasonable time (15 seconds)

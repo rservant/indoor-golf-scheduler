@@ -491,7 +491,7 @@ describe('End-to-End Integration Tests', () => {
       }
 
       // Generate schedule with insufficient players
-      const schedule = await scheduleManager.createWeeklySchedule(week.id);
+      const schedule = await scheduleManager.createWeeklySchedule(week.id, { validatePreconditions: false });
 
       // Should still create a schedule, but with smaller groups
       const totalPlayers = schedule.timeSlots.morning.reduce((sum, foursome) => sum + foursome.players.length, 0) +

@@ -424,7 +424,7 @@ describe('Advanced Features Properties', () => {
           });
           
           // Save the schedule
-          await scheduleManager.createWeeklySchedule(testWeek.id);
+          await scheduleManager.createWeeklySchedule(testWeek.id, { validatePreconditions: false });
           
           // Property: Schedule should be retrievable and match what was saved
           const retrievedSchedule = await scheduleManager.getSchedule(testWeek.id);

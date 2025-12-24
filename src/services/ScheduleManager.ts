@@ -98,6 +98,36 @@ export enum RegenerationErrorCode {
   SYSTEM_ERROR = 'SYSTEM_ERROR'
 }
 
+export interface RequestProcessingOptions {
+  timeout?: number; // Timeout in milliseconds
+  retryAttempts?: number;
+  retryDelayMs?: number;
+  validatePreconditions?: boolean;
+  enableCircuitBreaker?: boolean;
+}
+
+export interface RequestProcessingResult<T> {
+  success: boolean;
+  result?: T;
+  error?: string;
+  attempts: number;
+  duration: number;
+  validationResults?: ValidationResult;
+  metadata: {
+    requestType: string;
+    weekId: string;
+    timestamp: Date;
+    circuitBreakerTripped?: boolean;
+  };
+}
+
+export interface CircuitBreakerState {
+  failures: number;
+  lastFailureTime: Date | null;
+  state: 'closed' | 'open' | 'half-open';
+  nextAttemptTime: Date | null;
+}
+
 export class ScheduleManager {
   private regenerationStatuses: Map<string, RegenerationStatus> = new Map();
   private readonly defaultRetryConfig: RetryConfig = {
@@ -108,6 +138,14 @@ export class ScheduleManager {
   };
   private cleanupTimer: NodeJS.Timeout | null = null;
   private availabilityErrorReporter: AvailabilityErrorReporter;
+  
+  // Circuit breaker state for request processing reliability
+  private circuitBreakerStates: Map<string, CircuitBreakerState> = new Map();
+  private readonly circuitBreakerConfig = {
+    failureThreshold: 5,
+    recoveryTimeMs: 30000, // 30 seconds
+    halfOpenMaxAttempts: 3
+  };
 
   constructor(
     private scheduleRepository: ScheduleRepository,
@@ -141,6 +179,344 @@ export class ScheduleManager {
   }
 
   /**
+   * Comprehensive request processing with timeout, retry logic, and circuit breaker
+   * Requirements: 3.3, 3.4
+   */
+  private async processScheduleGenerationRequest<T>(
+    requestType: string,
+    weekId: string,
+    operation: () => Promise<T>,
+    options: RequestProcessingOptions = {}
+  ): Promise<T> {
+    const startTime = Date.now();
+    const {
+      timeout = 30000, // 30 second default timeout
+      retryAttempts = 3,
+      retryDelayMs = 1000,
+      validatePreconditions = true,
+      enableCircuitBreaker = true
+    } = options;
+
+    // Input validation
+    if (!requestType || requestType.trim().length === 0) {
+      throw new Error('Request type is required and cannot be empty');
+    }
+    
+    if (!weekId || weekId.trim().length === 0) {
+      throw new Error('Week ID is required and cannot be empty');
+    }
+
+    if (typeof operation !== 'function') {
+      throw new Error('Operation must be a function');
+    }
+
+    // Circuit breaker check
+    if (enableCircuitBreaker) {
+      const circuitBreakerKey = `${requestType}-${weekId}`;
+      const canProceed = await this.checkCircuitBreaker(circuitBreakerKey);
+      if (!canProceed) {
+        throw new Error(`Circuit breaker is open for ${requestType} on week ${weekId}. Service temporarily unavailable.`);
+      }
+    }
+
+    // Precondition validation
+    let validationResults: ValidationResult | undefined;
+    if (validatePreconditions) {
+      try {
+        const preconditionCheck = await this.validateScheduleGenerationPreconditions(weekId);
+        validationResults = {
+          isValid: preconditionCheck.isValid,
+          errors: preconditionCheck.checks.filter(c => !c.passed).map(c => c.message),
+          warnings: []
+        };
+        
+        if (!preconditionCheck.isValid) {
+          const error = `Precondition validation failed: ${validationResults.errors.join(', ')}`;
+          await this.recordCircuitBreakerFailure(`${requestType}-${weekId}`, error);
+          throw new Error(error);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown precondition validation error';
+        await this.recordCircuitBreakerFailure(`${requestType}-${weekId}`, errorMessage);
+        throw new Error(`Precondition validation error: ${errorMessage}`);
+      }
+    }
+
+    let lastError: Error | null = null;
+    let attempts = 0;
+
+    // Retry loop with exponential backoff
+    while (attempts < retryAttempts) {
+      attempts++;
+      
+      try {
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`Request timeout after ${timeout}ms for ${requestType} on week ${weekId}`));
+          }, timeout);
+        });
+
+        // Race between operation and timeout
+        const result = await Promise.race([
+          operation(),
+          timeoutPromise
+        ]);
+
+        // Success - record circuit breaker success and return result
+        if (enableCircuitBreaker) {
+          await this.recordCircuitBreakerSuccess(`${requestType}-${weekId}`);
+        }
+
+        const duration = Date.now() - startTime;
+        console.log(`[ScheduleManager] Request ${requestType} completed successfully for week ${weekId} in ${duration}ms (attempt ${attempts})`);
+        
+        return result;
+
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const duration = Date.now() - startTime;
+        
+        console.warn(`[ScheduleManager] Request ${requestType} failed for week ${weekId} (attempt ${attempts}/${retryAttempts}) after ${duration}ms:`, lastError.message);
+
+        // Record circuit breaker failure
+        if (enableCircuitBreaker) {
+          await this.recordCircuitBreakerFailure(`${requestType}-${weekId}`, lastError.message);
+        }
+
+        // If this is the last attempt, don't wait
+        if (attempts >= retryAttempts) {
+          break;
+        }
+
+        // Check if error is retryable
+        if (!this.isRetryableRequestError(lastError)) {
+          console.log(`[ScheduleManager] Non-retryable error for ${requestType} on week ${weekId}, aborting retries`);
+          break;
+        }
+
+        // Calculate delay with exponential backoff
+        const delay = Math.min(retryDelayMs * Math.pow(2, attempts - 1), 8000);
+        console.log(`[ScheduleManager] Retrying ${requestType} for week ${weekId} in ${delay}ms`);
+        
+        await this.delay(delay);
+      }
+    }
+
+    // All attempts failed
+    const totalDuration = Date.now() - startTime;
+    const finalError = new Error(
+      `Request ${requestType} failed for week ${weekId} after ${attempts} attempts in ${totalDuration}ms. Last error: ${lastError?.message || 'Unknown error'}`
+    );
+
+    console.error(`[ScheduleManager] Request processing failed:`, {
+      requestType,
+      weekId,
+      attempts,
+      totalDuration,
+      lastError: lastError?.message
+    });
+
+    throw finalError;
+  }
+
+  /**
+   * Check if an error is retryable for request processing
+   */
+  private isRetryableRequestError(error: Error): boolean {
+    const message = error.message.toLowerCase();
+    
+    // Non-retryable errors
+    if (message.includes('already exists') ||
+        message.includes('not found') ||
+        message.includes('invalid') ||
+        message.includes('insufficient players') ||
+        message.includes('validation failed') ||
+        message.includes('precondition') ||
+        message.includes('circuit breaker')) {
+      return false;
+    }
+
+    // Retryable errors (timeouts, temporary failures, etc.)
+    if (message.includes('timeout') ||
+        message.includes('temporary') ||
+        message.includes('connection') ||
+        message.includes('network') ||
+        message.includes('storage')) {
+      return true;
+    }
+
+    // Default to retryable for unknown errors
+    return true;
+  }
+
+  /**
+   * Circuit breaker implementation for request processing reliability
+   */
+  private async checkCircuitBreaker(key: string): Promise<boolean> {
+    const state = this.circuitBreakerStates.get(key);
+    
+    if (!state) {
+      // Initialize circuit breaker state
+      this.circuitBreakerStates.set(key, {
+        failures: 0,
+        lastFailureTime: null,
+        state: 'closed',
+        nextAttemptTime: null
+      });
+      return true;
+    }
+
+    const now = new Date();
+
+    switch (state.state) {
+      case 'closed':
+        // Circuit is closed, allow requests
+        return true;
+
+      case 'open':
+        // Circuit is open, check if recovery time has passed
+        if (state.nextAttemptTime && now >= state.nextAttemptTime) {
+          // Move to half-open state
+          state.state = 'half-open';
+          state.failures = 0;
+          console.log(`[ScheduleManager] Circuit breaker ${key} moved to half-open state`);
+          return true;
+        }
+        // Still in open state, reject request
+        return false;
+
+      case 'half-open':
+        // In half-open state, allow limited requests
+        return state.failures < this.circuitBreakerConfig.halfOpenMaxAttempts;
+
+      default:
+        return true;
+    }
+  }
+
+  /**
+   * Record a circuit breaker failure
+   */
+  private async recordCircuitBreakerFailure(key: string, error: string): Promise<void> {
+    let state = this.circuitBreakerStates.get(key);
+    
+    if (!state) {
+      state = {
+        failures: 0,
+        lastFailureTime: null,
+        state: 'closed',
+        nextAttemptTime: null
+      };
+      this.circuitBreakerStates.set(key, state);
+    }
+
+    state.failures++;
+    state.lastFailureTime = new Date();
+
+    if (state.state === 'closed' && state.failures >= this.circuitBreakerConfig.failureThreshold) {
+      // Trip the circuit breaker
+      state.state = 'open';
+      state.nextAttemptTime = new Date(Date.now() + this.circuitBreakerConfig.recoveryTimeMs);
+      console.warn(`[ScheduleManager] Circuit breaker ${key} tripped after ${state.failures} failures. Next attempt at ${state.nextAttemptTime}`);
+    } else if (state.state === 'half-open') {
+      // Failed in half-open state, go back to open
+      state.state = 'open';
+      state.nextAttemptTime = new Date(Date.now() + this.circuitBreakerConfig.recoveryTimeMs);
+      console.warn(`[ScheduleManager] Circuit breaker ${key} failed in half-open state, returning to open`);
+    }
+  }
+
+  /**
+   * Record a circuit breaker success
+   */
+  private async recordCircuitBreakerSuccess(key: string): Promise<void> {
+    const state = this.circuitBreakerStates.get(key);
+    
+    if (!state) {
+      return;
+    }
+
+    if (state.state === 'half-open') {
+      // Success in half-open state, close the circuit
+      state.state = 'closed';
+      state.failures = 0;
+      state.lastFailureTime = null;
+      state.nextAttemptTime = null;
+      console.log(`[ScheduleManager] Circuit breaker ${key} closed after successful recovery`);
+    } else if (state.state === 'closed') {
+      // Reset failure count on success
+      state.failures = Math.max(0, state.failures - 1);
+    }
+  }
+
+  /**
+   * Get circuit breaker status for monitoring
+   */
+  getCircuitBreakerStatus(requestType?: string, weekId?: string): Map<string, CircuitBreakerState> | CircuitBreakerState | null {
+    if (requestType && weekId) {
+      const key = `${requestType}-${weekId}`;
+      return this.circuitBreakerStates.get(key) || null;
+    }
+    
+    return new Map(this.circuitBreakerStates);
+  }
+
+  /**
+   * Reset circuit breaker state (for testing or manual recovery)
+   */
+  resetCircuitBreaker(key?: string): void {
+    if (key) {
+      this.circuitBreakerStates.delete(key);
+      console.log(`[ScheduleManager] Circuit breaker ${key} reset`);
+    } else {
+      this.circuitBreakerStates.clear();
+      console.log(`[ScheduleManager] All circuit breakers reset`);
+    }
+  }
+
+  /**
+   * Clean up expired operations and circuit breaker states
+   */
+  private async cleanupExpiredOperations(): Promise<void> {
+    const now = new Date();
+    const expiredKeys: string[] = [];
+
+    // Clean up expired circuit breaker states
+    for (const [key, state] of this.circuitBreakerStates.entries()) {
+      if (state.lastFailureTime && 
+          (now.getTime() - state.lastFailureTime.getTime()) > (24 * 60 * 60 * 1000)) { // 24 hours
+        expiredKeys.push(key);
+      }
+    }
+
+    expiredKeys.forEach(key => {
+      this.circuitBreakerStates.delete(key);
+    });
+
+    if (expiredKeys.length > 0) {
+      console.log(`[ScheduleManager] Cleaned up ${expiredKeys.length} expired circuit breaker states`);
+    }
+
+    // Clean up expired regeneration statuses
+    const expiredStatusKeys: string[] = [];
+    for (const [weekId, status] of this.regenerationStatuses.entries()) {
+      if (status.completedAt && 
+          (now.getTime() - status.completedAt.getTime()) > (2 * 60 * 60 * 1000)) { // 2 hours
+        expiredStatusKeys.push(weekId);
+      }
+    }
+
+    expiredStatusKeys.forEach(weekId => {
+      this.regenerationStatuses.delete(weekId);
+    });
+
+    if (expiredStatusKeys.length > 0) {
+      console.log(`[ScheduleManager] Cleaned up ${expiredStatusKeys.length} expired regeneration statuses`);
+    }
+  }
+
+  /**
    * Stop periodic cleanup (for testing or shutdown)
    */
   stopPeriodicCleanup(): void {
@@ -151,44 +527,18 @@ export class ScheduleManager {
   }
 
   /**
-   * Create a new weekly schedule
+   * Create a new weekly schedule with enhanced data synchronization and comprehensive error handling
+   * Requirements: 3.1, 3.2, 3.5, 3.3, 3.4
    */
-  async createWeeklySchedule(weekId: string): Promise<Schedule> {
-    // Check if schedule already exists for this week
-    const existingSchedule = await this.scheduleRepository.findByWeekId(weekId);
-    if (existingSchedule) {
-      throw new Error(`Schedule already exists for week ${weekId}`);
-    }
-
-    // Get week information
-    const week = await this.weekRepository.findById(weekId);
-    if (!week) {
-      throw new Error(`Week ${weekId} not found`);
-    }
-
-    // Get all players for the season
-    const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
-    
-    // Generate schedule using the schedule generator
-    const schedule = await this.scheduleGenerator.generateScheduleForWeek(week, allPlayers);
-    
-    // Save the schedule
-    const savedSchedule = await this.scheduleRepository.create({ weekId });
-    
-    // Update the saved schedule with generated data
-    const updatedSchedule = await this.scheduleRepository.update(savedSchedule.id, {
-      timeSlots: schedule.timeSlots,
-      lastModified: new Date()
-    });
-
-    if (!updatedSchedule) {
-      throw new Error('Failed to update schedule with generated data');
-    }
-
-    // Update week to reference this schedule
-    await this.weekRepository.update(weekId, { scheduleId: updatedSchedule.id });
-
-    return updatedSchedule;
+  async createWeeklySchedule(weekId: string, options?: RequestProcessingOptions): Promise<Schedule> {
+    return this.processScheduleGenerationRequest(
+      'createWeeklySchedule',
+      weekId,
+      async () => {
+        return await this.createWeeklyScheduleInternal(weekId);
+      },
+      options
+    );
   }
 
   /**
@@ -196,6 +546,264 @@ export class ScheduleManager {
    */
   async getSchedule(weekId: string): Promise<Schedule | null> {
     return await this.scheduleRepository.findByWeekId(weekId);
+  }
+
+  /**
+   * Refresh data for schedule generation to ensure latest information
+   * Requirements: 3.1, 3.2
+   */
+  private async refreshDataForScheduleGeneration(weekId: string): Promise<{
+    week: Week;
+    allPlayers: Player[];
+  }> {
+    // Force refresh week information from repository
+    const week = await this.weekRepository.findById(weekId);
+    if (!week) {
+      throw new Error(`Week ${weekId} not found`);
+    }
+
+    // Force refresh all players for the season from repository
+    const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+    
+    console.log(`[ScheduleManager] Data refreshed - Week: ${weekId}, Season: ${week.seasonId}, Players: ${allPlayers.length}`);
+    
+    return { week, allPlayers };
+  }
+
+  /**
+   * Validate data consistency between week and players
+   * Requirements: 3.2, 3.5
+   */
+  private async validateDataConsistency(week: Week, allPlayers: Player[]): Promise<ValidationResult> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    try {
+      // Validate week data integrity
+      if (!week.id || week.id.trim().length === 0) {
+        errors.push('Week ID is missing or empty');
+      }
+      
+      if (!week.seasonId || week.seasonId.trim().length === 0) {
+        errors.push('Week season ID is missing or empty');
+      }
+      
+      if (!week.weekNumber || week.weekNumber < 1 || week.weekNumber > 52) {
+        errors.push(`Week number ${week.weekNumber} is invalid (must be 1-52)`);
+      }
+
+      // Validate player data consistency
+      const playerSeasonIds = new Set(allPlayers.map(p => p.seasonId));
+      if (playerSeasonIds.size > 1) {
+        errors.push(`Players belong to multiple seasons: ${Array.from(playerSeasonIds).join(', ')}`);
+      }
+      
+      if (playerSeasonIds.size === 1 && !playerSeasonIds.has(week.seasonId)) {
+        errors.push(`Week belongs to season ${week.seasonId} but players belong to season ${Array.from(playerSeasonIds)[0]}`);
+      }
+
+      // Validate player data integrity
+      for (const player of allPlayers) {
+        if (!player.id || player.id.trim().length === 0) {
+          errors.push(`Player has missing or empty ID`);
+        }
+        
+        if (!player.firstName || player.firstName.trim().length === 0) {
+          warnings.push(`Player ${player.id} has missing or empty first name`);
+        }
+        
+        if (!player.lastName || player.lastName.trim().length === 0) {
+          warnings.push(`Player ${player.id} has missing or empty last name`);
+        }
+        
+        if (!['AM', 'PM', 'Either'].includes(player.timePreference)) {
+          errors.push(`Player ${player.id} has invalid time preference: ${player.timePreference}`);
+        }
+        
+        if (!['left', 'right'].includes(player.handedness)) {
+          errors.push(`Player ${player.id} has invalid handedness: ${player.handedness}`);
+        }
+      }
+
+      // Validate availability data consistency
+      if (week.playerAvailability) {
+        const availabilityPlayerIds = Object.keys(week.playerAvailability);
+        const actualPlayerIds = new Set(allPlayers.map(p => p.id));
+        
+        // Check for availability data for non-existent players
+        const orphanedAvailability = availabilityPlayerIds.filter(id => !actualPlayerIds.has(id));
+        if (orphanedAvailability.length > 0) {
+          warnings.push(`Availability data exists for non-existent players: ${orphanedAvailability.join(', ')}`);
+        }
+        
+        // Check for invalid availability values
+        for (const [playerId, availability] of Object.entries(week.playerAvailability)) {
+          if (availability !== true && availability !== false && availability !== null && availability !== undefined) {
+            errors.push(`Player ${playerId} has invalid availability value: ${availability}`);
+          }
+        }
+      }
+
+      console.log(`[ScheduleManager] Data consistency validation completed - Errors: ${errors.length}, Warnings: ${warnings.length}`);
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      errors.push(`Data consistency validation failed: ${errorMessage}`);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    };
+  }
+
+  /**
+   * Generate comprehensive player data summary for debugging
+   * Requirements: 3.5
+   */
+  private async generatePlayerDataSummary(week: Week, allPlayers: Player[]): Promise<{
+    seasonId: string;
+    weekId: string;
+    weekNumber: number;
+    totalPlayers: number;
+    playersWithAvailabilityData: number;
+    playersWithoutAvailabilityData: number;
+    availablePlayerCount: number;
+    unavailablePlayerCount: number;
+    nullAvailabilityCount: number;
+    timePreferenceDistribution: {
+      AM: number;
+      PM: number;
+      Either: number;
+    };
+    handednessDistribution: {
+      left: number;
+      right: number;
+    };
+    availabilityByTimePreference: {
+      AM: { available: number; unavailable: number; noData: number };
+      PM: { available: number; unavailable: number; noData: number };
+      Either: { available: number; unavailable: number; noData: number };
+    };
+    playerDetails: Array<{
+      id: string;
+      name: string;
+      seasonId: string;
+      timePreference: string;
+      handedness: string;
+      hasAvailabilityData: boolean;
+      availabilityStatus: boolean | null | undefined;
+      availabilityReason: string;
+    }>;
+  }> {
+    const playerAvailability = week.playerAvailability || {};
+    
+    // Calculate basic counts
+    const playersWithAvailabilityData = Object.keys(playerAvailability).length;
+    const playersWithoutAvailabilityData = allPlayers.length - playersWithAvailabilityData;
+    
+    let availablePlayerCount = 0;
+    let unavailablePlayerCount = 0;
+    let nullAvailabilityCount = 0;
+    
+    for (const [playerId, status] of Object.entries(playerAvailability)) {
+      if (status === true) {
+        availablePlayerCount++;
+      } else if (status === false) {
+        unavailablePlayerCount++;
+      } else {
+        nullAvailabilityCount++;
+      }
+    }
+    
+    // Calculate time preference distribution
+    const timePreferenceDistribution = {
+      AM: allPlayers.filter(p => p.timePreference === 'AM').length,
+      PM: allPlayers.filter(p => p.timePreference === 'PM').length,
+      Either: allPlayers.filter(p => p.timePreference === 'Either').length
+    };
+    
+    // Calculate handedness distribution
+    const handednessDistribution = {
+      left: allPlayers.filter(p => p.handedness === 'left').length,
+      right: allPlayers.filter(p => p.handedness === 'right').length
+    };
+    
+    // Calculate availability by time preference
+    const availabilityByTimePreference = {
+      AM: { available: 0, unavailable: 0, noData: 0 },
+      PM: { available: 0, unavailable: 0, noData: 0 },
+      Either: { available: 0, unavailable: 0, noData: 0 }
+    };
+    
+    for (const player of allPlayers) {
+      const status = playerAvailability[player.id];
+      const pref = player.timePreference as 'AM' | 'PM' | 'Either';
+      
+      if (status === true) {
+        availabilityByTimePreference[pref].available++;
+      } else if (status === false) {
+        availabilityByTimePreference[pref].unavailable++;
+      } else {
+        availabilityByTimePreference[pref].noData++;
+      }
+    }
+    
+    // Generate detailed player information
+    const playerDetails = allPlayers.map(player => {
+      const availabilityStatus = playerAvailability[player.id];
+      const hasAvailabilityData = player.id in playerAvailability;
+      
+      let availabilityReason: string;
+      if (availabilityStatus === true) {
+        availabilityReason = 'Explicitly marked as available';
+      } else if (availabilityStatus === false) {
+        availabilityReason = 'Explicitly marked as unavailable';
+      } else if (availabilityStatus === null) {
+        availabilityReason = 'Availability data is null';
+      } else if (availabilityStatus === undefined && hasAvailabilityData) {
+        availabilityReason = 'Availability data is undefined';
+      } else {
+        availabilityReason = 'No availability data provided';
+      }
+      
+      return {
+        id: player.id,
+        name: `${player.firstName} ${player.lastName}`,
+        seasonId: player.seasonId,
+        timePreference: player.timePreference,
+        handedness: player.handedness,
+        hasAvailabilityData,
+        availabilityStatus,
+        availabilityReason
+      };
+    });
+    
+    const summary = {
+      seasonId: week.seasonId,
+      weekId: week.id,
+      weekNumber: week.weekNumber,
+      totalPlayers: allPlayers.length,
+      playersWithAvailabilityData,
+      playersWithoutAvailabilityData,
+      availablePlayerCount,
+      unavailablePlayerCount,
+      nullAvailabilityCount,
+      timePreferenceDistribution,
+      handednessDistribution,
+      availabilityByTimePreference,
+      playerDetails
+    };
+    
+    console.log(`[ScheduleManager] Player data summary generated:`, {
+      totalPlayers: summary.totalPlayers,
+      availablePlayerCount: summary.availablePlayerCount,
+      unavailablePlayerCount: summary.unavailablePlayerCount,
+      playersWithoutData: summary.playersWithoutAvailabilityData
+    });
+    
+    return summary;
   }
 
   /**
@@ -607,11 +1215,68 @@ export class ScheduleManager {
   }
 
   /**
-   * Generate a schedule for a specific week
+   * Generate a schedule for a specific week with comprehensive error handling
    * Alias for createWeeklySchedule for API compatibility
+   * Requirements: 3.3, 3.4
    */
-  async generateSchedule(weekId: string): Promise<Schedule> {
-    return await this.createWeeklySchedule(weekId);
+  async generateSchedule(weekId: string, options?: RequestProcessingOptions): Promise<Schedule> {
+    return this.processScheduleGenerationRequest(
+      'generateSchedule',
+      weekId,
+      async () => {
+        return await this.createWeeklyScheduleInternal(weekId);
+      },
+      options
+    );
+  }
+
+  /**
+   * Internal method for creating weekly schedule (without request processing wrapper)
+   */
+  private async createWeeklyScheduleInternal(weekId: string): Promise<Schedule> {
+    // Check if schedule already exists for this week
+    const existingSchedule = await this.scheduleRepository.findByWeekId(weekId);
+    if (existingSchedule) {
+      throw new Error(`Schedule already exists for week ${weekId}`);
+    }
+
+    // Step 1: Explicit data refresh before schedule generation
+    console.log(`[ScheduleManager] Starting data refresh for week ${weekId}`);
+    const refreshedData = await this.refreshDataForScheduleGeneration(weekId);
+    
+    // Step 2: Data consistency validation
+    console.log(`[ScheduleManager] Validating data consistency for week ${weekId}`);
+    const consistencyValidation = await this.validateDataConsistency(refreshedData.week, refreshedData.allPlayers);
+    if (!consistencyValidation.isValid) {
+      throw new Error(`Data consistency validation failed: ${consistencyValidation.errors.join(', ')}`);
+    }
+
+    // Step 3: Player data summary reporting for debugging
+    console.log(`[ScheduleManager] Generating player data summary for week ${weekId}`);
+    const playerDataSummary = await this.generatePlayerDataSummary(refreshedData.week, refreshedData.allPlayers);
+    console.log(`[ScheduleManager] Player data summary:`, playerDataSummary);
+    
+    // Generate schedule using the schedule generator with refreshed data
+    const schedule = await this.scheduleGenerator.generateScheduleForWeek(refreshedData.week, refreshedData.allPlayers);
+    
+    // Save the schedule
+    const savedSchedule = await this.scheduleRepository.create({ weekId });
+    
+    // Update the saved schedule with generated data
+    const updatedSchedule = await this.scheduleRepository.update(savedSchedule.id, {
+      timeSlots: schedule.timeSlots,
+      lastModified: new Date()
+    });
+
+    if (!updatedSchedule) {
+      throw new Error('Failed to update schedule with generated data');
+    }
+
+    // Update week to reference this schedule
+    await this.weekRepository.update(weekId, { scheduleId: updatedSchedule.id });
+
+    console.log(`[ScheduleManager] Schedule created successfully for week ${weekId} with ${schedule.getTotalPlayerCount()} players`);
+    return updatedSchedule;
   }
 
   /**
@@ -1498,45 +2163,6 @@ export class ScheduleManager {
   }
 
   /**
-   * Cleanup expired regeneration statuses and locks (maintenance operation)
-   */
-  async cleanupExpiredOperations(): Promise<void> {
-    const now = Date.now();
-    const OPERATION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-    
-    try {
-      // Clean up expired regeneration statuses
-      for (const [weekId, status] of this.regenerationStatuses.entries()) {
-        if (status.startedAt) {
-          const operationAge = now - status.startedAt.getTime();
-          
-          // If operation is older than timeout and not completed/failed, mark as failed
-          if (operationAge > OPERATION_TIMEOUT_MS && 
-              status.status !== 'completed' && 
-              status.status !== 'failed') {
-            
-            console.warn(`Cleaning up expired regeneration operation for week ${weekId}`);
-            
-            // Mark as failed due to timeout
-            this.setRegenerationStatus(weekId, {
-              ...status,
-              status: 'failed',
-              error: 'Operation timed out and was automatically cleaned up',
-              completedAt: new Date()
-            });
-            
-            // Perform cleanup
-            await this.clearRegenerationStatusAndCleanup(weekId);
-          }
-        }
-      }
-      
-    } catch (error) {
-      console.error('Failed to cleanup expired operations:', error);
-    }
-  }
-
-  /**
    * Check if regeneration is allowed for a week
    */
   async isRegenerationAllowed(weekId: string): Promise<boolean> {
@@ -2210,6 +2836,277 @@ export class ScheduleManager {
       return 1024; // 1MB available (conservative)
     } catch (error) {
       return 0; // No storage available
+    }
+  }
+
+  /**
+   * Debug method to get comprehensive schedule generation information
+   * Requirements: 4.1, 4.2, 4.3
+   */
+  async debugScheduleGeneration(weekId: string): Promise<{
+    weekInfo: any;
+    playerData: any[];
+    availabilityData: any;
+    generationAttempt: any;
+    validationResults: ValidationResult;
+    errorReport: AvailabilityErrorReport;
+    preconditionCheck: any;
+  }> {
+    try {
+      // Get week information
+      const week = await this.weekRepository.findById(weekId);
+      if (!week) {
+        throw new Error(`Week ${weekId} not found`);
+      }
+
+      // Get all players for the season
+      const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+
+      // Get player data for debugging
+      const playerData = await this.getPlayerDataForWeek(weekId);
+
+      // Validate preconditions
+      const preconditionCheck = await this.validateScheduleGenerationPreconditions(weekId);
+
+      // Attempt schedule generation with debug info
+      let generationAttempt: any = {};
+      let validationResults: ValidationResult = { isValid: false, errors: [], warnings: [] };
+
+      try {
+        const schedule = await this.scheduleGenerator.generateScheduleForWeek(week, allPlayers);
+        
+        // Get debug information from the generator
+        const debugInfo = this.scheduleGenerator.getDebugInfo();
+        
+        // Validate the generated schedule
+        const availablePlayers = this.scheduleGenerator.filterAvailablePlayers(allPlayers, week);
+        const validation = this.scheduleGenerator.validateSchedule(schedule, availablePlayers, week);
+        
+        generationAttempt = {
+          success: true,
+          schedule: {
+            weekId: schedule.weekId,
+            morningFoursomes: schedule.timeSlots.morning.length,
+            afternoonFoursomes: schedule.timeSlots.afternoon.length,
+            totalPlayers: schedule.getTotalPlayerCount()
+          },
+          debugInfo
+        };
+        
+        validationResults = {
+          isValid: validation.isValid,
+          errors: validation.errors,
+          warnings: []
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        generationAttempt = {
+          success: false,
+          error: errorMessage,
+          debugInfo: this.scheduleGenerator.getDebugInfo()
+        };
+        
+        validationResults = {
+          isValid: false,
+          errors: [errorMessage],
+          warnings: []
+        };
+      }
+
+      // Get availability error report
+      const errorReport: AvailabilityErrorReport = {
+        conflicts: [],
+        suggestions: [],
+        summary: {
+          totalConflicts: 0,
+          errorCount: 0,
+          warningCount: 0,
+          affectedTimeSlots: [],
+          affectedPlayers: []
+        },
+        metadata: {
+          weekId: weekId,
+          weekNumber: week.weekNumber,
+          seasonId: week.seasonId,
+          reportGeneratedAt: new Date(),
+          reportId: `debug-${Date.now()}`
+        }
+      };
+
+      return {
+        weekInfo: {
+          id: week.id,
+          seasonId: week.seasonId,
+          weekNumber: week.weekNumber,
+          date: week.date,
+          playerAvailabilityCount: Object.keys(week.playerAvailability || {}).length,
+          availablePlayerCount: Object.values(week.playerAvailability || {}).filter(v => v === true).length
+        },
+        playerData,
+        availabilityData: {
+          totalPlayers: allPlayers.length,
+          playersWithAvailabilityData: Object.keys(week.playerAvailability || {}).length,
+          availablePlayers: Object.values(week.playerAvailability || {}).filter(v => v === true).length,
+          unavailablePlayers: Object.values(week.playerAvailability || {}).filter(v => v === false).length,
+          playersWithoutData: allPlayers.length - Object.keys(week.playerAvailability || {}).length
+        },
+        generationAttempt,
+        validationResults,
+        errorReport,
+        preconditionCheck
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Debug schedule generation failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Validate preconditions for schedule generation
+   * Requirements: 4.1, 4.2, 4.3
+   */
+  async validateScheduleGenerationPreconditions(weekId: string): Promise<{
+    isValid: boolean;
+    checks: Array<{
+      name: string;
+      passed: boolean;
+      message: string;
+      details?: any;
+    }>;
+  }> {
+    const checks: Array<{ name: string; passed: boolean; message: string; details?: any }> = [];
+
+    try {
+      // Check 1: Week exists
+      const week = await this.weekRepository.findById(weekId);
+      checks.push({
+        name: 'Week Exists',
+        passed: !!week,
+        message: week ? `Week ${weekId} found` : `Week ${weekId} not found`
+      });
+
+      if (!week) {
+        return { isValid: false, checks };
+      }
+
+      // Check 2: Season has players
+      const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+      checks.push({
+        name: 'Season Has Players',
+        passed: allPlayers.length > 0,
+        message: `Found ${allPlayers.length} players in season ${week.seasonId}`,
+        details: { playerCount: allPlayers.length }
+      });
+
+      // Check 3: Week has availability data
+      const availabilityDataExists = week.playerAvailability && Object.keys(week.playerAvailability).length > 0;
+      checks.push({
+        name: 'Availability Data Exists',
+        passed: !!availabilityDataExists,
+        message: availabilityDataExists 
+          ? `Availability data exists for ${Object.keys(week.playerAvailability || {}).length} players`
+          : 'No availability data found',
+        details: {
+          playersWithData: Object.keys(week.playerAvailability || {}).length,
+          availablePlayers: Object.values(week.playerAvailability || {}).filter(v => v === true).length,
+          unavailablePlayers: Object.values(week.playerAvailability || {}).filter(v => v === false).length
+        }
+      });
+
+      // Check 4: Sufficient available players
+      const availablePlayers = this.scheduleGenerator.filterAvailablePlayers(allPlayers, week);
+      const sufficientPlayers = availablePlayers.length >= 4;
+      checks.push({
+        name: 'Sufficient Available Players',
+        passed: sufficientPlayers,
+        message: sufficientPlayers 
+          ? `${availablePlayers.length} available players (sufficient for foursomes)`
+          : `Only ${availablePlayers.length} available players (need at least 4)`,
+        details: {
+          availableCount: availablePlayers.length,
+          totalCount: allPlayers.length,
+          minimumRequired: 4
+        }
+      });
+
+      // Check 5: No existing schedule conflicts
+      const existingSchedule = await this.scheduleRepository.findByWeekId(weekId);
+      checks.push({
+        name: 'No Schedule Conflicts',
+        passed: !existingSchedule,
+        message: existingSchedule 
+          ? `Schedule already exists for week ${weekId}`
+          : `No existing schedule found for week ${weekId}`,
+        details: { hasExistingSchedule: !!existingSchedule }
+      });
+
+      const allChecksPassed = checks.every(check => check.passed);
+      return { isValid: allChecksPassed, checks };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      checks.push({
+        name: 'Precondition Validation',
+        passed: false,
+        message: `Validation failed: ${errorMessage}`
+      });
+      
+      return { isValid: false, checks };
+    }
+  }
+
+  /**
+   * Get detailed player data for a specific week
+   * Requirements: 4.1, 4.2, 4.3
+   */
+  async getPlayerDataForWeek(weekId: string): Promise<Array<{
+    id: string;
+    name: string;
+    timePreference: string;
+    handedness: string;
+    seasonId: string;
+    availabilityStatus: boolean | null | undefined;
+    availabilityReason: string;
+  }>> {
+    try {
+      // Get week information
+      const week = await this.weekRepository.findById(weekId);
+      if (!week) {
+        throw new Error(`Week ${weekId} not found`);
+      }
+
+      // Get all players for the season
+      const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+
+      return allPlayers.map(player => {
+        const availabilityStatus = week.playerAvailability?.[player.id];
+        let availabilityReason: string;
+
+        if (availabilityStatus === true) {
+          availabilityReason = 'Explicitly marked as available';
+        } else if (availabilityStatus === false) {
+          availabilityReason = 'Explicitly marked as unavailable';
+        } else if (availabilityStatus === null) {
+          availabilityReason = 'Availability data is null';
+        } else if (availabilityStatus === undefined) {
+          availabilityReason = 'No availability data provided';
+        } else {
+          availabilityReason = `Unknown availability status: ${availabilityStatus}`;
+        }
+
+        return {
+          id: player.id,
+          name: `${player.firstName} ${player.lastName}`,
+          timePreference: player.timePreference,
+          handedness: player.handedness,
+          seasonId: player.seasonId,
+          availabilityStatus,
+          availabilityReason
+        };
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to get player data for week: ${errorMessage}`);
     }
   }
 }

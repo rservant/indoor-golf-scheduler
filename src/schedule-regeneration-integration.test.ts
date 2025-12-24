@@ -422,8 +422,8 @@ describe('Schedule Regeneration Integration Tests', () => {
       expect(backupMetadata).toBeDefined();
 
       // Mock schedule generator to fail
-      const originalGenerate = scheduleGenerator.generateSchedule;
-      scheduleGenerator.generateSchedule = jest.fn().mockRejectedValue(new Error('Generation failed'));
+      const originalGenerate = scheduleGenerator.generateScheduleForWeek;
+      scheduleGenerator.generateScheduleForWeek = jest.fn().mockRejectedValue(new Error('Generation failed'));
 
       try {
         // Attempt regeneration
@@ -446,7 +446,7 @@ describe('Schedule Regeneration Integration Tests', () => {
 
       } finally {
         // Restore original generator
-        scheduleGenerator.generateSchedule = originalGenerate;
+        scheduleGenerator.generateScheduleForWeek = originalGenerate;
       }
     });
 

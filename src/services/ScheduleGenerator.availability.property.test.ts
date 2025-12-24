@@ -278,6 +278,211 @@ describe('ScheduleGenerator Availability Property Tests', () => {
     });
   });
 
+  describe('Property 3: Graceful handling of insufficient players', () => {
+    /**
+     * Property 3: Graceful handling of insufficient players
+     * For any set of fewer than 4 players, schedule generation should either create partial groups 
+     * or provide clear feedback explaining why no complete foursomes were created
+     * **Validates: Requirements 1.4, 4.4**
+     */
+    test('Property 3: Graceful handling of insufficient players', async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          // Generate 0-3 players (insufficient for complete foursome)
+          fc.array(
+            fc.record({
+              id: fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
+              firstName: fc.string({ minLength: 1, maxLength: 15 }).filter(s => s.trim().length > 0),
+              lastName: fc.string({ minLength: 1, maxLength: 15 }).filter(s => s.trim().length > 0),
+              handedness: fc.constantFrom('left', 'right') as fc.Arbitrary<Handedness>,
+              timePreference: fc.constantFrom('AM', 'PM', 'Either') as fc.Arbitrary<TimePreference>,
+              seasonId: fc.constant('test-season')
+            }),
+            { minLength: 0, maxLength: 3 } // Insufficient players
+          ),
+          // Generate availability data that makes all players available
+          fc.boolean(),
+          async (playerData, makeAllAvailable) => {
+            // Create players from generated data
+            const players = playerData.map(data => new PlayerModel(data));
+            
+            // Create availability data - either all available or mixed
+            const availabilityData: Record<string, boolean> = {};
+            for (const player of players) {
+              availabilityData[player.id] = makeAllAvailable || Math.random() > 0.3; // Mostly available
+            }
+            
+            // Create week with availability data
+            const week = new WeekModel({
+              seasonId: 'test-season',
+              weekNumber: 1,
+              date: new Date(),
+              playerAvailability: availabilityData
+            });
+
+            // Filter available players
+            const availablePlayers = generator.filterAvailablePlayers(players, week);
+            
+            // Property 1: System should handle insufficient players gracefully (no exceptions)
+            expect(() => {
+              return generator.generateSchedule('week1', availablePlayers, 'test-season');
+            }).not.toThrow();
+
+            // Generate schedule with insufficient players
+            const schedulePromise = generator.generateSchedule('week1', availablePlayers, 'test-season');
+            return schedulePromise.then(schedule => {
+              // Property 2: Schedule should be created (even if empty or with partial groups)
+              expect(schedule).toBeDefined();
+              expect(schedule.weekId).toBe('week1');
+              
+              // Property 3: If players exist, they should be handled appropriately
+              if (availablePlayers.length > 0) {
+                const totalScheduledPlayers = schedule.getTotalPlayerCount();
+                
+                // Either no players scheduled (if system decides not to create partial groups)
+                // OR all available players scheduled (if system creates partial groups)
+                expect(totalScheduledPlayers).toBeGreaterThanOrEqual(0);
+                expect(totalScheduledPlayers).toBeLessThanOrEqual(availablePlayers.length);
+                
+                // If players are scheduled, they should be the available ones
+                if (totalScheduledPlayers > 0) {
+                  const scheduledPlayerIds = schedule.getAllPlayers();
+                  const availablePlayerIds = new Set(availablePlayers.map(p => p.id));
+                  
+                  for (const scheduledId of scheduledPlayerIds) {
+                    expect(availablePlayerIds.has(scheduledId)).toBe(true);
+                  }
+                }
+              } else {
+                // Property 4: No available players should result in empty schedule
+                expect(schedule.getTotalPlayerCount()).toBe(0);
+                expect(schedule.timeSlots.morning).toHaveLength(0);
+                expect(schedule.timeSlots.afternoon).toHaveLength(0);
+              }
+              
+              // Property 5: Debug information should be available for troubleshooting
+              const debugInfo = generator.getDebugInfo();
+              expect(debugInfo).toBeDefined();
+              if (debugInfo) {
+                expect(debugInfo.weekId).toBe('week1');
+                expect(debugInfo.totalPlayers).toBe(players.length);
+                expect(debugInfo.availablePlayers).toHaveLength(availablePlayers.length);
+                
+                // Should have filtering decisions for all players
+                expect(debugInfo.filteringDecisions).toHaveLength(players.length);
+                
+                // Should have generation steps
+                expect(debugInfo.generationSteps.length).toBeGreaterThan(0);
+                
+                // Should indicate completion
+                expect(debugInfo.generationSteps.some(step => step.step.includes('completed'))).toBe(true);
+              }
+            });
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    test('Property 3b: Clear feedback for insufficient players scenarios', async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          // Generate scenarios with different types of insufficient players
+          fc.record({
+            totalPlayers: fc.integer({ min: 1, max: 8 }),
+            availableRatio: fc.float({ min: 0, max: 1 }),
+            missingDataRatio: fc.float({ min: 0, max: 0.5 })
+          }),
+          async (scenario) => {
+            // Create players
+            const players = Array.from({ length: scenario.totalPlayers }, (_, i) => 
+              new PlayerModel({
+                id: `player-${i}`,
+                firstName: `Player`,
+                lastName: `${i}`,
+                handedness: i % 2 === 0 ? 'right' : 'left',
+                timePreference: ['AM', 'PM', 'Either'][i % 3] as TimePreference,
+                seasonId: 'test-season'
+              })
+            );
+
+            // Create availability data with controlled ratios
+            const availabilityData: Record<string, boolean> = {};
+            const numAvailable = Math.floor(scenario.totalPlayers * scenario.availableRatio);
+            const numMissingData = Math.floor(scenario.totalPlayers * scenario.missingDataRatio);
+            
+            // Make first numAvailable players available
+            for (let i = 0; i < numAvailable; i++) {
+              availabilityData[players[i].id] = true;
+            }
+            
+            // Make next players unavailable (but with data)
+            for (let i = numAvailable; i < scenario.totalPlayers - numMissingData; i++) {
+              availabilityData[players[i].id] = false;
+            }
+            
+            // Leave remaining players without availability data
+            
+            const week = new WeekModel({
+              seasonId: 'test-season',
+              weekNumber: 1,
+              date: new Date(),
+              playerAvailability: availabilityData
+            });
+
+            // Filter available players
+            const availablePlayers = generator.filterAvailablePlayers(players, week);
+            
+            // Generate schedule
+            return generator.generateSchedule('week1', availablePlayers, 'test-season').then(schedule => {
+              const debugInfo = generator.getDebugInfo();
+              
+              // Property: Debug information should provide clear feedback about insufficient players
+              expect(debugInfo).toBeDefined();
+              if (debugInfo && availablePlayers.length < 4) {
+                // Should have guidance about insufficient players
+                const guidanceSteps = debugInfo.generationSteps.filter(step => 
+                  step.step.includes('Insufficient') || 
+                  step.step.includes('guidance') ||
+                  step.data?.scenario === 'insufficient_players'
+                );
+                
+                if (availablePlayers.length > 0 && availablePlayers.length < 4) {
+                  expect(guidanceSteps.length).toBeGreaterThan(0);
+                }
+                
+                // Should have filtering decisions explaining why players were excluded
+                expect(debugInfo.filteringDecisions).toHaveLength(players.length);
+                
+                const excludedDecisions = debugInfo.filteringDecisions.filter(d => d.decision === 'excluded');
+                const expectedExcluded = players.length - availablePlayers.length;
+                expect(excludedDecisions).toHaveLength(expectedExcluded);
+                
+                // Each excluded decision should have a clear reason
+                for (const decision of excludedDecisions) {
+                  expect(decision.reason).toBeDefined();
+                  expect(decision.reason.length).toBeGreaterThan(0);
+                  expect(typeof decision.reason).toBe('string');
+                }
+              }
+              
+              // Property: Schedule should handle insufficient players appropriately
+              if (availablePlayers.length === 0) {
+                expect(schedule.getTotalPlayerCount()).toBe(0);
+              } else if (availablePlayers.length < 4) {
+                // System may create partial groups or empty schedule - both are valid
+                const scheduledCount = schedule.getTotalPlayerCount();
+                expect(scheduledCount).toBeGreaterThanOrEqual(0);
+                expect(scheduledCount).toBeLessThanOrEqual(availablePlayers.length);
+              }
+            });
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
   describe('Property 2: Schedule availability validation', () => {
     test('Property: Schedule validation correctly identifies all availability violations', () => {
       fc.assert(

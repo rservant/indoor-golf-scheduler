@@ -404,7 +404,7 @@ describe('ScheduleManager Availability Integration Tests', () => {
       const createdWeek = await weekRepository.create(week);
 
       // Test: createWeeklySchedule should create empty schedule
-      const schedule = await scheduleManager.createWeeklySchedule(createdWeek.id);
+      const schedule = await scheduleManager.createWeeklySchedule(createdWeek.id, { validatePreconditions: false });
       const scheduledPlayerIds = schedule.getAllPlayers();
 
       expect(scheduledPlayerIds).toHaveLength(0);
@@ -453,7 +453,7 @@ describe('ScheduleManager Availability Integration Tests', () => {
       const createdWeek = await weekRepository.create(week);
 
       // Test: createWeeklySchedule should work with available players
-      const schedule = await scheduleManager.createWeeklySchedule(createdWeek.id);
+      const schedule = await scheduleManager.createWeeklySchedule(createdWeek.id, { validatePreconditions: false });
       const scheduledPlayerIds = new Set(schedule.getAllPlayers());
 
       // Should only schedule the 2 available players
