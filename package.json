@@ -9,6 +9,7 @@
     "build:prod": "NODE_ENV=production vite build --mode production",
     "build:analyze": "NODE_ENV=production vite build --mode production && npx vite-bundle-analyzer dist",
     "test": "jest",
+    "test:ci": "CI_STORAGE_OPTIMIZATION=true CI_STORAGE_METRICS_REPORTING=true jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test --reporter=line",

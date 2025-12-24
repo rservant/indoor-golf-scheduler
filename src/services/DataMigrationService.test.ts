@@ -27,21 +27,39 @@ const localStorageMock = (() => {
 (global as any).localStorage = localStorageMock;
 
 describe('DataMigrationService Property Tests', () => {
-  beforeEach(() => {
-    // Clear localStorage before each test
-    localStorage.clear();
+  beforeEach(async () => {
+    // Use optimized storage manager for cleanup
+    const storageManager = (global as any).storageManager;
+    if (storageManager) {
+      await storageManager.clear();
+    } else {
+      // Fallback to direct localStorage if storage manager not available
+      localStorage.clear();
+    }
     
     // Ensure all TypeScript storage keys are cleared
-    localStorage.removeItem('golf_scheduler_seasons');
-    localStorage.removeItem('golf_scheduler_players');
-    localStorage.removeItem('golf_scheduler_weeks');
-    localStorage.removeItem('golf_scheduler_schedules');
-    localStorage.removeItem('golf_scheduler_pairing_history');
-    
-    // Ensure all simple version storage keys are cleared
-    localStorage.removeItem('golf_seasons');
-    localStorage.removeItem('golf_players');
-    localStorage.removeItem('golf_active_season');
+    if (storageManager) {
+      await storageManager.removeItem('golf_scheduler_seasons');
+      await storageManager.removeItem('golf_scheduler_players');
+      await storageManager.removeItem('golf_scheduler_weeks');
+      await storageManager.removeItem('golf_scheduler_schedules');
+      await storageManager.removeItem('golf_scheduler_pairing_history');
+      
+      // Ensure all simple version storage keys are cleared
+      await storageManager.removeItem('golf_seasons');
+      await storageManager.removeItem('golf_players');
+      await storageManager.removeItem('golf_active_season');
+    } else {
+      localStorage.removeItem('golf_scheduler_seasons');
+      localStorage.removeItem('golf_scheduler_players');
+      localStorage.removeItem('golf_scheduler_weeks');
+      localStorage.removeItem('golf_scheduler_schedules');
+      localStorage.removeItem('golf_scheduler_pairing_history');
+      
+      localStorage.removeItem('golf_seasons');
+      localStorage.removeItem('golf_players');
+      localStorage.removeItem('golf_active_season');
+    }
   });
 
   /**

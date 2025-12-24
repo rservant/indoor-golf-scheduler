@@ -5,6 +5,7 @@
  */
 
 import * as fc from 'fast-check';
+import { getPropertyTestParams } from './test-utils/property-test-config';
 import { IndoorGolfSchedulerApp } from './app';
 import { MainApplicationUI } from './ui/MainApplicationUI';
 
@@ -32,10 +33,15 @@ import { LocalPairingHistoryRepository } from './repositories/PairingHistoryRepo
 
 describe('UI Component Service Access Properties', () => {
   // Clean up DOM after each test
-  afterEach(() => {
+  afterEach(async () => {
     document.body.innerHTML = '';
-    // Clear localStorage to avoid test interference
-    localStorage.clear();
+    // Use optimized storage manager for cleanup
+    const storageManager = (global as any).storageManager;
+    if (storageManager) {
+      await storageManager.clear();
+    } else {
+      localStorage.clear();
+    }
   });
 
   /**
@@ -86,10 +92,7 @@ describe('UI Component Service Access Properties', () => {
           return true;
         }
       ),
-      { 
-        numRuns: 10,
-        verbose: true 
-      }
+      getPropertyTestParams()
     );
   });
 

@@ -52,8 +52,14 @@ describe('End-to-End Integration Tests', () => {
   let scheduleRepository: LocalScheduleRepository;
   let pairingHistoryRepository: LocalPairingHistoryRepository;
 
-  beforeEach(() => {
-    localStorage.clear();
+  beforeEach(async () => {
+    // Use optimized storage manager for cleanup
+    const storageManager = (global as any).storageManager;
+    if (storageManager) {
+      await storageManager.clear();
+    } else {
+      localStorage.clear();
+    }
     
     // Initialize repositories
     seasonRepository = new LocalSeasonRepository();
