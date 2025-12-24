@@ -34,7 +34,9 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.ts$': ['ts-jest', {
+      tsconfig: 'tsconfig.json'
+    }],
   },
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
@@ -73,11 +75,8 @@ module.exports = {
   // Bail on first failure in CI for faster feedback
   bail: isCI && !isVerbose ? 1 : 0,
   
-  // Legacy globals for backward compatibility
+  // Global variables for tests (non-ts-jest globals)
   globals: {
-    'ts-jest': {
-      tsconfig: 'tsconfig.json'
-    },
     CI_ENVIRONMENT: isCI,
     GITHUB_ACTIONS: process.env.GITHUB_ACTIONS === 'true',
     PBT_ITERATIONS: isCI ? 25 : 100,
