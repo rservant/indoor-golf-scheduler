@@ -68,9 +68,24 @@ describe('Existing Test Compatibility', () => {
           const managerValue = 'manager_test_value';
           await storageManager.setItem(managerKey, managerValue);
           
-          // Verify data can be retrieved via direct localStorage
-          const directValue = localStorage.getItem(managerKey);
-          expect(directValue).toBeTruthy();
+          // Verify data can be retrieved via storage manager (isolation may be enabled)
+          const retrievedManagerValue = await storageManager.getItem(managerKey);
+          expect(retrievedManagerValue).toBe(managerValue);
+          
+          // In CI environments with isolation enabled, direct localStorage access may not work
+          // This is expected behavior for storage isolation
+          const isolationManager = (storageManager as any).storageIsolationManager;
+          if (isolationManager && isolationManager.isIsolationEnabled()) {
+            // With isolation enabled, data is stored with isolated keys
+            // Direct localStorage access should use the isolated key
+            const isolatedKey = isolationManager.createIsolatedKey(managerKey);
+            const directValue = localStorage.getItem(isolatedKey);
+            expect(directValue).toBeTruthy();
+          } else {
+            // Without isolation, direct localStorage access should work
+            const directValue = localStorage.getItem(managerKey);
+            expect(directValue).toBeTruthy();
+          }
           
           // Clear using storage manager
           await storageManager.clear();
