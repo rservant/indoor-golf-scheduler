@@ -35,6 +35,47 @@ export interface ScheduleDisplayUIState {
   draggedFromFoursome: string | null;
   hasUnsavedChanges: boolean;
   validationResult: any | null;
+  // Enhanced error handling and loading states
+  errorDetails: ErrorDetails | null;
+  loadingStates: LoadingStates;
+  operationHistory: OperationHistoryEntry[];
+}
+
+export interface ErrorDetails {
+  message: string;
+  type: 'generation' | 'loading' | 'validation' | 'export' | 'network' | 'unknown';
+  timestamp: Date;
+  context?: string;
+  recoveryActions?: RecoveryAction[];
+  technicalDetails?: string;
+}
+
+export interface RecoveryAction {
+  label: string;
+  action: () => Promise<void>;
+  type: 'primary' | 'secondary';
+}
+
+export interface LoadingStates {
+  isLoadingWeeks: boolean;
+  isLoadingPlayers: boolean;
+  isLoadingSchedule: boolean;
+  isLoadingAvailability: boolean;
+  isGeneratingSchedule: boolean;
+  isExporting: boolean;
+  isSaving: boolean;
+  isValidating: boolean;
+  currentOperation: string | null;
+  operationProgress: number;
+}
+
+export interface OperationHistoryEntry {
+  id: string;
+  operation: string;
+  timestamp: Date;
+  status: 'success' | 'error' | 'in_progress';
+  duration?: number;
+  error?: string;
 }
 
 export class ScheduleDisplayUI {
@@ -99,7 +140,22 @@ export class ScheduleDisplayUI {
       draggedPlayer: null,
       draggedFromFoursome: null,
       hasUnsavedChanges: false,
-      validationResult: null
+      validationResult: null,
+      // Enhanced error handling and loading states
+      errorDetails: null,
+      loadingStates: {
+        isLoadingWeeks: false,
+        isLoadingPlayers: false,
+        isLoadingSchedule: false,
+        isLoadingAvailability: false,
+        isGeneratingSchedule: false,
+        isExporting: false,
+        isSaving: false,
+        isValidating: false,
+        currentOperation: null,
+        operationProgress: 0
+      },
+      operationHistory: []
     };
   }
 
@@ -113,6 +169,187 @@ export class ScheduleDisplayUI {
       await this.loadPlayers();
     }
     this.render();
+  }
+
+  /**
+   * Enhanced error handling with detailed error information and recovery actions
+   */
+  private handleError(error: unknown, context: string, type: ErrorDetails['type'] = 'unknown'): void {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Create detailed error information
+    const technicalDetails = error instanceof Error ? error.stack : undefined;
+    const errorDetails: ErrorDetails = {
+      message: errorMessage,
+      type,
+      timestamp: new Date(),
+      context,
+      recoveryActions: this.getRecoveryActions(type, context)
+    };
+    
+    if (technicalDetails) {
+      errorDetails.technicalDetails = technicalDetails;
+    }
+
+    this.state.errorDetails = errorDetails;
+    this.state.error = errorMessage; // Keep backward compatibility
+
+    // Log operation history
+    this.addOperationHistoryEntry({
+      operation: context,
+      status: 'error',
+      error: errorMessage
+    });
+
+    // Show appropriate notification
+    applicationState.addNotification({
+      type: 'error',
+      title: this.getErrorTitle(type),
+      message: errorMessage,
+      autoHide: type !== 'generation', // Keep generation errors visible
+      duration: type === 'network' ? 8000 : 5000
+    });
+
+    console.error(`ScheduleDisplayUI Error [${type}] in ${context}:`, error);
+  }
+
+  /**
+   * Get appropriate recovery actions based on error type and context
+   */
+  private getRecoveryActions(type: ErrorDetails['type'], context: string): RecoveryAction[] {
+    const actions: RecoveryAction[] = [];
+
+    switch (type) {
+      case 'generation':
+        actions.push({
+          label: 'Retry Generation',
+          action: () => this.generateSchedule(),
+          type: 'primary'
+        });
+        if (this.state.selectedWeek) {
+          actions.push({
+            label: 'Check Player Availability',
+            action: () => this.loadPlayerAvailability(),
+            type: 'secondary'
+          });
+        }
+        break;
+
+      case 'loading':
+        actions.push({
+          label: 'Refresh Data',
+          action: () => this.refresh(),
+          type: 'primary'
+        });
+        break;
+
+      case 'network':
+        actions.push({
+          label: 'Retry Connection',
+          action: () => this.refresh(),
+          type: 'primary'
+        });
+        break;
+
+      case 'validation':
+        actions.push({
+          label: 'Fix Issues',
+          action: async () => this.enableEditing(),
+          type: 'primary'
+        });
+        break;
+
+      default:
+        actions.push({
+          label: 'Refresh Page',
+          action: async () => window.location.reload(),
+          type: 'secondary'
+        });
+    }
+
+    return actions;
+  }
+
+  /**
+   * Get user-friendly error title based on error type
+   */
+  private getErrorTitle(type: ErrorDetails['type']): string {
+    switch (type) {
+      case 'generation': return 'Schedule Generation Failed';
+      case 'loading': return 'Data Loading Failed';
+      case 'validation': return 'Validation Error';
+      case 'export': return 'Export Failed';
+      case 'network': return 'Connection Error';
+      default: return 'An Error Occurred';
+    }
+  }
+
+  /**
+   * Clear current error state
+   */
+  private clearError(): void {
+    this.state.error = null;
+    this.state.errorDetails = null;
+  }
+
+  /**
+   * Set loading state for specific operation
+   */
+  private setLoadingState(operation: keyof Omit<LoadingStates, 'currentOperation' | 'operationProgress'>, isLoading: boolean, operationName?: string): void {
+    (this.state.loadingStates as any)[operation] = isLoading;
+    
+    if (isLoading && operationName) {
+      this.state.loadingStates.currentOperation = operationName;
+      this.state.loadingStates.operationProgress = 0;
+    } else if (!isLoading) {
+      // Check if any operations are still loading
+      const stillLoading = Object.entries(this.state.loadingStates)
+        .filter(([key]) => key !== 'currentOperation' && key !== 'operationProgress')
+        .some(([, value]) => value === true);
+      
+      if (!stillLoading) {
+        this.state.loadingStates.currentOperation = null;
+        this.state.loadingStates.operationProgress = 0;
+      }
+    }
+  }
+
+  /**
+   * Update operation progress
+   */
+  private updateOperationProgress(progress: number): void {
+    this.state.loadingStates.operationProgress = Math.max(0, Math.min(100, progress));
+  }
+
+  /**
+   * Add entry to operation history
+   */
+  private addOperationHistoryEntry(entry: Omit<OperationHistoryEntry, 'id' | 'timestamp'>): void {
+    const historyEntry: OperationHistoryEntry = {
+      id: `op_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+      ...entry
+    };
+
+    this.state.operationHistory.unshift(historyEntry);
+    
+    // Keep only last 50 entries
+    if (this.state.operationHistory.length > 50) {
+      this.state.operationHistory = this.state.operationHistory.slice(0, 50);
+    }
+  }
+
+  /**
+   * Complete operation in history
+   */
+  private completeOperation(operationId: string, success: boolean, duration?: number): void {
+    const entry = this.state.operationHistory.find(op => op.id === operationId);
+    if (entry) {
+      entry.status = success ? 'success' : 'error';
+      if (duration !== undefined) {
+        entry.duration = duration;
+      }
+    }
   }
 
   /**
@@ -149,10 +386,23 @@ export class ScheduleDisplayUI {
   private async loadWeeks(): Promise<void> {
     if (!this.state.activeSeason) return;
 
+    const operationId = `load_weeks_${Date.now()}`;
+    this.addOperationHistoryEntry({
+      operation: 'Loading weeks',
+      status: 'in_progress'
+    });
+
+    this.setLoadingState('isLoadingWeeks', true, 'Loading weeks...');
+    this.clearError();
+
     try {
+      this.updateOperationProgress(25);
       this.state.weeks = await this.weekRepository.findBySeasonId(this.state.activeSeason.id);
+      
+      this.updateOperationProgress(50);
       this.state.weeks.sort((a, b) => a.weekNumber - b.weekNumber);
       
+      this.updateOperationProgress(75);
       // Select the first week if none selected
       if (this.state.weeks.length > 0 && !this.state.selectedWeek) {
         this.state.selectedWeek = this.state.weeks[0];
@@ -161,9 +411,14 @@ export class ScheduleDisplayUI {
         await this.loadPairingMetrics();
       }
       
-      this.state.error = null;
+      this.updateOperationProgress(100);
+      this.completeOperation(operationId, true);
+      
     } catch (error) {
-      this.state.error = error instanceof Error ? error.message : 'Failed to load weeks';
+      this.handleError(error, 'Loading weeks', 'loading');
+      this.completeOperation(operationId, false);
+    } finally {
+      this.setLoadingState('isLoadingWeeks', false);
     }
   }
 
@@ -173,11 +428,24 @@ export class ScheduleDisplayUI {
   private async loadPlayers(): Promise<void> {
     if (!this.state.activeSeason) return;
 
+    const operationId = `load_players_${Date.now()}`;
+    this.addOperationHistoryEntry({
+      operation: 'Loading players',
+      status: 'in_progress'
+    });
+
+    this.setLoadingState('isLoadingPlayers', true, 'Loading players...');
+
     try {
+      this.updateOperationProgress(50);
       this.state.allPlayers = await this.playerManager.getAllPlayers(this.state.activeSeason.id);
-      this.state.error = null;
+      this.updateOperationProgress(100);
+      this.completeOperation(operationId, true);
     } catch (error) {
-      this.state.error = error instanceof Error ? error.message : 'Failed to load players';
+      this.handleError(error, 'Loading players', 'loading');
+      this.completeOperation(operationId, false);
+    } finally {
+      this.setLoadingState('isLoadingPlayers', false);
     }
   }
 
@@ -187,11 +455,23 @@ export class ScheduleDisplayUI {
   private async loadPlayerAvailability(): Promise<void> {
     if (!this.state.selectedWeek || !this.state.activeSeason) return;
 
+    const operationId = `load_availability_${Date.now()}`;
+    this.addOperationHistoryEntry({
+      operation: 'Loading player availability',
+      status: 'in_progress'
+    });
+
+    this.setLoadingState('isLoadingAvailability', true, 'Loading player availability...');
+
     try {
       const availablePlayers: Player[] = [];
       const unavailablePlayers: Player[] = [];
 
-      for (const player of this.state.allPlayers) {
+      const totalPlayers = this.state.allPlayers.length;
+      for (let i = 0; i < totalPlayers; i++) {
+        const player = this.state.allPlayers[i];
+        this.updateOperationProgress((i / totalPlayers) * 100);
+        
         const isAvailable = await this.playerManager.getPlayerAvailability(player.id, this.state.selectedWeek.id);
         if (isAvailable) {
           availablePlayers.push(player);
@@ -202,8 +482,12 @@ export class ScheduleDisplayUI {
 
       this.state.availablePlayers = availablePlayers;
       this.state.unavailablePlayers = unavailablePlayers;
+      this.completeOperation(operationId, true);
     } catch (error) {
-      this.state.error = error instanceof Error ? error.message : 'Failed to load player availability';
+      this.handleError(error, 'Loading player availability', 'loading');
+      this.completeOperation(operationId, false);
+    } finally {
+      this.setLoadingState('isLoadingAvailability', false);
     }
   }
 
@@ -338,6 +622,16 @@ export class ScheduleDisplayUI {
       const newWeek = await this.weekRepository.create(weekData);
       console.log('Week created successfully:', newWeek);
       
+      // Set all players as available for the new week
+      console.log('Setting player availability for week:', newWeek.id);
+      const allPlayers = await this.playerManager.getAllPlayers(this.state.activeSeason.id);
+      console.log(`Setting availability for ${allPlayers.length} players`);
+      
+      for (const player of allPlayers) {
+        await this.weekRepository.setPlayerAvailability(newWeek.id, player.id, true);
+      }
+      console.log('All players set as available');
+      
       // Generate schedule for the new week
       console.log('Generating schedule for week:', newWeek.id);
       const schedule = await this.scheduleManager.createWeeklySchedule(newWeek.id);
@@ -395,16 +689,35 @@ export class ScheduleDisplayUI {
   private async generateSchedule(): Promise<void> {
     if (!this.state.selectedWeek) return;
 
+    const operationId = `generate_schedule_${Date.now()}`;
+    this.addOperationHistoryEntry({
+      operation: `Generating schedule for Week ${this.state.selectedWeek.weekNumber}`,
+      status: 'in_progress'
+    });
+
     // Show progress tracking
     this.showGenerationProgress('Generating Schedule', 'Creating new schedule...');
+    this.setLoadingState('isGeneratingSchedule', true, `Generating Week ${this.state.selectedWeek.weekNumber} schedule...`);
 
     try {
+      this.updateOperationProgress(25);
+      
+      // Pre-generation validation
+      if (this.state.allPlayers.length < 4) {
+        throw new Error(`Insufficient players for schedule generation. Need at least 4 players, but only ${this.state.allPlayers.length} available.`);
+      }
+
+      this.updateOperationProgress(50);
       const schedule = await this.scheduleManager.createWeeklySchedule(this.state.selectedWeek.id);
+      
+      this.updateOperationProgress(75);
       this.state.schedule = schedule;
       
       if (this.onScheduleGenerated) {
         this.onScheduleGenerated(schedule);
       }
+
+      this.updateOperationProgress(100);
 
       // Show success notification
       applicationState.addNotification({
@@ -417,22 +730,17 @@ export class ScheduleDisplayUI {
 
       // Hide progress with success state
       this.progressTrackingUI.showCompletion(true, 'Schedule generated successfully!');
+      this.completeOperation(operationId, true);
 
     } catch (error) {
-      this.state.error = error instanceof Error ? error.message : 'Failed to generate schedule';
+      this.handleError(error, `Generating schedule for Week ${this.state.selectedWeek.weekNumber}`, 'generation');
       
-      // Show error notification
-      applicationState.addNotification({
-        type: 'error',
-        title: 'Generation Failed',
-        message: this.state.error,
-        autoHide: false
-      });
-
       // Hide progress with error state
       this.progressTrackingUI.showCompletion(false, 'Schedule generation failed');
+      this.completeOperation(operationId, false);
     } finally {
       this.state.isGenerating = false;
+      this.setLoadingState('isGeneratingSchedule', false);
       this.operationLockUI.unlockUI();
       this.render();
     }
@@ -479,8 +787,201 @@ export class ScheduleDisplayUI {
   }
 
   /**
-   * Render the UI
+   * Render enhanced error display with recovery actions
    */
+  private renderErrorDisplay(): string {
+    if (!this.state.errorDetails && !this.state.error) return '';
+
+    const errorDetails = this.state.errorDetails;
+    const errorMessage = errorDetails?.message || this.state.error || 'An unknown error occurred';
+    const errorType = errorDetails?.type || 'unknown';
+
+    return `
+      <div class="alert alert-error enhanced-error">
+        <div class="error-header">
+          <div class="error-icon">
+            ${this.getErrorIcon(errorType)}
+          </div>
+          <div class="error-title">
+            <h4>${this.getErrorTitle(errorType)}</h4>
+            <span class="error-timestamp">
+              ${errorDetails?.timestamp ? this.formatTimestamp(errorDetails.timestamp) : 'Just now'}
+            </span>
+          </div>
+          <button class="error-dismiss" onclick="scheduleDisplayUI.dismissError()" title="Dismiss error">
+            ×
+          </button>
+        </div>
+        
+        <div class="error-message">
+          ${errorMessage}
+        </div>
+
+        ${errorDetails?.context ? `
+          <div class="error-context">
+            <strong>Context:</strong> ${errorDetails.context}
+          </div>
+        ` : ''}
+
+        ${errorDetails?.recoveryActions && errorDetails.recoveryActions.length > 0 ? `
+          <div class="error-actions">
+            <span class="error-actions-label">Try these actions:</span>
+            <div class="error-action-buttons">
+              ${errorDetails.recoveryActions.map((action, index) => `
+                <button class="btn btn-${action.type === 'primary' ? 'primary' : 'secondary'} btn-sm" 
+                        onclick="scheduleDisplayUI.executeRecoveryAction(${index})">
+                  ${action.label}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        ${errorDetails?.technicalDetails ? `
+          <details class="error-technical-details">
+            <summary>Technical Details</summary>
+            <pre class="error-stack">${errorDetails.technicalDetails}</pre>
+          </details>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * Render loading indicator with current operation status
+   */
+  private renderLoadingIndicator(): string {
+    const { loadingStates } = this.state;
+    const hasActiveLoading = Object.entries(loadingStates)
+      .filter(([key]) => key !== 'currentOperation' && key !== 'operationProgress')
+      .some(([, value]) => value === true);
+
+    if (!hasActiveLoading) return '';
+
+    return `
+      <div class="loading-indicator">
+        <div class="loading-header">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">
+            <span class="loading-operation">
+              ${loadingStates.currentOperation || 'Loading...'}
+            </span>
+            ${loadingStates.operationProgress > 0 ? `
+              <span class="loading-progress-text">
+                ${Math.round(loadingStates.operationProgress)}%
+              </span>
+            ` : ''}
+          </div>
+        </div>
+        
+        ${loadingStates.operationProgress > 0 ? `
+          <div class="loading-progress-bar">
+            <div class="loading-progress-fill" 
+                 style="width: ${loadingStates.operationProgress}%"></div>
+          </div>
+        ` : ''}
+
+        <div class="loading-details">
+          ${this.renderActiveLoadingStates()}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Render active loading states
+   */
+  private renderActiveLoadingStates(): string {
+    const { loadingStates } = this.state;
+    const activeStates = Object.entries(loadingStates)
+      .filter(([key, value]) => 
+        key !== 'currentOperation' && 
+        key !== 'operationProgress' && 
+        value === true
+      )
+      .map(([key]) => this.getLoadingStateLabel(key));
+
+    if (activeStates.length === 0) return '';
+
+    return `
+      <div class="active-loading-states">
+        ${activeStates.map(label => `
+          <span class="loading-state-badge">${label}</span>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  /**
+   * Get user-friendly label for loading state
+   */
+  private getLoadingStateLabel(key: string): string {
+    const labels: Record<string, string> = {
+      isLoadingWeeks: 'Loading weeks',
+      isLoadingPlayers: 'Loading players',
+      isLoadingSchedule: 'Loading schedule',
+      isLoadingAvailability: 'Loading availability',
+      isGeneratingSchedule: 'Generating schedule',
+      isExporting: 'Exporting',
+      isSaving: 'Saving changes',
+      isValidating: 'Validating'
+    };
+    return labels[key] || key;
+  }
+
+  /**
+   * Get error icon based on error type
+   */
+  private getErrorIcon(type: ErrorDetails['type']): string {
+    const icons: Record<ErrorDetails['type'], string> = {
+      generation: '⚠️',
+      loading: '📡',
+      validation: '❌',
+      export: '📤',
+      network: '🌐',
+      unknown: '❗'
+    };
+    return icons[type] || icons.unknown;
+  }
+
+  /**
+   * Format timestamp for display
+   */
+  private formatTimestamp(timestamp: Date): string {
+    const now = new Date();
+    const diff = now.getTime() - timestamp.getTime();
+    
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} minutes ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
+    
+    return timestamp.toLocaleDateString();
+  }
+
+  /**
+   * Dismiss current error
+   */
+  private dismissError(): void {
+    this.clearError();
+    this.render();
+  }
+
+  /**
+   * Execute recovery action
+   */
+  private async executeRecoveryAction(actionIndex: number): Promise<void> {
+    const action = this.state.errorDetails?.recoveryActions?.[actionIndex];
+    if (!action) return;
+
+    try {
+      await action.action();
+      this.clearError();
+      this.render();
+    } catch (error) {
+      this.handleError(error, `Recovery action: ${action.label}`, 'unknown');
+      this.render();
+    }
+  }
   private render(): void {
     console.log('ScheduleDisplayUI.render() called, state:', {
       activeSeason: this.state.activeSeason?.name,
@@ -512,11 +1013,9 @@ export class ScheduleDisplayUI {
           </div>
         </div>
 
-        ${this.state.error ? `
-          <div class="alert alert-error">
-            ${this.state.error}
-          </div>
-        ` : ''}
+        ${this.renderErrorDisplay()}
+
+        ${this.renderLoadingIndicator()}
 
         ${this.state.weeks.length === 0 ? `
           <div class="no-weeks">
@@ -1247,6 +1746,9 @@ export class ScheduleDisplayUI {
       cancelEditing: () => this.cancelEditing(),
       saveChanges: () => this.saveChanges(),
       validateSchedule: () => this.validateSchedule(),
+      // Enhanced error handling methods
+      dismissError: () => this.dismissError(),
+      executeRecoveryAction: (actionIndex: number) => this.executeRecoveryAction(actionIndex),
       handlePlayerDragStart: (event: DragEvent, playerId: string, foursomeId: string) => {
         const player = this.findPlayerById(playerId);
         if (player) {
