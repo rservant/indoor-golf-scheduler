@@ -120,7 +120,14 @@ describe('Package Script Functionality', () => {
   test('e2e test scripts are properly configured', () => {
     expect(packageJson.scripts['test:e2e']).toBeDefined();
     expect(packageJson.scripts['test:e2e']).toContain('playwright test');
-    expect(packageJson.scripts['test:e2e']).toContain('--reporter=line');
+    
+    // Check for CI-optimized e2e script
+    expect(packageJson.scripts['test:e2e:ci']).toBeDefined();
+    expect(packageJson.scripts['test:e2e:ci']).toContain('CI=true playwright test');
+    
+    // Check for verbose and quiet variants
+    expect(packageJson.scripts['test:e2e:verbose']).toBeDefined();
+    expect(packageJson.scripts['test:e2e:quiet']).toBeDefined();
     
     expect(packageJson.scripts['test:e2e:ui']).toBeDefined();
     expect(packageJson.scripts['test:e2e:ui']).toContain('playwright test --ui');

@@ -116,3 +116,106 @@ if (typeof process !== 'undefined' && process.env.CI_STORAGE_METRICS_REPORTING =
     process.exit(0);
   });
 }
+// Console output suppression for passing tests
+import { environmentDetector } from './test-utils/environment-detector';
+
+// Store original console methods
+const originalConsole = {
+  log: console.log,
+  warn: console.warn,
+  error: console.error,
+  info: console.info,
+  debug: console.debug
+};
+
+// Track test state for console suppression
+let currentTestPassing = true;
+let consoleOutputBuffer: Array<{ method: string; args: any[] }> = [];
+
+// Override console methods to buffer output during tests
+if (!environmentDetector.isVerboseMode()) {
+  console.log = (...args: any[]) => {
+    if (currentTestPassing) {
+      consoleOutputBuffer.push({ method: 'log', args });
+    } else {
+      originalConsole.log(...args);
+    }
+  };
+
+  console.warn = (...args: any[]) => {
+    if (currentTestPassing) {
+      consoleOutputBuffer.push({ method: 'warn', args });
+    } else {
+      originalConsole.warn(...args);
+    }
+  };
+
+  console.info = (...args: any[]) => {
+    if (currentTestPassing) {
+      consoleOutputBuffer.push({ method: 'info', args });
+    } else {
+      originalConsole.info(...args);
+    }
+  };
+
+  console.debug = (...args: any[]) => {
+    if (currentTestPassing) {
+      consoleOutputBuffer.push({ method: 'debug', args });
+    } else {
+      originalConsole.debug(...args);
+    }
+  };
+
+  // Always show errors immediately
+  console.error = (...args: any[]) => {
+    currentTestPassing = false;
+    originalConsole.error(...args);
+  };
+}
+
+// Setup test hooks for console output management
+beforeEach(() => {
+  currentTestPassing = true;
+  consoleOutputBuffer = [];
+});
+
+afterEach(() => {
+  // If test failed, flush buffered console output
+  if (!currentTestPassing) {
+    consoleOutputBuffer.forEach(({ method, args }) => {
+      (originalConsole as any)[method](...args);
+    });
+  }
+  
+  // Clear buffer
+  consoleOutputBuffer = [];
+});
+
+// Hook into Jest's test result handling
+if (typeof expect !== 'undefined') {
+  const originalExpect = expect;
+  
+  // Override expect to detect test failures
+  (global as any).expect = (...args: any[]) => {
+    const result = (originalExpect as any)(...args);
+    
+    // Monkey patch matchers to detect failures
+    const originalMatchers = Object.getOwnPropertyNames(result).filter(name => 
+      typeof (result as any)[name] === 'function'
+    );
+    
+    originalMatchers.forEach(matcherName => {
+      const originalMatcher = (result as any)[matcherName];
+      (result as any)[matcherName] = (...matcherArgs: any[]) => {
+        try {
+          return originalMatcher.apply(result, matcherArgs);
+        } catch (error) {
+          currentTestPassing = false;
+          throw error;
+        }
+      };
+    });
+    
+    return result;
+  };
+}

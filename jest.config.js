@@ -1,3 +1,33 @@
+// Environment-aware configuration
+const isVerbose = process.env.VERBOSE_TESTS === 'true' || 
+                  process.env.VERBOSE === 'true' || 
+                  process.argv.includes('--verbose') || 
+                  process.argv.includes('-v');
+
+const isCI = process.env.CI === 'true' || 
+             process.env.GITHUB_ACTIONS === 'true' || 
+             process.env.GITLAB_CI === 'true' || 
+             process.env.JENKINS_URL !== undefined || 
+             process.env.BUILDKITE === 'true' || 
+             process.env.CIRCLECI === 'true';
+
+const isQuiet = process.env.QUIET_TESTS === 'true' || 
+                process.argv.includes('--quiet') || 
+                process.argv.includes('-q');
+
+// Reporter configuration based on environment and verbosity
+function getReporterConfig() {
+  if (isVerbose) {
+    return ['default'];
+  }
+  
+  if (isQuiet || isCI) {
+    return [['summary', { summaryThreshold: 0 }]];
+  }
+  
+  return ['default'];
+}
+
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
@@ -9,6 +39,14 @@ module.exports = {
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
   },
+  
+  // Environment-aware reporter configuration
+  reporters: getReporterConfig(),
+  
+  // Console output suppression for passing tests
+  silent: !isVerbose && (isQuiet || isCI),
+  verbose: isVerbose,
+  
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
@@ -20,42 +58,31 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
   globalTeardown: '<rootDir>/src/test-teardown.ts',
   
-  // CI-specific optimizations
+  // Test timeout configuration for CI
+  testTimeout: isCI ? 10000 : 30000,
+  
+  // Parallel execution configuration
+  maxWorkers: isCI ? 2 : '50%',
+  
+  // Memory management for CI
+  workerIdleMemoryLimit: isCI ? '512MB' : '1GB',
+  
+  // Coverage collection (disabled in CI unless verbose)
+  collectCoverage: isVerbose || !isCI,
+  
+  // Bail on first failure in CI for faster feedback
+  bail: isCI && !isVerbose ? 1 : 0,
+  
+  // Legacy globals for backward compatibility
   globals: {
     'ts-jest': {
       tsconfig: 'tsconfig.json'
     },
-    // CI environment detection and configuration
-    CI_ENVIRONMENT: process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true',
+    CI_ENVIRONMENT: isCI,
     GITHUB_ACTIONS: process.env.GITHUB_ACTIONS === 'true',
-    
-    // Property-based test iteration configuration
-    PBT_ITERATIONS: process.env.CI === 'true' ? 25 : 100, // Reduced iterations in CI
-    PBT_TIMEOUT: process.env.CI === 'true' ? 5000 : 10000, // Reduced timeout in CI
-    
-    // Storage optimization settings
-    STORAGE_OPTIMIZATION_ENABLED: process.env.CI === 'true',
-    MAX_STORAGE_SIZE: process.env.GITHUB_ACTIONS === 'true' ? 2097152 : 5242880, // 2MB for GitHub Actions, 5MB otherwise
-  },
-  
-  // Test timeout configuration for CI
-  testTimeout: process.env.CI === 'true' ? 10000 : 30000,
-  
-  // Parallel execution configuration
-  maxWorkers: process.env.CI === 'true' ? 2 : '50%', // Limited workers in CI to prevent resource contention
-  
-  // Memory management for CI
-  workerIdleMemoryLimit: process.env.CI === 'true' ? '512MB' : '1GB',
-  
-  // Additional CI-specific settings
-  ...(process.env.CI === 'true' && {
-    // Disable coverage collection in CI for faster execution
-    collectCoverage: false,
-    // Use minimal reporter in CI
-    reporters: ['default'],
-    // Reduce verbose output in CI
-    verbose: false,
-    // Enable bail on first failure in CI for faster feedback
-    bail: 1
-  })
+    PBT_ITERATIONS: isCI ? 25 : 100,
+    PBT_TIMEOUT: isCI ? 5000 : 10000,
+    STORAGE_OPTIMIZATION_ENABLED: isCI,
+    MAX_STORAGE_SIZE: process.env.GITHUB_ACTIONS === 'true' ? 2097152 : 5242880,
+  }
 };

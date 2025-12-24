@@ -62,7 +62,7 @@ jobs:
     - name: Run Playwright tests with storage optimization
       run: |
         echo "Starting Playwright tests with CI storage optimization..."
-        npm run test:e2e
+        npm run test:e2e:ci
       env:
         # Playwright-specific storage optimization
         CI_STORAGE_OPTIMIZATION: true
