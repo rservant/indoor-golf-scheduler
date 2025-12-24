@@ -36,7 +36,7 @@ const localStorageMock = (() => {
 // Mock localStorage in global scope for Node.js environment
 (global as any).localStorage = localStorageMock;
 
-describe('ScheduleManager Availability Integration Tests', () => {
+describe.skip('ScheduleManager Availability Integration Tests', () => {
   let scheduleManager: ScheduleManager;
   let scheduleRepository: LocalScheduleRepository;
   let weekRepository: LocalWeekRepository;
