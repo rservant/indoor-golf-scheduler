@@ -46,39 +46,70 @@ function serveFile(filePath, res) {
 
 const server = http.createServer((req, res) => {
   const parsedUrl = url.parse(req.url);
-  let pathname = parsedUrl.pathname;
-  
+  let pathname = parsedUrl.pathname || '/';
+
   // Default to index.html for root requests
   if (pathname === '/') {
     pathname = '/index.html';
   }
-  
+
+  // Normalize the path and prevent directory traversal
+  pathname = path.posix.normalize(pathname);
+  if (!pathname.startsWith('/')) {
+    pathname = '/' + pathname;
+  }
+  if (pathname.includes('..')) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
+
+  // Helper to resolve and enforce that the path stays within a base directory
+  const publicBase = path.resolve(__dirname, 'public');
+  const distBase = path.resolve(__dirname, 'dist');
+  const srcBase = path.resolve(__dirname, 'src');
+
   // Try to serve from public directory first
-  let filePath = path.join(__dirname, 'public', pathname);
-  
+  let filePath = path.resolve(publicBase, '.' + pathname);
+  if (!filePath.startsWith(publicBase + path.sep)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
+
   // Check if file exists in public directory
   fs.access(filePath, fs.constants.F_OK, (err) => {
     if (!err) {
       serveFile(filePath, res);
       return;
     }
-    
+
     // Try to serve from dist directory for built files
-    filePath = path.join(__dirname, 'dist', pathname);
+    filePath = path.resolve(distBase, '.' + pathname);
+    if (!filePath.startsWith(distBase + path.sep)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      return;
+    }
     fs.access(filePath, fs.constants.F_OK, (err) => {
       if (!err) {
         serveFile(filePath, res);
         return;
       }
-      
+
       // Try to serve from src directory for development
-      filePath = path.join(__dirname, 'src', pathname);
+      filePath = path.resolve(srcBase, '.' + pathname);
+      if (!filePath.startsWith(srcBase + path.sep)) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('Forbidden');
+        return;
+      }
       fs.access(filePath, fs.constants.F_OK, (err) => {
         if (!err) {
           serveFile(filePath, res);
           return;
         }
-        
+
         // File not found
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('File not found: ' + pathname);
