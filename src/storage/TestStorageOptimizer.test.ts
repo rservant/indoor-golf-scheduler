@@ -26,26 +26,57 @@ describe('TestStorageOptimizer Property Tests', () => {
      * **Validates: Requirements 3.1**
      */
     it('should generate smaller datasets in CI environment than in local environment', () => {
-      // Test in local environment
-      process.env.CI = 'false';
-      process.env.GITHUB_ACTIONS = 'false';
+      // Clear all CI-related environment variables first
+      const ciEnvVars = ['CI', 'GITHUB_ACTIONS', 'CI_STORAGE_OPTIMIZATION', 'CONTINUOUS_INTEGRATION', 'NODE_ENV'];
+      const originalValues: Record<string, string | undefined> = {};
+      ciEnvVars.forEach(key => {
+        originalValues[key] = process.env[key];
+        delete process.env[key];
+      });
       
-      const localOptimizer = TestStorageOptimizer.getInstance();
-      const largeDataset = Array.from({ length: 100 }, (_, i) => ({ id: i, data: `item-${i}` }));
-      const localResult = localOptimizer.reduceDataset(largeDataset, 100);
-      
-      // Reset and test in CI environment
-      TestStorageOptimizer.resetInstance();
-      EnvironmentDetector.getInstance().resetCache();
-      process.env.CI = 'true';
-      process.env.GITHUB_ACTIONS = 'true';
-      
-      const ciOptimizer = TestStorageOptimizer.getInstance();
-      const ciResult = ciOptimizer.reduceDataset(largeDataset, 100);
-      
-      // Property: CI datasets should be smaller than local datasets
-      expect(ciResult.length).toBeLessThan(localResult.length);
-      expect(ciResult.length).toBeLessThanOrEqual(40); // 40% of original max size
+      try {
+        // Test in local environment - explicitly set to local
+        process.env.CI = 'false';
+        process.env.GITHUB_ACTIONS = 'false';
+        process.env.NODE_ENV = 'development';
+        
+        // Reset singletons to ensure clean state
+        EnvironmentDetector.resetInstance();
+        TestStorageOptimizer.resetInstance();
+        
+        const localOptimizer = TestStorageOptimizer.getInstance();
+        const largeDataset = Array.from({ length: 100 }, (_, i) => ({ id: i, data: `item-${i}` }));
+        const localResult = localOptimizer.reduceDataset(largeDataset, 100);
+        
+        // Reset and test in CI environment
+        TestStorageOptimizer.resetInstance();
+        EnvironmentDetector.resetInstance();
+        
+        // Set CI environment variables
+        process.env.CI = 'true';
+        process.env.GITHUB_ACTIONS = 'true';
+        process.env.NODE_ENV = 'test';
+        
+        const ciOptimizer = TestStorageOptimizer.getInstance();
+        const ciResult = ciOptimizer.reduceDataset(largeDataset, 100);
+        
+        // Property: CI datasets should be smaller than local datasets
+        expect(ciResult.length).toBeLessThan(localResult.length);
+        expect(ciResult.length).toBeLessThanOrEqual(40); // 40% of original max size
+        
+        // Additional verification: local should use full dataset when under limit
+        expect(localResult.length).toBe(100); // Should not reduce in local environment
+        
+      } finally {
+        // Restore original environment variables
+        ciEnvVars.forEach(key => {
+          if (originalValues[key] !== undefined) {
+            process.env[key] = originalValues[key];
+          } else {
+            delete process.env[key];
+          }
+        });
+      }
     });
 
     it('should maintain dataset representativeness when reducing size', () => {
@@ -213,26 +244,56 @@ describe('TestStorageOptimizer Property Tests', () => {
      * **Validates: Requirements 3.4**
      */
     it('should reduce iteration count in CI environment', () => {
-      // Test local environment
-      process.env.CI = 'false';
-      process.env.GITHUB_ACTIONS = 'false';
+      // Clear all CI-related environment variables first
+      const ciEnvVars = ['CI', 'GITHUB_ACTIONS', 'CI_STORAGE_OPTIMIZATION', 'CONTINUOUS_INTEGRATION', 'NODE_ENV'];
+      const originalValues: Record<string, string | undefined> = {};
+      ciEnvVars.forEach(key => {
+        originalValues[key] = process.env[key];
+        delete process.env[key];
+      });
       
-      const localOptimizer = TestStorageOptimizer.getInstance();
-      const localIterations = localOptimizer.getOptimizedIterationCount(100);
-      
-      // Reset and test CI environment
-      TestStorageOptimizer.resetInstance();
-      EnvironmentDetector.getInstance().resetCache();
-      process.env.CI = 'true';
-      process.env.GITHUB_ACTIONS = 'true';
-      
-      const ciOptimizer = TestStorageOptimizer.getInstance();
-      const ciIterations = ciOptimizer.getOptimizedIterationCount(100);
-      
-      // Property: CI iterations should be significantly less than local
-      expect(ciIterations).toBeLessThan(localIterations);
-      expect(ciIterations).toBeLessThanOrEqual(25); // 25% of original
-      expect(ciIterations).toBeGreaterThanOrEqual(25); // But at least 25
+      try {
+        // Test local environment
+        process.env.CI = 'false';
+        process.env.GITHUB_ACTIONS = 'false';
+        process.env.NODE_ENV = 'development';
+        
+        // Reset singletons to ensure clean state
+        EnvironmentDetector.resetInstance();
+        TestStorageOptimizer.resetInstance();
+        
+        const localOptimizer = TestStorageOptimizer.getInstance();
+        const localIterations = localOptimizer.getOptimizedIterationCount(100);
+        
+        // Reset and test CI environment
+        TestStorageOptimizer.resetInstance();
+        EnvironmentDetector.resetInstance();
+        
+        process.env.CI = 'true';
+        process.env.GITHUB_ACTIONS = 'true';
+        process.env.NODE_ENV = 'test';
+        
+        const ciOptimizer = TestStorageOptimizer.getInstance();
+        const ciIterations = ciOptimizer.getOptimizedIterationCount(100);
+        
+        // Property: CI iterations should be significantly less than local
+        expect(ciIterations).toBeLessThan(localIterations);
+        expect(ciIterations).toBeLessThanOrEqual(25); // 25% of original
+        expect(ciIterations).toBeGreaterThanOrEqual(25); // But at least 25
+        
+        // Additional verification: local should return full count
+        expect(localIterations).toBe(100); // Should not reduce in local environment
+        
+      } finally {
+        // Restore original environment variables
+        ciEnvVars.forEach(key => {
+          if (originalValues[key] !== undefined) {
+            process.env[key] = originalValues[key];
+          } else {
+            delete process.env[key];
+          }
+        });
+      }
     });
 
     it('should maintain minimum iteration count for test reliability', () => {
@@ -317,28 +378,59 @@ describe('TestStorageOptimizer Property Tests', () => {
 
   describe('Test Execution Configuration', () => {
     it('should provide different configurations for local vs CI environments', () => {
-      // Test local environment
-      process.env.CI = 'false';
-      process.env.GITHUB_ACTIONS = 'false';
+      // Clear all CI-related environment variables first
+      const ciEnvVars = ['CI', 'GITHUB_ACTIONS', 'CI_STORAGE_OPTIMIZATION', 'CONTINUOUS_INTEGRATION', 'NODE_ENV'];
+      const originalValues: Record<string, string | undefined> = {};
+      ciEnvVars.forEach(key => {
+        originalValues[key] = process.env[key];
+        delete process.env[key];
+      });
       
-      const localOptimizer = TestStorageOptimizer.getInstance();
-      const localConfig = localOptimizer.getTestExecutionConfig();
-      
-      // Reset and test CI environment
-      TestStorageOptimizer.resetInstance();
-      EnvironmentDetector.getInstance().resetCache();
-      process.env.CI = 'true';
-      process.env.GITHUB_ACTIONS = 'true';
-      
-      const ciOptimizer = TestStorageOptimizer.getInstance();
-      const ciConfig = ciOptimizer.getTestExecutionConfig();
-      
-      // CI should have more restrictive limits
-      expect(ciConfig.maxIterations).toBeLessThan(localConfig.maxIterations);
-      expect(ciConfig.maxDatasetSize).toBeLessThan(localConfig.maxDatasetSize);
-      expect(ciConfig.maxPlayerCount).toBeLessThan(localConfig.maxPlayerCount);
-      expect(ciConfig.enableCompression).toBe(true);
-      expect(ciConfig.enableDataMinimization).toBe(true);
+      try {
+        // Test local environment
+        process.env.CI = 'false';
+        process.env.GITHUB_ACTIONS = 'false';
+        process.env.NODE_ENV = 'development';
+        
+        // Reset singletons to ensure clean state
+        EnvironmentDetector.resetInstance();
+        TestStorageOptimizer.resetInstance();
+        
+        const localOptimizer = TestStorageOptimizer.getInstance();
+        const localConfig = localOptimizer.getTestExecutionConfig();
+        
+        // Reset and test CI environment
+        TestStorageOptimizer.resetInstance();
+        EnvironmentDetector.resetInstance();
+        
+        process.env.CI = 'true';
+        process.env.GITHUB_ACTIONS = 'true';
+        process.env.NODE_ENV = 'test';
+        
+        const ciOptimizer = TestStorageOptimizer.getInstance();
+        const ciConfig = ciOptimizer.getTestExecutionConfig();
+        
+        // CI should have more restrictive limits
+        expect(ciConfig.maxIterations).toBeLessThan(localConfig.maxIterations);
+        expect(ciConfig.maxDatasetSize).toBeLessThan(localConfig.maxDatasetSize);
+        expect(ciConfig.maxPlayerCount).toBeLessThan(localConfig.maxPlayerCount);
+        expect(ciConfig.enableCompression).toBe(true);
+        expect(ciConfig.enableDataMinimization).toBe(true);
+        
+        // Local should have more permissive settings
+        expect(localConfig.enableCompression).toBe(false);
+        expect(localConfig.enableDataMinimization).toBe(false);
+        
+      } finally {
+        // Restore original environment variables
+        ciEnvVars.forEach(key => {
+          if (originalValues[key] !== undefined) {
+            process.env[key] = originalValues[key];
+          } else {
+            delete process.env[key];
+          }
+        });
+      }
     });
   });
 });
