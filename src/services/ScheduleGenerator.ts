@@ -3,6 +3,7 @@ import { Schedule, ScheduleModel } from '../models/Schedule';
 import { Foursome, FoursomeModel, TimeSlot } from '../models/Foursome';
 import { Week, WeekModel } from '../models/Week';
 import { PairingHistoryTracker } from './PairingHistoryTracker';
+import { AvailabilityErrorReporter } from '../utils/AvailabilityErrorReporter';
 
 export interface ScheduleGeneratorOptions {
   prioritizeCompleteGroups?: boolean;
@@ -13,6 +14,7 @@ export interface ScheduleGeneratorOptions {
 export class ScheduleGenerator {
   private options: ScheduleGeneratorOptions;
   private pairingHistoryTracker: PairingHistoryTracker | undefined;
+  private availabilityErrorReporter: AvailabilityErrorReporter;
 
   constructor(options: ScheduleGeneratorOptions = {}, pairingHistoryTracker?: PairingHistoryTracker) {
     this.options = {
@@ -22,6 +24,7 @@ export class ScheduleGenerator {
       ...options
     };
     this.pairingHistoryTracker = pairingHistoryTracker;
+    this.availabilityErrorReporter = new AvailabilityErrorReporter();
   }
 
   /**
@@ -92,19 +95,64 @@ export class ScheduleGenerator {
    * Filter players based on their availability for a specific week
    */
   filterAvailablePlayers(allPlayers: Player[], week: Week | WeekModel): Player[] {
-    // If no availability data is set, assume all players are available
-    const hasAvailabilityData = Object.keys(week.playerAvailability).length > 0;
+    // FIXED: Always require explicit availability data - no default assumptions
+    // Only players explicitly marked as available (true) should be included
     
-    if (!hasAvailabilityData) {
-      return allPlayers;
+    const availablePlayers: Player[] = [];
+    
+    for (const player of allPlayers) {
+      const playerName = `${player.firstName} ${player.lastName}`;
+      let isAvailable: boolean;
+      let availabilityStatus: boolean | null | undefined;
+      
+      if (week instanceof WeekModel) {
+        isAvailable = week.isPlayerAvailable(player.id);
+        availabilityStatus = week.getPlayerAvailabilityStatus(player.id);
+      } else {
+        // Handle plain Week interface - strict boolean checking
+        availabilityStatus = week.playerAvailability?.[player.id];
+        isAvailable = availabilityStatus === true;
+      }
+      
+      if (isAvailable) {
+        availablePlayers.push(player);
+        this.availabilityErrorReporter.logFilteringDecision(
+          player.id,
+          playerName,
+          availabilityStatus,
+          'included',
+          `Player explicitly marked as available (status: ${availabilityStatus})`
+        );
+      } else {
+        let reason: string;
+        if (availabilityStatus === false) {
+          reason = `Player explicitly marked as unavailable (status: ${availabilityStatus})`;
+        } else if (availabilityStatus === null || availabilityStatus === undefined) {
+          reason = `Player has no availability data (status: ${availabilityStatus})`;
+        } else {
+          reason = `Player availability status is not explicitly true (status: ${availabilityStatus})`;
+        }
+        
+        this.availabilityErrorReporter.logFilteringDecision(
+          player.id,
+          playerName,
+          availabilityStatus,
+          'excluded',
+          reason
+        );
+      }
     }
-
-    if (week instanceof WeekModel) {
-      return allPlayers.filter(player => week.isPlayerAvailable(player.id));
-    } else {
-      // Handle plain Week interface
-      return allPlayers.filter(player => week.playerAvailability[player.id] === true);
-    }
+    
+    // Log summary of filtering results
+    console.log(`[ScheduleGenerator] Availability filtering completed:`, {
+      totalPlayers: allPlayers.length,
+      availablePlayers: availablePlayers.length,
+      excludedPlayers: allPlayers.length - availablePlayers.length,
+      weekId: week.id,
+      weekNumber: week.weekNumber
+    });
+    
+    return availablePlayers;
   }
 
   /**
@@ -228,9 +276,9 @@ export class ScheduleGenerator {
   }
 
   /**
-   * Validate that a schedule meets all constraints
+   * Validate that a schedule meets all constraints including availability
    */
-  validateSchedule(schedule: Schedule, availablePlayers: Player[]): { isValid: boolean; errors: string[] } {
+  validateSchedule(schedule: Schedule, availablePlayers: Player[], week?: Week | WeekModel): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
 
     // Check that all players in schedule are in available players
@@ -240,6 +288,60 @@ export class ScheduleGenerator {
     for (const playerId of scheduledPlayerIds) {
       if (!availablePlayerIds.has(playerId)) {
         errors.push(`Player ${playerId} is in schedule but not in available players`);
+      }
+    }
+
+    // Enhanced availability validation when week is provided
+    if (week) {
+      const unavailableScheduledPlayers: string[] = [];
+      const playersWithoutAvailabilityData: string[] = [];
+      
+      for (const playerId of scheduledPlayerIds) {
+        if (week instanceof WeekModel) {
+          // Use enhanced WeekModel methods for strict validation
+          if (!week.hasAvailabilityData(playerId)) {
+            playersWithoutAvailabilityData.push(playerId);
+          } else if (!week.isPlayerAvailable(playerId)) {
+            unavailableScheduledPlayers.push(playerId);
+          }
+        } else {
+          // Handle plain Week interface
+          if (!(playerId in week.playerAvailability)) {
+            playersWithoutAvailabilityData.push(playerId);
+          } else if (week.playerAvailability[playerId] !== true) {
+            unavailableScheduledPlayers.push(playerId);
+          }
+        }
+      }
+
+      // Report availability violations with detailed information
+      if (unavailableScheduledPlayers.length > 0) {
+        const playerNames = unavailableScheduledPlayers.map(id => {
+          const player = availablePlayers.find(p => p.id === id);
+          return player ? `${player.firstName} ${player.lastName} (${id})` : id;
+        });
+        errors.push(`Unavailable players are scheduled: ${playerNames.join(', ')}`);
+      }
+
+      if (playersWithoutAvailabilityData.length > 0) {
+        const playerNames = playersWithoutAvailabilityData.map(id => {
+          const player = availablePlayers.find(p => p.id === id);
+          return player ? `${player.firstName} ${player.lastName} (${id})` : id;
+        });
+        errors.push(`Players without availability data are scheduled: ${playerNames.join(', ')}`);
+      }
+
+      // Validate that all scheduled players have explicit availability === true
+      for (const playerId of scheduledPlayerIds) {
+        const availabilityStatus = week instanceof WeekModel 
+          ? week.getPlayerAvailabilityStatus(playerId)
+          : week.playerAvailability[playerId];
+        
+        if (availabilityStatus !== true) {
+          const player = availablePlayers.find(p => p.id === playerId);
+          const playerName = player ? `${player.firstName} ${player.lastName} (${playerId})` : playerId;
+          errors.push(`Player ${playerName} is scheduled but availability is not explicitly true (current: ${availabilityStatus})`);
+        }
       }
     }
 
@@ -254,7 +356,9 @@ export class ScheduleGenerator {
 
     for (const [playerId, count] of playerCounts.entries()) {
       if (count > 1) {
-        errors.push(`Player ${playerId} appears ${count} times in schedule`);
+        const player = availablePlayers.find(p => p.id === playerId);
+        const playerName = player ? `${player.firstName} ${player.lastName} (${playerId})` : playerId;
+        errors.push(`Player ${playerName} appears ${count} times in schedule`);
       }
     }
 
@@ -262,7 +366,7 @@ export class ScheduleGenerator {
     schedule.timeSlots.morning.forEach(foursome => {
       foursome.players.forEach(player => {
         if (player.timePreference === 'PM') {
-          errors.push(`Player ${player.id} has PM preference but is scheduled in morning`);
+          errors.push(`Player ${player.firstName} ${player.lastName} (${player.id}) has PM preference but is scheduled in morning`);
         }
       });
     });
@@ -270,7 +374,7 @@ export class ScheduleGenerator {
     schedule.timeSlots.afternoon.forEach(foursome => {
       foursome.players.forEach(player => {
         if (player.timePreference === 'AM') {
-          errors.push(`Player ${player.id} has AM preference but is scheduled in afternoon`);
+          errors.push(`Player ${player.firstName} ${player.lastName} (${player.id}) has AM preference but is scheduled in afternoon`);
         }
       });
     });
@@ -278,6 +382,46 @@ export class ScheduleGenerator {
     return {
       isValid: errors.length === 0,
       errors
+    };
+  }
+
+  /**
+   * Validate schedule availability specifically (focused validation)
+   */
+  validateScheduleAvailability(schedule: Schedule, week: Week | WeekModel, allPlayers: Player[]): { isValid: boolean; errors: string[]; conflicts: Array<{ playerId: string; playerName: string; availabilityStatus: boolean | undefined }> } {
+    const errors: string[] = [];
+    const conflicts: Array<{ playerId: string; playerName: string; availabilityStatus: boolean | undefined }> = [];
+    
+    const scheduledPlayerIds = schedule.getAllPlayers();
+    
+    for (const playerId of scheduledPlayerIds) {
+      const player = allPlayers.find(p => p.id === playerId);
+      const playerName = player ? `${player.firstName} ${player.lastName}` : 'Unknown Player';
+      
+      let availabilityStatus: boolean | undefined;
+      let hasData: boolean;
+      
+      if (week instanceof WeekModel) {
+        hasData = week.hasAvailabilityData(playerId);
+        availabilityStatus = week.getPlayerAvailabilityStatus(playerId);
+      } else {
+        hasData = playerId in week.playerAvailability;
+        availabilityStatus = week.playerAvailability[playerId];
+      }
+      
+      if (!hasData) {
+        errors.push(`Player ${playerName} (${playerId}) is scheduled but has no availability data`);
+        conflicts.push({ playerId, playerName, availabilityStatus: undefined });
+      } else if (availabilityStatus !== true) {
+        errors.push(`Player ${playerName} (${playerId}) is scheduled but is marked as unavailable (status: ${availabilityStatus})`);
+        conflicts.push({ playerId, playerName, availabilityStatus });
+      }
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors,
+      conflicts
     };
   }
 }

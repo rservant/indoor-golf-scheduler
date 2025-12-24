@@ -10,6 +10,7 @@ import { PairingHistoryTracker } from './PairingHistoryTracker';
 import { ScheduleBackupService, BackupMetadata } from './ScheduleBackupService';
 import { errorHandler, ErrorContext } from '../utils/ErrorHandler';
 import { applicationState } from '../state/ApplicationState';
+import { AvailabilityErrorReporter, AvailabilityErrorReport } from '../utils/AvailabilityErrorReporter';
 
 export interface ScheduleEditOperation {
   type: 'move_player' | 'swap_players' | 'add_player' | 'remove_player';
@@ -106,6 +107,7 @@ export class ScheduleManager {
     backoffMultiplier: 2
   };
   private cleanupTimer: NodeJS.Timeout | null = null;
+  private availabilityErrorReporter: AvailabilityErrorReporter;
 
   constructor(
     private scheduleRepository: ScheduleRepository,
@@ -115,6 +117,9 @@ export class ScheduleManager {
     private pairingHistoryTracker: PairingHistoryTracker,
     private backupService: ScheduleBackupService
   ) {
+    // Initialize enhanced error reporting
+    this.availabilityErrorReporter = new AvailabilityErrorReporter();
+    
     // Start periodic cleanup of expired operations
     this.startPeriodicCleanup();
   }
@@ -486,6 +491,7 @@ export class ScheduleManager {
 
   /**
    * Finalize a schedule and update pairing history
+   * Blocks finalization if availability violations are detected
    */
   async finalizeSchedule(weekId: string): Promise<Schedule> {
     const schedule = await this.getSchedule(weekId);
@@ -499,10 +505,38 @@ export class ScheduleManager {
       throw new Error(`Week ${weekId} not found`);
     }
 
-    // Validate the schedule before finalizing
-    const validation = await this.validateManualEdit(weekId, schedule);
+    // Get all players for availability validation
+    const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+    const availablePlayers = this.scheduleGenerator.filterAvailablePlayers(allPlayers, week);
+
+    // Validate the schedule before finalizing with enhanced availability checks
+    const validation = await this.validateScheduleConstraints(schedule, availablePlayers, week);
     if (!validation.isValid) {
-      throw new Error(`Cannot finalize invalid schedule: ${validation.errors.join(', ')}`);
+      // Generate detailed conflict report for availability violations
+      const conflictReport = this.generateAvailabilityConflictReport(schedule, week);
+      
+      let errorMessage = `Cannot finalize schedule due to validation errors: ${validation.errors.join(', ')}`;
+      
+      if (conflictReport.conflicts.length > 0) {
+        errorMessage += `\n\nAvailability Conflicts Detected:\n`;
+        conflictReport.conflicts.forEach(conflict => {
+          errorMessage += `- ${conflict.playerName} (${conflict.timeSlot} slot, position ${conflict.foursomePosition}): `;
+          if (conflict.availabilityStatus === false) {
+            errorMessage += 'marked as unavailable\n';
+          } else {
+            errorMessage += 'no availability data\n';
+          }
+        });
+        
+        if (conflictReport.suggestions.length > 0) {
+          errorMessage += `\nSuggested Actions:\n`;
+          conflictReport.suggestions.forEach(suggestion => {
+            errorMessage += `- ${suggestion}\n`;
+          });
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
 
     // Update pairing history
@@ -1747,15 +1781,23 @@ export class ScheduleManager {
   }
 
   /**
-   * Validate schedule constraints comprehensively
+   * Validate schedule constraints comprehensively with enhanced availability validation
    */
   async validateScheduleConstraints(schedule: Schedule, availablePlayers: Player[], week: Week): Promise<ValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    // Use existing schedule generator validation as base
-    const baseValidation = this.scheduleGenerator.validateSchedule(schedule, availablePlayers);
+    // Get all players for the season to have complete player information
+    const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+    
+    // Use existing schedule generator validation as base, but pass week for enhanced validation
+    const baseValidation = this.scheduleGenerator.validateSchedule(schedule, availablePlayers, week);
     errors.push(...baseValidation.errors);
+
+    // Enhanced availability validation with detailed conflict detection
+    const availabilityValidation = await this.validateDetailedAvailabilityConstraints(schedule, week, allPlayers);
+    errors.push(...availabilityValidation.errors);
+    warnings.push(...availabilityValidation.warnings);
 
     // Additional constraint validations
     const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
@@ -1767,13 +1809,6 @@ export class ScheduleManager {
         errors.push(`Empty foursome found at position ${foursome.position} in ${foursome.timeSlot}`);
       } else if (foursome.players.length > 4) {
         errors.push(`Foursome at position ${foursome.position} in ${foursome.timeSlot} has ${foursome.players.length} players (maximum 4)`);
-      }
-
-      // Check player availability for this week
-      for (const player of foursome.players) {
-        if (!this.scheduleGenerator.filterAvailablePlayers([player], week).includes(player)) {
-          errors.push(`Player ${player.firstName} ${player.lastName} is scheduled but not available for week ${week.weekNumber}`);
-        }
       }
 
       // Check time preference violations (stricter than base validation)
@@ -1819,6 +1854,183 @@ export class ScheduleManager {
       errors,
       warnings
     };
+  }
+
+  /**
+   * Validate detailed availability constraints with conflict detection and resolution suggestions
+   */
+  private async validateDetailedAvailabilityConstraints(schedule: Schedule, week: Week, allPlayers: Player[]): Promise<ValidationResult> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Get all players from the schedule
+    const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
+    const scheduledPlayerIds = allFoursomes.flatMap(f => f.players.map(p => p.id));
+
+    // Create a map of player ID to player object for easy lookup
+    const playerMap = new Map(allPlayers.map(p => [p.id, p]));
+
+    // Check each scheduled player's availability status
+    for (const playerId of scheduledPlayerIds) {
+      const player = playerMap.get(playerId);
+      const playerName = player ? `${player.firstName} ${player.lastName}` : playerId;
+      
+      const availabilityStatus = this.getPlayerAvailabilityStatus(playerId, week);
+      
+      if (availabilityStatus === false) {
+        // Player is explicitly marked as unavailable
+        errors.push(`Player ${playerName} (${playerId}) is scheduled but marked as unavailable for week ${week.weekNumber}`);
+      } else if (availabilityStatus === null || availabilityStatus === undefined) {
+        // Player has no availability data
+        errors.push(`Player ${playerName} (${playerId}) is scheduled but has no availability data for week ${week.weekNumber}`);
+      }
+      // availabilityStatus === true is valid, no error needed
+    }
+
+    // Check for potential availability conflicts in time slots
+    const morningUnavailablePlayerIds = schedule.timeSlots.morning
+      .flatMap(f => f.players.map(p => p.id))
+      .filter(id => this.getPlayerAvailabilityStatus(id, week) !== true);
+    
+    const afternoonUnavailablePlayerIds = schedule.timeSlots.afternoon
+      .flatMap(f => f.players.map(p => p.id))
+      .filter(id => this.getPlayerAvailabilityStatus(id, week) !== true);
+
+    if (morningUnavailablePlayerIds.length > 0) {
+      const playerNames = morningUnavailablePlayerIds.map(id => {
+        const player = playerMap.get(id);
+        return player ? `${player.firstName} ${player.lastName}` : id;
+      });
+      warnings.push(`Morning time slot contains ${morningUnavailablePlayerIds.length} unavailable player(s): ${playerNames.join(', ')}`);
+    }
+
+    if (afternoonUnavailablePlayerIds.length > 0) {
+      const playerNames = afternoonUnavailablePlayerIds.map(id => {
+        const player = playerMap.get(id);
+        return player ? `${player.firstName} ${player.lastName}` : id;
+      });
+      warnings.push(`Afternoon time slot contains ${afternoonUnavailablePlayerIds.length} unavailable player(s): ${playerNames.join(', ')}`);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    };
+  }
+
+  /**
+   * Get player availability status for a specific week
+   */
+  private getPlayerAvailabilityStatus(playerId: string, week: Week): boolean | null {
+    if ('playerAvailability' in week && week.playerAvailability) {
+      return week.playerAvailability[playerId] ?? null;
+    }
+    return null;
+  }
+
+  /**
+   * Generate detailed availability conflict report with resolution suggestions
+   */
+  generateAvailabilityConflictReport(schedule: Schedule, week: Week): {
+    conflicts: Array<{
+      playerId: string;
+      playerName: string;
+      availabilityStatus: boolean | null;
+      timeSlot: 'morning' | 'afternoon';
+      foursomePosition: number;
+    }>;
+    suggestions: string[];
+  } {
+    const conflicts: Array<{
+      playerId: string;
+      playerName: string;
+      availabilityStatus: boolean | null;
+      timeSlot: 'morning' | 'afternoon';
+      foursomePosition: number;
+    }> = [];
+
+    const suggestions: string[] = [];
+
+    // Check all foursomes for availability conflicts
+    const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
+    
+    for (const foursome of allFoursomes) {
+      for (const player of foursome.players) {
+        const availabilityStatus = this.getPlayerAvailabilityStatus(player.id, week);
+        
+        if (availabilityStatus !== true) {
+          conflicts.push({
+            playerId: player.id,
+            playerName: `${player.firstName} ${player.lastName}`,
+            availabilityStatus,
+            timeSlot: foursome.timeSlot,
+            foursomePosition: foursome.position
+          });
+        }
+      }
+    }
+
+    // Generate resolution suggestions based on conflicts
+    if (conflicts.length > 0) {
+      const unavailablePlayers = conflicts.filter(c => c.availabilityStatus === false);
+      const noDataPlayers = conflicts.filter(c => c.availabilityStatus === null || c.availabilityStatus === undefined);
+
+      if (unavailablePlayers.length > 0) {
+        suggestions.push(`Remove ${unavailablePlayers.length} unavailable player(s) from the schedule: ${unavailablePlayers.map(c => c.playerName).join(', ')}`);
+        suggestions.push('Update player availability status if these players are now available');
+      }
+
+      if (noDataPlayers.length > 0) {
+        suggestions.push(`Set availability data for ${noDataPlayers.length} player(s): ${noDataPlayers.map(c => c.playerName).join(', ')}`);
+        suggestions.push('Verify these players should be included in the schedule');
+      }
+
+      // Time slot specific suggestions
+      const morningConflicts = conflicts.filter(c => c.timeSlot === 'morning');
+      const afternoonConflicts = conflicts.filter(c => c.timeSlot === 'afternoon');
+
+      if (morningConflicts.length > 0 && afternoonConflicts.length === 0) {
+        suggestions.push('Consider moving available players to morning time slot to fill gaps');
+      } else if (afternoonConflicts.length > 0 && morningConflicts.length === 0) {
+        suggestions.push('Consider moving available players to afternoon time slot to fill gaps');
+      }
+
+      // General suggestions
+      suggestions.push('Regenerate the schedule after updating player availability');
+      suggestions.push('Contact unavailable players to confirm their status');
+    }
+
+    return { conflicts, suggestions };
+  }
+
+  /**
+   * Generate comprehensive availability error report with enhanced details
+   */
+  async generateDetailedAvailabilityReport(schedule: Schedule, week: Week): Promise<AvailabilityErrorReport> {
+    const allPlayers = await this.playerRepository.findBySeasonId(week.seasonId);
+    return this.availabilityErrorReporter.generateDetailedErrorReport(schedule, week, allPlayers);
+  }
+
+  /**
+   * Get availability filtering decision history
+   */
+  getAvailabilityFilteringHistory(limit?: number): Array<{
+    playerId: string;
+    playerName: string;
+    availabilityStatus: boolean | null | undefined;
+    decision: 'included' | 'excluded';
+    reason: string;
+    timestamp: Date;
+  }> {
+    return this.availabilityErrorReporter.getFilteringDecisionHistory(limit);
+  }
+
+  /**
+   * Clear availability filtering history
+   */
+  clearAvailabilityFilteringHistory(): void {
+    this.availabilityErrorReporter.clearFilteringHistory();
   }
 
   /**
@@ -1903,7 +2115,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Generate validation error report with suggested actions
+   * Generate validation error report with suggested actions including availability conflicts
    */
   generateValidationErrorReport(
     preValidation: ValidationResult,
@@ -1938,14 +2150,28 @@ export class ScheduleManager {
         suggestions.push('Move AM-preference players to morning time slots');
       } else if (error.includes('both time slots')) {
         suggestions.push('Remove duplicate player assignments between morning and afternoon');
-      } else if (error.includes('not available')) {
+      } else if (error.includes('not available') || error.includes('marked as unavailable')) {
         suggestions.push('Update player availability or remove unavailable players from schedule');
+        suggestions.push('Verify player availability status is correct for this week');
+      } else if (error.includes('no availability data')) {
+        suggestions.push('Set availability data for players missing availability information');
+        suggestions.push('Confirm which players should be included in the schedule');
       } else if (error.includes('storage space')) {
         suggestions.push('Clear application data or free up browser storage space');
       } else if (error.includes('operation is currently in progress')) {
         suggestions.push('Wait for the current operation to complete or refresh the page');
       } else if (error.includes('multiple seasons')) {
         suggestions.push('Ensure all players belong to the same season as the week');
+      }
+    }
+
+    // Add availability-specific suggestions for warnings
+    for (const warning of allWarnings) {
+      if (warning.includes('unavailable player(s)')) {
+        suggestions.push('Review and update availability for players in the schedule');
+        suggestions.push('Consider regenerating the schedule with current availability data');
+      } else if (warning.includes('unbalanced handedness')) {
+        suggestions.push('Consider manual adjustments to balance left and right-handed players');
       }
     }
 

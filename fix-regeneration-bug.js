@@ -11,7 +11,7 @@
  * 3. Run: fixRegenerationBug()
  */
 
-function fixRegenerationBug() {
+await function fixRegenerationBug() {
   console.log('🔧 Starting regeneration bug fix...');
   
   let fixesApplied = 0;

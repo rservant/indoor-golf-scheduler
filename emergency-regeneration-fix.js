@@ -11,7 +11,7 @@
  * 3. Run: emergencyRegenerationFix()
  */
 
-function emergencyRegenerationFix() {
+await function emergencyRegenerationFix() {
   console.log('🚨 Emergency Regeneration Fix Starting...');
   
   let fixesApplied = 0;

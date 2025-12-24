@@ -358,7 +358,7 @@ export class LocalScheduleRepository extends LocalStorageRepository<Schedule, Sc
     return newSchedule;
   }
 
-  // Override update to track manual edits
+  // Override update to track manual edits and return ScheduleModel instance
   async update(id: string, updates: Partial<Schedule>): Promise<Schedule | null> {
     const updatedSchedule = await super.update(id, updates);
     
@@ -368,9 +368,16 @@ export class LocalScheduleRepository extends LocalStorageRepository<Schedule, Sc
         hasManualEdits: true,
         lastModified: updatedSchedule.lastModified
       });
+      
+      // Convert to ScheduleModel instance to ensure methods are available
+      return new ScheduleModel({
+        ...updatedSchedule,
+        createdAt: new Date(updatedSchedule.createdAt),
+        lastModified: new Date(updatedSchedule.lastModified)
+      });
     }
     
-    return updatedSchedule;
+    return null;
   }
 
   // Override delete to update status

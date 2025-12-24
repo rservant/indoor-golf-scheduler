@@ -135,8 +135,13 @@ describe('Final Integration Testing', () => {
       const weeks = await services.scheduleManager.generateWeeksForSeason(season.id, 4);
       expect(weeks).toHaveLength(4);
 
-      // Generate schedule for first week
+      // Set all players as available for the first week
       const firstWeek = weeks[0];
+      for (const player of players) {
+        await services.playerManager.setPlayerAvailability(player.id, firstWeek.id, true);
+      }
+
+      // Generate schedule for first week
       const schedule = await services.scheduleManager.generateSchedule(firstWeek.id);
       expect(schedule).toBeDefined();
       expect(schedule.timeSlots).toBeDefined();
@@ -304,6 +309,12 @@ describe('Final Integration Testing', () => {
 
       // Generate schedule
       const weeks = await services.scheduleManager.generateWeeksForSeason(season.id, 1);
+      
+      // Set all players as available for the week
+      for (const player of players) {
+        await services.playerManager.setPlayerAvailability(player.id, weeks[0].id, true);
+      }
+      
       const schedule = await services.scheduleManager.generateSchedule(weeks[0].id);
 
       // Test schedule modification
@@ -532,6 +543,13 @@ describe('Final Integration Testing', () => {
       // Test schedule generation with large dataset
       const scheduleStartTime = Date.now();
       const weeks = await services.scheduleManager.generateWeeksForSeason(season.id, 1);
+      
+      // Set all players as available for the week
+      const playersForSchedule = await services.playerManager.getAllPlayers(season.id);
+      for (const player of playersForSchedule) {
+        await services.playerManager.setPlayerAvailability(player.id, weeks[0].id, true);
+      }
+      
       const schedule = await services.scheduleManager.generateSchedule(weeks[0].id);
       const scheduleTime = Date.now() - scheduleStartTime;
 
