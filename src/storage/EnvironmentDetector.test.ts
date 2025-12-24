@@ -180,6 +180,8 @@ describe('EnvironmentDetector', () => {
     });
 
     it('should detect generic CI environment', () => {
+      // Explicitly clear GitHub Actions variable to test generic CI detection
+      delete process.env.GITHUB_ACTIONS;
       process.env.CI = 'true';
       detector.resetCache();
 
@@ -194,6 +196,12 @@ describe('EnvironmentDetector', () => {
       delete process.env.CI;
       delete process.env.CONTINUOUS_INTEGRATION;
       delete process.env.NODE_ENV;
+      delete process.env.JENKINS_URL;
+      delete process.env.TRAVIS;
+      delete process.env.CIRCLECI;
+      delete process.env.GITLAB_CI;
+      delete process.env.BUILDKITE;
+      delete process.env.DRONE;
       detector.resetCache();
 
       expect(detector.isGitHubActions()).toBe(false);
@@ -203,6 +211,7 @@ describe('EnvironmentDetector', () => {
 
     it('should provide appropriate configuration for each environment type', () => {
       // Test GitHub Actions configuration
+      delete process.env.CI; // Clear any existing CI variable
       process.env.GITHUB_ACTIONS = 'true';
       detector.resetCache();
       let config = detector.getCIConfiguration();
@@ -219,6 +228,7 @@ describe('EnvironmentDetector', () => {
 
       // Test local configuration
       delete process.env.CI;
+      delete process.env.GITHUB_ACTIONS; // Ensure GitHub Actions is also cleared
       detector.resetCache();
       config = detector.getCIConfiguration();
       expect(config.maxStorageSize).toBe(5 * 1024 * 1024);
