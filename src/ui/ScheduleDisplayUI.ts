@@ -441,7 +441,7 @@ export class ScheduleDisplayUI {
   /**
    * Export the current schedule
    */
-  private async exportSchedule(format: 'pdf' | 'excel' | 'csv'): Promise<void> {
+  private async exportSchedule(format: 'pdf' | 'csv'): Promise<void> {
     if (!this.state.schedule || !this.state.selectedWeek) return;
 
     try {
@@ -718,9 +718,6 @@ export class ScheduleDisplayUI {
         <div class="export-buttons">
           <button class="btn btn-sm btn-secondary" onclick="scheduleDisplayUI.exportSchedule('pdf')">
             Export as PDF
-          </button>
-          <button class="btn btn-sm btn-secondary" onclick="scheduleDisplayUI.exportSchedule('excel')">
-            Export as Excel
           </button>
           <button class="btn btn-sm btn-secondary" onclick="scheduleDisplayUI.exportSchedule('csv')">
             Export as CSV
@@ -1244,7 +1241,7 @@ export class ScheduleDisplayUI {
       togglePlayerDistribution: () => this.togglePlayerDistribution(),
       togglePairingHistory: () => this.togglePairingHistory(),
       // Export methods
-      exportSchedule: (format: 'pdf' | 'excel' | 'csv') => this.exportSchedule(format),
+      exportSchedule: (format: 'pdf' | 'csv') => this.exportSchedule(format),
       // Editing methods
       enableEditing: () => this.enableEditing(),
       cancelEditing: () => this.cancelEditing(),

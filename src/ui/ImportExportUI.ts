@@ -26,10 +26,9 @@ export class ImportExportUI {
           <div class="import-controls">
             <div class="file-input-group">
               <label for="import-file">Select File:</label>
-              <input type="file" id="import-file" accept=".csv,.xlsx,.xls" />
+              <input type="file" id="import-file" accept=".csv" />
               <select id="import-format">
                 <option value="csv">CSV</option>
-                <option value="excel">Excel</option>
               </select>
             </div>
             <div class="import-actions">
@@ -54,7 +53,6 @@ export class ImportExportUI {
               <label for="export-format">Format:</label>
               <select id="export-format">
                 <option value="csv">CSV</option>
-                <option value="excel">Excel</option>
                 <option value="pdf">PDF</option>
               </select>
             </div>
@@ -137,9 +135,7 @@ export class ImportExportUI {
     const format = formatSelect.value as ImportFormat;
 
     try {
-      const fileData = format === 'csv' 
-        ? await this.readFileAsText(file)
-        : await this.readFileAsBuffer(file);
+      const fileData = await this.readFileAsText(file);
 
       const validation = this.importExportService.validateImportFile(fileData, format);
       
@@ -168,9 +164,7 @@ export class ImportExportUI {
     try {
       this.showImportProgress('Importing players...');
 
-      const fileData = format === 'csv' 
-        ? await this.readFileAsText(file)
-        : await this.readFileAsBuffer(file);
+      const fileData = await this.readFileAsText(file);
 
       const result = await this.importExportService.importPlayers(fileData, format);
       this.displayImportResults(result);
@@ -414,15 +408,6 @@ export class ImportExportUI {
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = () => reject(reader.error);
       reader.readAsText(file);
-    });
-  }
-
-  private readFileAsBuffer(file: File): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(Buffer.from(reader.result as ArrayBuffer));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsArrayBuffer(file);
     });
   }
 

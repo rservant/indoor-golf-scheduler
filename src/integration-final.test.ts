@@ -344,9 +344,6 @@ describe('Final Integration Testing', () => {
       expect(typeof csvData).toBe('string');
       expect(csvData).toContain('Format');
 
-      const excelData = await services.exportService.exportPlayersToExcel([player]);
-      expect(excelData).toBeDefined();
-
       const pdfData = await services.exportService.exportPlayersToPDF([player]);
       expect(pdfData).toBeDefined();
     });

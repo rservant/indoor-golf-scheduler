@@ -1,9 +1,8 @@
 import { Schedule } from '../models/Schedule';
 import { Player } from '../models/Player';
-import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
 
-export type ExportFormat = 'csv' | 'excel' | 'pdf';
+export type ExportFormat = 'csv' | 'pdf';
 
 export interface ExportOptions {
   format: ExportFormat;
@@ -41,8 +40,6 @@ export class ExportService {
       switch (options.format) {
         case 'csv':
           return this.exportToCSV(exportData, options, schedule.weekId);
-        case 'excel':
-          return this.exportToExcel(exportData, options, schedule.weekId);
         case 'pdf':
           return this.exportToPDF(exportData, options, schedule.weekId);
         default:
@@ -131,51 +128,6 @@ export class ExportService {
       data: csv,
       filename: `schedule_${weekId}.csv`,
       mimeType: 'text/csv'
-    };
-  }
-
-  /**
-   * Export to Excel format
-   */
-  private exportToExcel(data: ScheduleExportData[], _options: ExportOptions, weekId: string): ExportResult {
-    const workbook = XLSX.utils.book_new();
-    
-    // Create worksheet data
-    const worksheetData = [
-      ['Week ID', 'Time Slot', 'Foursome', 'Player Name', 'Handedness', 'Time Preference', 'Position'],
-      ...data.map(row => [
-        row.weekId,
-        row.timeSlot,
-        row.foursomeNumber,
-        row.playerName,
-        row.handedness,
-        row.timePreference,
-        row.position
-      ])
-    ];
-
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    
-    // Set column widths
-    worksheet['!cols'] = [
-      { wch: 15 }, // Week ID
-      { wch: 12 }, // Time Slot
-      { wch: 10 }, // Foursome
-      { wch: 20 }, // Player Name
-      { wch: 12 }, // Handedness
-      { wch: 15 }, // Time Preference
-      { wch: 10 }  // Position
-    ];
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Schedule');
-
-    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-    return {
-      success: true,
-      data: excelBuffer,
-      filename: `schedule_${weekId}.xlsx`,
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     };
   }
 
@@ -299,22 +251,6 @@ export class ExportService {
       fields: headers,
       data: csvData
     });
-  }
-
-  /**
-   * Export player data to Excel format
-   */
-  async exportPlayersToExcel(players: any[]): Promise<Buffer> {
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(players.map(player => ({
-      'First Name': player.firstName,
-      'Last Name': player.lastName,
-      'Handedness': player.handedness,
-      'Time Preference': player.timePreference
-    })));
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Players');
-    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
   }
 
   /**

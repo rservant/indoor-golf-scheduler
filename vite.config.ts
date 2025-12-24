@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
           // Manual chunk splitting for better caching
           manualChunks: {
             // Vendor chunk for third-party libraries
-            vendor: ['fast-check', 'papaparse', 'jspdf', 'xlsx'],
+            vendor: ['fast-check', 'papaparse', 'jspdf'],
             // Core application logic
             core: [
               'src/models/index.ts',
@@ -186,7 +186,7 @@ export default defineConfig(({ mode }) => {
   
   // Optimize dependencies
   optimizeDeps: {
-    include: ['fast-check', 'papaparse', 'jspdf', 'xlsx'],
+    include: ['fast-check', 'papaparse', 'jspdf'],
     // Force pre-bundling of these dependencies
     force: false,
     // Exclude certain dependencies from pre-bundling if needed

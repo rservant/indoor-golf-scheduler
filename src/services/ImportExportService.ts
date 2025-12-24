@@ -3,7 +3,6 @@ import { PlayerInfo, Handedness, TimePreference } from '../models/Player';
 import { PlayerManager } from './PlayerManager';
 import { SeasonManager } from './SeasonManager';
 import { Schedule } from '../models/Schedule';
-import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
 
 export interface ImportResult {
@@ -52,7 +51,7 @@ export interface BulkOperationError {
   error: string;
 }
 
-export type ImportFormat = 'csv' | 'excel';
+export type ImportFormat = 'csv';
 
 export class ImportExportService extends ExportService {
   constructor(
@@ -63,7 +62,7 @@ export class ImportExportService extends ExportService {
   }
 
   /**
-   * Import player data from CSV or Excel file
+   * Import player data from CSV file
    */
   async importPlayers(fileData: string | Buffer, format: ImportFormat): Promise<ImportResult> {
     try {
@@ -90,8 +89,6 @@ export class ImportExportService extends ExportService {
     switch (format) {
       case 'csv':
         return this.parseCSVFile(fileData as string);
-      case 'excel':
-        return this.parseExcelFile(fileData as Buffer);
       default:
         throw new Error(`Unsupported import format: ${format}`);
     }
@@ -116,46 +113,6 @@ export class ImportExportService extends ExportService {
       lastName: row['last name'] || row['lastname'] || row['last_name'] || '',
       handedness: row['handedness'] || row['hand'] || '',
       timePreference: row['time preference'] || row['timepreference'] || row['time_preference'] || row['preference'] || ''
-    }));
-  }
-
-  /**
-   * Parse Excel file for player data
-   */
-  private parseExcelFile(excelData: Buffer): PlayerImportData[] {
-    const workbook = XLSX.read(excelData, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    
-    if (!sheetName) {
-      throw new Error('Excel file contains no worksheets');
-    }
-
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-    if (jsonData.length < 2) {
-      throw new Error('Excel file must contain at least a header row and one data row');
-    }
-
-    // Get headers and normalize them
-    const headers = (jsonData[0] as string[]).map(h => h.toString().trim().toLowerCase());
-    const dataRows = jsonData.slice(1) as any[][];
-
-    // Find column indices
-    const firstNameIndex = this.findColumnIndex(headers, ['first name', 'firstname', 'first_name']);
-    const lastNameIndex = this.findColumnIndex(headers, ['last name', 'lastname', 'last_name']);
-    const handednessIndex = this.findColumnIndex(headers, ['handedness', 'hand']);
-    const timePreferenceIndex = this.findColumnIndex(headers, ['time preference', 'timepreference', 'time_preference', 'preference']);
-
-    if (firstNameIndex === -1 || lastNameIndex === -1 || handednessIndex === -1 || timePreferenceIndex === -1) {
-      throw new Error('Excel file must contain columns for: First Name, Last Name, Handedness, and Time Preference');
-    }
-
-    return dataRows.map((row: any[]) => ({
-      firstName: row[firstNameIndex]?.toString().trim() || '',
-      lastName: row[lastNameIndex]?.toString().trim() || '',
-      handedness: row[handednessIndex]?.toString().trim() || '',
-      timePreference: row[timePreferenceIndex]?.toString().trim() || ''
     }));
   }
 
@@ -432,28 +389,6 @@ export class ImportExportService extends ExportService {
             mimeType: 'text/csv'
           };
 
-        case 'excel':
-          const workbook = XLSX.utils.book_new();
-          const worksheet = XLSX.utils.json_to_sheet(templateData);
-          
-          // Set column widths
-          worksheet['!cols'] = [
-            { wch: 15 }, // First Name
-            { wch: 15 }, // Last Name
-            { wch: 12 }, // Handedness
-            { wch: 15 }  // Time Preference
-          ];
-
-          XLSX.utils.book_append_sheet(workbook, worksheet, 'Players');
-          const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-          return {
-            success: true,
-            data: excelBuffer,
-            filename: 'player_import_template.xlsx',
-            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          };
-
         default:
           throw new Error(`Unsupported template format: ${format}`);
       }
@@ -474,9 +409,7 @@ export class ImportExportService extends ExportService {
     const errors: string[] = [];
 
     try {
-      const playerData = format === 'csv' 
-        ? this.parseCSVFile(fileData as string)
-        : this.parseExcelFile(fileData as Buffer);
+      const playerData = this.parseCSVFile(fileData as string);
 
       if (playerData.length === 0) {
         errors.push('Import file contains no data rows');

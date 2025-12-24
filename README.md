@@ -10,7 +10,7 @@ A comprehensive digital scheduling system for indoor golf facilities that automa
 - **Intelligent Scheduling**: Automated schedule generation with constraint satisfaction
 - **Partner Optimization**: Minimize repeat pairings while ensuring fair distribution
 - **Manual Editing**: Drag-and-drop schedule editing with constraint validation
-- **Export Capabilities**: Export schedules in PDF, Excel, and CSV formats
+- **Export Capabilities**: Export schedules in PDF and CSV formats
 
 ### Advanced Features
 - **Time Slot Balancing**: Automatically balance morning and afternoon sessions
@@ -126,7 +126,6 @@ const schedule = await scheduleGenerator.generateSchedule(weekId, availablePlaye
 ```typescript
 // Export in various formats
 await exportService.exportToPDF(schedule, 'week-1-schedule.pdf');
-await exportService.exportToExcel(schedule, 'week-1-schedule.xlsx');
 await exportService.exportToCSV(schedule, 'week-1-schedule.csv');
 ```
 

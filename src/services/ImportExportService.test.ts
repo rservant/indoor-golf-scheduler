@@ -4,7 +4,6 @@ import { InMemorySeasonManager } from './SeasonManager';
 import { ScheduleModel } from '../models/Schedule';
 import { FoursomeModel } from '../models/Foursome';
 import { PlayerModel } from '../models/Player';
-import * as XLSX from 'xlsx';
 
 describe('ImportExportService', () => {
   let importExportService: ImportExportService;
@@ -45,31 +44,6 @@ Bob,Johnson,right,Either`;
       expect(johnDoe).toBeDefined();
       expect(johnDoe!.handedness).toBe('right');
       expect(johnDoe!.timePreference).toBe('AM');
-    });
-
-    it('should import players from Excel format', async () => {
-      // Create Excel workbook
-      const workbook = XLSX.utils.book_new();
-      const worksheetData = [
-        ['First Name', 'Last Name', 'Handedness', 'Time Preference'],
-        ['Alice', 'Brown', 'left', 'AM'],
-        ['Charlie', 'Davis', 'right', 'PM']
-      ];
-      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Players');
-      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-      const result = await importExportService.importPlayers(excelBuffer, 'excel');
-
-      expect(result.success).toBe(true);
-      expect(result.importedCount).toBe(2);
-      expect(result.skippedCount).toBe(0);
-      expect(result.errors).toHaveLength(0);
-
-      // Verify players were added
-      const activeSeason = await seasonManager.getActiveSeason();
-      const players = await playerManager.getAllPlayers(activeSeason!.id);
-      expect(players).toHaveLength(2);
     });
 
     it('should handle duplicate players gracefully', async () => {
@@ -300,13 +274,11 @@ John,Doe,right,AM`;
       expect(result.data).toContain('First Name,Last Name,Handedness,Time Preference');
     });
 
-    it('should generate Excel import template', () => {
-      const result = importExportService.generateImportTemplate('excel');
-
-      expect(result.success).toBe(true);
-      expect(result.filename).toBe('player_import_template.xlsx');
-      expect(result.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      expect(result.data).toBeInstanceOf(Buffer);
+    it('should reject Excel template generation', () => {
+      // Excel template generation should no longer be supported
+      const result = importExportService.generateImportTemplate('excel' as any);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Unsupported template format');
     });
   });
 
@@ -353,14 +325,16 @@ Jane"Smith,left`;
       expect(result.errors.length).toBeGreaterThan(0);
     });
 
-    it('should handle invalid Excel file', async () => {
-      const invalidBuffer = Buffer.from('not an excel file');
+    it('should reject Excel format import', async () => {
+      const csvData = `First Name,Last Name,Handedness,Time Preference
+John,Doe,right,AM`;
 
-      const result = await importExportService.importPlayers(invalidBuffer, 'excel');
+      // Attempting to import with Excel format should fail
+      const result = await importExportService.importPlayers(csvData, 'excel' as any);
 
       expect(result.success).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('Excel file must contain at least a header row and one data row');
+      expect(result.errors[0].message).toContain('Unsupported import format');
     });
   });
 });

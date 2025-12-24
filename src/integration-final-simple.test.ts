@@ -396,10 +396,6 @@ Import,Test,right,AM`;
       expect(csvResult.success).toBe(true);
       expect(csvResult.data).toBeDefined();
 
-      const excelResult = await exportService.exportSchedule(schedule, { format: 'excel' });
-      expect(excelResult.success).toBe(true);
-      expect(excelResult.data).toBeDefined();
-
       const pdfResult = await exportService.exportSchedule(schedule, { format: 'pdf' });
       expect(pdfResult.success).toBe(true);
       expect(pdfResult.data).toBeDefined();

@@ -55,7 +55,7 @@ describe('ExportService', () => {
               { minLength: 0, maxLength: 5 }
             )
           }),
-          fc.constantFrom('csv', 'excel', 'pdf') as fc.Arbitrary<ExportFormat>,
+          fc.constantFrom('csv', 'pdf') as fc.Arbitrary<ExportFormat>,
           async (scheduleData, format) => {
             // Skip if no players at all
             const totalPlayers = scheduleData.morningFoursomes.reduce((sum, f) => sum + f.players.length, 0) +
@@ -250,6 +250,43 @@ describe('ExportService', () => {
 
       const isValid = exportService.validateExportData(schedule, invalidExportData);
       expect(isValid).toBe(false);
+    });
+
+    it('should not have exportToExcel method', () => {
+      // Verify that the exportToExcel method has been removed
+      expect((exportService as any).exportToExcel).toBeUndefined();
+    });
+
+    it('should not have exportPlayersToExcel method', () => {
+      // Verify that the exportPlayersToExcel method has been removed
+      expect((exportService as any).exportPlayersToExcel).toBeUndefined();
+    });
+
+    it('should reject excel format in exportSchedule', async () => {
+      const player = new PlayerModel({
+        firstName: 'John',
+        lastName: 'Doe',
+        handedness: 'right',
+        timePreference: 'AM',
+        seasonId: 'test-season'
+      });
+
+      const foursome = new FoursomeModel({
+        players: [player],
+        timeSlot: 'morning',
+        position: 1
+      });
+
+      const schedule = new ScheduleModel({
+        weekId: 'test-week',
+        timeSlots: { morning: [foursome], afternoon: [] }
+      });
+
+      // Attempt to export with excel format should fail
+      const result = await exportService.exportSchedule(schedule, { format: 'excel' as any });
+      
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Unsupported export format');
     });
   });
 });
