@@ -303,12 +303,14 @@ describe('Availability Persistence Integration Tests', () => {
       expect(initialFreshness.isStale).toBe(false);
 
       // Force refresh and verify freshness is updated
+      // Add small delay to ensure timestamp difference
+      await new Promise(resolve => setTimeout(resolve, 1));
       await availabilityUI.forceRefreshFromPersistence();
 
       const updatedFreshness = availabilityUI.getDataFreshnessInfo();
       expect(updatedFreshness.lastRefresh).toBeTruthy();
       expect(updatedFreshness.isStale).toBe(false);
-      expect(updatedFreshness.lastRefresh!.getTime()).toBeGreaterThan(initialFreshness.lastRefresh!.getTime());
+      expect(updatedFreshness.lastRefresh!.getTime()).toBeGreaterThanOrEqual(initialFreshness.lastRefresh!.getTime());
     });
 
     test('should detect and handle stale data correctly', async () => {

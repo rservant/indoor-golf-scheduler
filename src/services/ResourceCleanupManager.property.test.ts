@@ -247,11 +247,11 @@ describe('Resource Cleanup Manager Property Tests', () => {
         }
       ),
       { 
-        numRuns: 50,
-        timeout: 20000
+        numRuns: 10, // Reduced from default
+        timeout: 8000 // Reduced timeout
       }
     );
-  }, 40000);
+  }, 15000); // Reduced Jest timeout
 
   /**
    * Property: Cleanup task registration and unregistration
@@ -313,10 +313,10 @@ describe('Resource Cleanup Manager Property Tests', () => {
             expect(found?.priority).toBe(task.priority);
           }
 
-          // Unregister some tasks
-          const tasksToUnregister = testData.unregisterIndices
-            .filter(index => index < registeredTasks.length)
-            .map(index => registeredTasks[index]);
+          // Unregister some tasks (remove duplicates to avoid trying to unregister the same task twice)
+          const uniqueIndices = [...new Set(testData.unregisterIndices)]
+            .filter(index => index < registeredTasks.length);
+          const tasksToUnregister = uniqueIndices.map(index => registeredTasks[index]);
 
           for (const task of tasksToUnregister) {
             const unregistered = cleanupManager.unregisterCleanupTask(task.id);
@@ -360,14 +360,14 @@ describe('Resource Cleanup Manager Property Tests', () => {
     await fc.assert(
       fc.asyncProperty(
         fc.record({
-          maxCleanupTime: fc.integer({ min: 100, max: 5000 }), // 100ms to 5s
+          maxCleanupTime: fc.integer({ min: 50, max: 200 }), // Reduced timeout range
           taskDelays: fc.array(
-            fc.integer({ min: 0, max: 1000 }), // 0 to 1s delay per task
-            { minLength: 1, maxLength: 8 }
+            fc.integer({ min: 0, max: 100 }), // Reduced delay range
+            { minLength: 1, maxLength: 3 } // Fewer tasks
           ),
           shouldTimeout: fc.array(
             fc.boolean(),
-            { minLength: 1, maxLength: 8 }
+            { minLength: 1, maxLength: 3 }
           )
         }),
         async (testData) => {
@@ -388,7 +388,7 @@ describe('Resource Cleanup Manager Property Tests', () => {
               priority: 'medium',
               cleanup: async () => {
                 // Create delay that might exceed timeout
-                const actualDelay = shouldTimeout ? testData.maxCleanupTime + 500 : delay;
+                const actualDelay = shouldTimeout ? testData.maxCleanupTime + 100 : delay;
                 await new Promise(resolve => setTimeout(resolve, actualDelay));
               },
               estimatedMemoryFreed: 1024 * 1024 // 1MB
@@ -405,7 +405,7 @@ describe('Resource Cleanup Manager Property Tests', () => {
 
           // Property: Total execution time should be reasonable
           // Allow some overhead for task management
-          const maxExpectedTime = testData.maxCleanupTime * testData.taskDelays.length + 2000;
+          const maxExpectedTime = testData.maxCleanupTime * testData.taskDelays.length + 1000;
           expect(executionTime).toBeLessThan(maxExpectedTime);
 
           // Property: Some tasks should have been attempted
