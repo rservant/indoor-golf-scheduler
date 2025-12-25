@@ -292,9 +292,9 @@ export class ResourcePoolManager {
   getAllStats(): Record<string, PoolStats> {
     const stats: Record<string, PoolStats> = {};
     
-    for (const [name, pool] of this.pools) {
+    this.pools.forEach((pool, name) => {
       stats[name] = pool.getStats();
-    }
+    });
     
     return stats;
   }
@@ -303,9 +303,9 @@ export class ResourcePoolManager {
    * Clear all pools
    */
   clearAll(): void {
-    for (const pool of this.pools.values()) {
+    this.pools.forEach(pool => {
       pool.clear();
-    }
+    });
     this.pools.clear();
   }
 
@@ -321,12 +321,12 @@ export class ResourcePoolManager {
     let availableObjects = 0;
     let inUseObjects = 0;
 
-    for (const pool of this.pools.values()) {
+    this.pools.forEach(pool => {
       const stats = pool.getStats();
       totalObjects += stats.totalCreated;
       availableObjects += stats.currentAvailable;
       inUseObjects += stats.currentInUse;
-    }
+    });
 
     return {
       totalObjects,
