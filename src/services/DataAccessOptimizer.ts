@@ -278,9 +278,16 @@ export class MultiLevelCache {
         invalidated = Object.keys(l2Data).length;
         this.clearL2();
       } else {
-        // Simple pattern matching (could be enhanced with regex)
+        // Simple pattern matching with proper escaping
+        if (pattern === '') {
+          // Empty pattern matches nothing
+          return 0;
+        }
+        
+        const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('\\*', '.*');
+        const regex = new RegExp(escapedPattern);
         const keysToDelete = Object.keys(l2Data).filter(key => 
-          key.includes(pattern.replace('*', ''))
+          regex.test(key)
         );
         
         keysToDelete.forEach(key => {

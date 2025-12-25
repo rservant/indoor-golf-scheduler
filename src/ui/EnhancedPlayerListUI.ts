@@ -7,6 +7,74 @@ import { Player } from '../models/Player';
 import { VirtualScrollRenderer, VirtualScrollItem, ItemRenderer } from './VirtualScrollRenderer';
 import { ProgressiveLoadingManager, DataLoader } from './ProgressiveLoadingManager';
 
+/**
+ * HTML Sanitization utility to prevent XSS attacks
+ */
+class HTMLSanitizer {
+  /**
+   * Escape HTML special characters to prevent XSS
+   */
+  static escapeHTML(input: string): string {
+    if (typeof input !== 'string') {
+      return String(input);
+    }
+    
+    return input
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .replace(/\//g, '&#x2F;');
+  }
+
+  /**
+   * Sanitize content for use in HTML attributes
+   */
+  static sanitizeAttribute(input: string): string {
+    if (typeof input !== 'string') {
+      return String(input);
+    }
+    
+    // Remove any potentially dangerous characters for attributes
+    return input
+      .replace(/[<>"'&]/g, '')
+      .replace(/javascript:/gi, '')
+      .replace(/on\w+=/gi, '');
+  }
+
+  /**
+   * Remove dangerous event handlers and scripts from text
+   */
+  static sanitizeText(input: string): string {
+    if (typeof input !== 'string') {
+      return String(input);
+    }
+    
+    // First escape HTML
+    let sanitized = this.escapeHTML(input);
+    
+    // Then remove any remaining event handlers that might have been partially escaped
+    sanitized = sanitized.replace(/on\w+=/gi, '');
+    
+    return sanitized;
+  }
+
+  /**
+   * Create a text node safely (alternative to innerHTML)
+   */
+  static createTextNode(text: string): Text {
+    return document.createTextNode(text);
+  }
+
+  /**
+   * Set text content safely
+   */
+  static setTextContent(element: HTMLElement, text: string): void {
+    element.textContent = text;
+  }
+}
+
 export interface EnhancedPlayerListConfig {
   containerHeight: number;
   itemHeight: number;
@@ -235,34 +303,62 @@ export class EnhancedPlayerListUI {
   }
 
   /**
-   * Create search header
+   * Create search header using safe DOM manipulation
    */
   private createSearchHeader(): void {
     const header = document.createElement('div');
     header.className = 'player-list-header';
-    header.innerHTML = `
-      <div class="search-container">
-        <input type="text" 
-               class="player-search-input" 
-               placeholder="Search players..." 
-               value="${this.state.searchTerm}">
-        <div class="player-count">
-          ${this.state.filteredPlayers.length} players
-          ${this.state.selectedPlayers.size > 0 ? `(${this.state.selectedPlayers.size} selected)` : ''}
-        </div>
-      </div>
-      ${this.state.isLoading ? `
-        <div class="loading-progress">
-          <div class="progress-bar">
-            <div class="progress-fill" style="width: ${this.state.loadingProgress}%"></div>
-          </div>
-          <span class="progress-text">${Math.round(this.state.loadingProgress)}%</span>
-        </div>
-      ` : ''}
-    `;
+
+    // Create search container
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'search-container';
+
+    // Create search input with sanitized value
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'player-search-input';
+    searchInput.placeholder = 'Search players...';
+    searchInput.value = HTMLSanitizer.sanitizeAttribute(this.state.searchTerm);
+
+    // Create player count display
+    const playerCount = document.createElement('div');
+    playerCount.className = 'player-count';
+    
+    // Safely set the count text
+    const countText = `${this.state.filteredPlayers.length} players`;
+    const selectedText = this.state.selectedPlayers.size > 0 
+      ? ` (${this.state.selectedPlayers.size} selected)` 
+      : '';
+    HTMLSanitizer.setTextContent(playerCount, countText + selectedText);
+
+    // Assemble search container
+    searchContainer.appendChild(searchInput);
+    searchContainer.appendChild(playerCount);
+    header.appendChild(searchContainer);
+
+    // Add loading progress if needed
+    if (this.state.isLoading) {
+      const loadingProgress = document.createElement('div');
+      loadingProgress.className = 'loading-progress';
+
+      const progressBar = document.createElement('div');
+      progressBar.className = 'progress-bar';
+
+      const progressFill = document.createElement('div');
+      progressFill.className = 'progress-fill';
+      progressFill.style.width = `${Math.max(0, Math.min(100, this.state.loadingProgress))}%`;
+
+      const progressText = document.createElement('span');
+      progressText.className = 'progress-text';
+      HTMLSanitizer.setTextContent(progressText, `${Math.round(this.state.loadingProgress)}%`);
+
+      progressBar.appendChild(progressFill);
+      loadingProgress.appendChild(progressBar);
+      loadingProgress.appendChild(progressText);
+      header.appendChild(loadingProgress);
+    }
 
     // Add search event listener
-    const searchInput = header.querySelector('.player-search-input') as HTMLInputElement;
     searchInput.addEventListener('input', (e) => {
       this.handleSearch((e.target as HTMLInputElement).value);
     });
@@ -271,47 +367,84 @@ export class EnhancedPlayerListUI {
   }
 
   /**
-   * Render a single player item
+   * Render a single player item using safe DOM manipulation
    */
   private renderPlayerItem(player: Player, index: number): HTMLElement {
     const element = document.createElement('div');
     element.className = `player-item ${this.state.selectedPlayers.has(player.id) ? 'selected' : ''}`;
     element.style.height = `${this.config.itemHeight}px`;
     
-    element.innerHTML = `
-      <div class="player-checkbox">
-        <input type="checkbox" 
-               id="player-${player.id}" 
-               ${this.state.selectedPlayers.has(player.id) ? 'checked' : ''}>
-      </div>
-      <div class="player-info">
-        <div class="player-name">${player.firstName} ${player.lastName}</div>
-        <div class="player-details">
-          <span class="handedness-badge ${player.handedness}">
-            ${player.handedness.charAt(0).toUpperCase()}
-          </span>
-          <span class="preference-badge ${player.timePreference.toLowerCase()}">
-            ${player.timePreference}
-          </span>
-        </div>
-      </div>
-      <div class="player-actions">
-        <button class="action-btn edit-btn" data-action="edit" title="Edit player">
-          ✏️
-        </button>
-        <button class="action-btn remove-btn" data-action="remove" title="Remove player">
-          🗑️
-        </button>
-      </div>
-    `;
+    // Create player checkbox container
+    const checkboxContainer = document.createElement('div');
+    checkboxContainer.className = 'player-checkbox';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = `player-${HTMLSanitizer.sanitizeAttribute(player.id)}`;
+    checkbox.checked = this.state.selectedPlayers.has(player.id);
+    
+    checkboxContainer.appendChild(checkbox);
+
+    // Create player info container
+    const playerInfo = document.createElement('div');
+    playerInfo.className = 'player-info';
+
+    // Create player name (safely)
+    const playerName = document.createElement('div');
+    playerName.className = 'player-name';
+    HTMLSanitizer.setTextContent(playerName, `${player.firstName} ${player.lastName}`);
+
+    // Create player details
+    const playerDetails = document.createElement('div');
+    playerDetails.className = 'player-details';
+
+    // Create handedness badge
+    const handednessBadge = document.createElement('span');
+    handednessBadge.className = `handedness-badge ${HTMLSanitizer.sanitizeAttribute(player.handedness)}`;
+    HTMLSanitizer.setTextContent(handednessBadge, player.handedness.charAt(0).toUpperCase());
+
+    // Create preference badge
+    const preferenceBadge = document.createElement('span');
+    preferenceBadge.className = `preference-badge ${HTMLSanitizer.sanitizeAttribute(player.timePreference.toLowerCase())}`;
+    HTMLSanitizer.setTextContent(preferenceBadge, player.timePreference);
+
+    playerDetails.appendChild(handednessBadge);
+    playerDetails.appendChild(preferenceBadge);
+    playerInfo.appendChild(playerName);
+    playerInfo.appendChild(playerDetails);
+
+    // Create player actions
+    const playerActions = document.createElement('div');
+    playerActions.className = 'player-actions';
+
+    // Create edit button
+    const editBtn = document.createElement('button');
+    editBtn.className = 'action-btn edit-btn';
+    editBtn.setAttribute('data-action', 'edit');
+    editBtn.title = 'Edit player';
+    HTMLSanitizer.setTextContent(editBtn, '✏️');
+
+    // Create remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'action-btn remove-btn';
+    removeBtn.setAttribute('data-action', 'remove');
+    removeBtn.title = 'Remove player';
+    HTMLSanitizer.setTextContent(removeBtn, '🗑️');
+
+    playerActions.appendChild(editBtn);
+    playerActions.appendChild(removeBtn);
+
+    // Assemble the complete element
+    element.appendChild(checkboxContainer);
+    element.appendChild(playerInfo);
+    element.appendChild(playerActions);
 
     // Add event listeners
-    const checkbox = element.querySelector('input[type="checkbox"]') as HTMLInputElement;
     checkbox.addEventListener('change', () => {
       this.handlePlayerSelection(player, checkbox.checked);
     });
 
-    const actionButtons = element.querySelectorAll('.action-btn');
+    const actionButtons = [editBtn, removeBtn];
     actionButtons.forEach(button => {
       button.addEventListener('click', (e) => {
         const action = (e.target as HTMLElement).getAttribute('data-action');
@@ -363,29 +496,32 @@ export class EnhancedPlayerListUI {
   }
 
   /**
-   * Update header count display
+   * Update header count display safely
    */
   private updateHeaderCount(): void {
     const countElement = this.container.querySelector('.player-count');
     if (countElement) {
-      countElement.textContent = `${this.state.filteredPlayers.length} players` +
+      const countText = `${this.state.filteredPlayers.length} players` +
         (this.state.selectedPlayers.size > 0 ? ` (${this.state.selectedPlayers.size} selected)` : '');
+      HTMLSanitizer.setTextContent(countElement as HTMLElement, countText);
     }
   }
 
   /**
-   * Update loading progress display
+   * Update loading progress display safely
    */
   private updateLoadingProgress(): void {
     const progressFill = this.container.querySelector('.progress-fill') as HTMLElement;
     const progressText = this.container.querySelector('.progress-text') as HTMLElement;
     
     if (progressFill) {
-      progressFill.style.width = `${this.state.loadingProgress}%`;
+      // Ensure progress is within valid range
+      const safeProgress = Math.max(0, Math.min(100, this.state.loadingProgress));
+      progressFill.style.width = `${safeProgress}%`;
     }
     
     if (progressText) {
-      progressText.textContent = `${Math.round(this.state.loadingProgress)}%`;
+      HTMLSanitizer.setTextContent(progressText, `${Math.round(this.state.loadingProgress)}%`);
     }
   }
 
@@ -499,26 +635,56 @@ export class EnhancedPlayerListUI {
   }
 
   /**
-   * Render the component
+   * Render the component safely
    */
   private render(): void {
     if (this.state.isLoading) {
-      this.container.innerHTML = `
-        <div class="loading-state">
-          <div class="loading-spinner"></div>
-          <div class="loading-text">Loading players...</div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width: ${this.state.loadingProgress}%"></div>
-          </div>
-        </div>
-      `;
+      // Clear container
+      this.container.innerHTML = '';
+      
+      // Create loading state elements safely
+      const loadingState = document.createElement('div');
+      loadingState.className = 'loading-state';
+
+      const loadingSpinner = document.createElement('div');
+      loadingSpinner.className = 'loading-spinner';
+
+      const loadingText = document.createElement('div');
+      loadingText.className = 'loading-text';
+      HTMLSanitizer.setTextContent(loadingText, 'Loading players...');
+
+      const progressBar = document.createElement('div');
+      progressBar.className = 'progress-bar';
+
+      const progressFill = document.createElement('div');
+      progressFill.className = 'progress-fill';
+      const safeProgress = Math.max(0, Math.min(100, this.state.loadingProgress));
+      progressFill.style.width = `${safeProgress}%`;
+
+      progressBar.appendChild(progressFill);
+      loadingState.appendChild(loadingSpinner);
+      loadingState.appendChild(loadingText);
+      loadingState.appendChild(progressBar);
+      this.container.appendChild(loadingState);
     } else if (this.state.players.length === 0) {
-      this.container.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">👥</div>
-          <div class="empty-text">No players available</div>
-        </div>
-      `;
+      // Clear container
+      this.container.innerHTML = '';
+      
+      // Create empty state elements safely
+      const emptyState = document.createElement('div');
+      emptyState.className = 'empty-state';
+
+      const emptyIcon = document.createElement('div');
+      emptyIcon.className = 'empty-icon';
+      HTMLSanitizer.setTextContent(emptyIcon, '👥');
+
+      const emptyText = document.createElement('div');
+      emptyText.className = 'empty-text';
+      HTMLSanitizer.setTextContent(emptyText, 'No players available');
+
+      emptyState.appendChild(emptyIcon);
+      emptyState.appendChild(emptyText);
+      this.container.appendChild(emptyState);
     } else {
       // Will be handled by setupDirectRendering or setupVirtualScrolling
     }
