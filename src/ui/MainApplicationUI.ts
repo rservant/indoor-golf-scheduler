@@ -18,6 +18,7 @@ import { ImportExportService } from '../services/ImportExportService';
 import { PairingHistoryTracker } from '../services/PairingHistoryTracker';
 import { uiPerformanceMonitor } from '../services/UIPerformanceMonitor';
 import { UIPerformanceFeedbackUI } from './UIPerformanceFeedbackUI';
+import { PerformanceAnalyticsIntegration } from './PerformanceAnalyticsIntegration';
 
 // Import repositories
 import { WeekRepository } from '../repositories/WeekRepository';
@@ -40,6 +41,7 @@ export class MainApplicationUI {
   private scheduleDisplayUI!: ScheduleDisplayUI;
   private importExportUI!: ImportExportUI;
   private performanceFeedbackUI!: UIPerformanceFeedbackUI;
+  private performanceAnalytics!: PerformanceAnalyticsIntegration;
 
   // Service dependencies
   private seasonManager: SeasonManager;
@@ -147,6 +149,15 @@ export class MainApplicationUI {
 
     // Start monitoring
     uiPerformanceMonitor.startMonitoring();
+
+    // Initialize performance analytics dashboard
+    this.performanceAnalytics = new PerformanceAnalyticsIntegration(document.body, {
+      enableKeyboardShortcut: true,
+      keyboardShortcut: 'Ctrl+Shift+P',
+      showToggleButton: true,
+      buttonPosition: 'bottom-left',
+      autoStart: false
+    });
   }
 
   /**
@@ -553,6 +564,11 @@ export class MainApplicationUI {
     // Destroy performance feedback UI
     if (this.performanceFeedbackUI) {
       this.performanceFeedbackUI.destroy();
+    }
+
+    // Destroy performance analytics
+    if (this.performanceAnalytics) {
+      this.performanceAnalytics.destroy();
     }
 
     // Clean up other resources as needed

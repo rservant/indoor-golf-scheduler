@@ -177,7 +177,7 @@ export class OptimizedScheduleRepository extends LocalScheduleRepository impleme
   /**
    * Batch status queries for multiple weeks
    */
-  async getScheduleStatuses(weekIds: string[]): Promise<Record<string, ScheduleStatus>> {
+  async getBatchScheduleStatuses(weekIds: string[]): Promise<Record<string, ScheduleStatus>> {
     const queries = weekIds.map(weekId => ({
       cacheKey: `schedule:status:${weekId}`,
       query: () => super.getScheduleStatus(weekId),

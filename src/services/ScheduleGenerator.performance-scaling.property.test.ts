@@ -57,11 +57,10 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
         id: `${baseId}player-${seasonId}-${i}`, // Make IDs unique across seasons and tests
         firstName: `Player`,
         lastName: `${i}`,
-        email: `player${i}@test.com`,
-        phone: `555-000${i.toString().padStart(4, '0')}`,
+        handedness: 'right' as const,
         timePreference: timePreferences[i % timePreferences.length],
         seasonId: seasonId,
-        isActive: true
+        createdAt: new Date()
       });
     }
 

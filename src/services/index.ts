@@ -22,6 +22,8 @@ export * from './ProgressReporter';
 export * from './OptimizedScheduleGenerator';
 export * from './CompatibilityCache';
 export * from './DataAccessOptimizer';
+export * from './AdvancedCachingStrategies';
+export * from './PerformanceAnalyticsService';
 
 // Operation management services
 export * from './OperationInterruptionManager';
@@ -31,3 +33,8 @@ export * from './ResourceCleanupManager';
 export * from './GarbageCollectionManager';
 export * from './StreamingDataProcessor';
 export * from './ResourceManagementIntegration';
+
+// Parallel processing services
+export * from './WorkerPool';
+export * from './TaskDistributor';
+export * from './ParallelScheduleGenerator';

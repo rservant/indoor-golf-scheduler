@@ -63,13 +63,17 @@ const playerArbitrary = fc.record({
   id: fc.string({ minLength: 1, maxLength: 20 }),
   firstName: fc.string({ minLength: 1, maxLength: 15 }),
   lastName: fc.string({ minLength: 1, maxLength: 15 }),
-  handedness: fc.constantFrom('left', 'right'),
-  timePreference: fc.constantFrom('AM', 'PM', 'Either')
+  handedness: fc.constantFrom('left', 'right') as fc.Arbitrary<'left' | 'right'>,
+  timePreference: fc.constantFrom('AM', 'PM', 'Either') as fc.Arbitrary<'AM' | 'PM' | 'Either'>,
+  seasonId: fc.string({ minLength: 1, maxLength: 20 }),
+  createdAt: fc.date()
 });
 
 const foursomeArbitrary = fc.record({
   id: fc.string({ minLength: 1, maxLength: 20 }),
-  players: fc.array(playerArbitrary, { minLength: 0, maxLength: 4 })
+  players: fc.array(playerArbitrary, { minLength: 0, maxLength: 4 }),
+  timeSlot: fc.constantFrom('morning', 'afternoon') as fc.Arbitrary<'morning' | 'afternoon'>,
+  position: fc.integer({ min: 1, max: 20 })
 });
 
 const scheduleArbitrary = fc.record({
@@ -78,7 +82,11 @@ const scheduleArbitrary = fc.record({
   timeSlots: fc.record({
     morning: fc.array(foursomeArbitrary, { minLength: 0, maxLength: 20 }),
     afternoon: fc.array(foursomeArbitrary, { minLength: 0, maxLength: 20 })
-  })
+  }),
+  createdAt: fc.date(),
+  lastModified: fc.date(),
+  getAllPlayers: fc.constant(() => []),
+  getTotalPlayerCount: fc.constant(() => 0)
 });
 
 const viewportArbitrary = fc.record({

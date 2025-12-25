@@ -395,7 +395,7 @@ export class OptimizedScheduleRenderer {
     // Add empty slots if needed
     const emptySlots = 4 - foursome.players.length;
     for (let i = 0; i < emptySlots; i++) {
-      const emptySlot = this.createEmptyPlayerSlot(options.isEditing);
+      const emptySlot = this.createEmptyPlayerSlot(options.isEditing || false);
       playersContainer.appendChild(emptySlot);
     }
 

@@ -43,9 +43,13 @@ export class ProgressReporter {
       phase,
       percentage: Math.max(0, Math.min(100, percentage)),
       message,
-      metadata: metadata || undefined,
       timestamp: Date.now()
     };
+
+    // Only add metadata if it's provided
+    if (metadata !== undefined) {
+      update.metadata = metadata;
+    }
 
     this.lastUpdate = update;
 

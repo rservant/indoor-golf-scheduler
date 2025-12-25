@@ -41,9 +41,10 @@ describe('OptimizedScheduleGenerator', () => {
         id: `player-${i + 1}`,
         firstName: `Player`,
         lastName: `${i + 1}`,
-        email: `player${i + 1}@test.com`,
-        timePreference: i % 3 === 0 ? 'AM' : i % 3 === 1 ? 'PM' : 'Either',
-        seasonId: 'test-season'
+        handedness: 'right' as const,
+        timePreference: i % 3 === 0 ? 'AM' as const : i % 3 === 1 ? 'PM' as const : 'Either' as const,
+        seasonId: 'test-season',
+        createdAt: new Date()
       }));
     };
 
@@ -52,9 +53,7 @@ describe('OptimizedScheduleGenerator', () => {
         id: 'test-week',
         weekNumber: 1,
         seasonId: 'test-season',
-        date: new Date('2024-01-01'), // Add required date field
-        startDate: new Date('2024-01-01'),
-        endDate: new Date('2024-01-07')
+        date: new Date('2024-01-01') // Add required date field
       });
 
       // Set all players as available
@@ -180,9 +179,10 @@ describe('OptimizedScheduleGenerator', () => {
           id: `player-${i + 1}`,
           firstName: `Player`,
           lastName: `${i + 1}`,
-          email: `player${i + 1}@test.com`,
-          timePreference: i % 3 === 0 ? 'AM' : i % 3 === 1 ? 'PM' : 'Either',
-          seasonId: 'test-season'
+          handedness: 'right' as const,
+          timePreference: i % 3 === 0 ? 'AM' as const : i % 3 === 1 ? 'PM' as const : 'Either' as const,
+          seasonId: 'test-season',
+          createdAt: new Date()
         }));
       };
 

@@ -342,6 +342,9 @@ export class QueryBatcher {
           existingBatch.resolvers = [];
           existingBatch.rejecters = [];
         }
+        if (!existingBatch.rejecters) {
+          existingBatch.rejecters = [];
+        }
         existingBatch.resolvers[queryIndex] = resolve;
         existingBatch.rejecters[queryIndex] = reject;
       } else {
@@ -525,7 +528,7 @@ export class DataAccessOptimizer {
   ): Promise<T[]> {
     return Promise.all(
       queries.map(({ cacheKey, query, cacheDomain }) =>
-        this.executeQuery(cacheKey, query, { cacheDomain, batchKey })
+        this.executeQuery(cacheKey, query, cacheDomain ? { cacheDomain, batchKey } : { batchKey })
       )
     );
   }
@@ -596,7 +599,11 @@ export class DataAccessOptimizer {
     return {
       l1Cache: l1Totals,
       l2Cache: l2Totals,
-      queryBatches: this.batcher.getStats(),
+      queryBatches: {
+        total: this.batcher.getStats().totalBatches,
+        avgBatchSize: this.batcher.getStats().avgBatchSize,
+        avgLatency: this.batcher.getStats().avgLatency
+      },
       performance: { ...this.performanceStats }
     };
   }

@@ -400,7 +400,11 @@ describe('OptimizedScheduleRenderer', () => {
         timeSlots: {
           morning: [partialFoursome],
           afternoon: []
-        }
+        },
+        createdAt: new Date(),
+        lastModified: new Date(),
+        getAllPlayers: () => ['player1', 'player2'],
+        getTotalPlayerCount: () => 2
       } as Schedule;
 
       await renderer.renderSchedule(partialSchedule, container);
@@ -456,7 +460,11 @@ describe('OptimizedScheduleRenderer', () => {
         timeSlots: {
           morning: [],
           afternoon: []
-        }
+        },
+        createdAt: new Date(),
+        lastModified: new Date(),
+        getAllPlayers: () => [],
+        getTotalPlayerCount: () => 0
       } as Schedule;
 
       const metrics = await renderer.renderSchedule(emptySchedule, container);
@@ -480,10 +488,16 @@ describe('OptimizedScheduleRenderer', () => {
         timeSlots: {
           morning: [{
             id: 'foursome1',
-            players: [] // Empty players array instead of null/undefined
+            players: [], // Empty players array instead of null/undefined
+            timeSlot: 'morning',
+            position: 1
           } as Foursome],
           afternoon: []
-        }
+        },
+        createdAt: new Date(),
+        lastModified: new Date(),
+        getAllPlayers: () => [],
+        getTotalPlayerCount: () => 0
       } as Schedule;
 
       // Should not throw error

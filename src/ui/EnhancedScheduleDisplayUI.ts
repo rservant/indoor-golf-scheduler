@@ -91,7 +91,7 @@ export class EnhancedScheduleDisplayUI extends ScheduleDisplayUI {
   /**
    * Enhanced render method with optimized rendering
    */
-  protected async renderScheduleContent(): Promise<string> {
+  protected async renderEnhancedScheduleContent(): Promise<string> {
     const schedule = this.getCurrentSchedule();
     if (!schedule) {
       return super['renderScheduleContent']();
@@ -145,7 +145,11 @@ export class EnhancedScheduleDisplayUI extends ScheduleDisplayUI {
         timeSlots: {
           morning: [foursome],
           afternoon: []
-        }
+        },
+        createdAt: new Date(),
+        lastModified: new Date(),
+        getAllPlayers: () => [],
+        getTotalPlayerCount: () => 0
       } as Schedule,
       container,
       {
@@ -174,7 +178,7 @@ export class EnhancedScheduleDisplayUI extends ScheduleDisplayUI {
     await this.animateContentOut(container as HTMLElement);
 
     // Render new content
-    await this.renderScheduleContent();
+    await this.renderEnhancedScheduleContent();
 
     // Animate in new content
     await this.animateContentIn(container as HTMLElement);
@@ -308,7 +312,7 @@ export class EnhancedScheduleDisplayUI extends ScheduleDisplayUI {
     }
 
     // Call original handler
-    const player = this.findPlayerById(playerId);
+    const player = this.findPlayerByIdEnhanced(playerId);
     if (player) {
       this['handleDragStart'](player, foursomeId);
       if (event.dataTransfer) {
@@ -393,7 +397,7 @@ export class EnhancedScheduleDisplayUI extends ScheduleDisplayUI {
     scheduleGrid.style.opacity = '0.7';
     
     setTimeout(() => {
-      this.render();
+      this.refresh();
       scheduleGrid.style.opacity = '1';
     }, 150);
   }
@@ -473,9 +477,9 @@ export class EnhancedScheduleDisplayUI extends ScheduleDisplayUI {
   }
 
   /**
-   * Find player by ID
+   * Find player by ID (enhanced version)
    */
-  private findPlayerById(playerId: string): Player | null {
+  private findPlayerByIdEnhanced(playerId: string): Player | null {
     return this['findPlayerById'](playerId);
   }
 
