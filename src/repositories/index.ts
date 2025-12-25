@@ -1,8 +1,12 @@
-// Data access layer for the Indoor Golf Scheduler
-
+// Repository exports
 export * from './BaseRepository';
-export * from './SeasonRepository';
 export * from './PlayerRepository';
-export * from './WeekRepository';
 export * from './ScheduleRepository';
+export * from './SeasonRepository';
+export * from './WeekRepository';
 export * from './PairingHistoryRepository';
+
+// Optimized repository exports
+export * from './OptimizedPlayerRepository';
+export * from './OptimizedScheduleRepository';
+export * from './RepositoryFactory';

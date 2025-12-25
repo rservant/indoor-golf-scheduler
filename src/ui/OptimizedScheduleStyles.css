@@ -1,0 +1,616 @@
+/**
+ * Optimized Schedule Display Styles
+ * 
+ * Provides responsive, performant styles for the enhanced schedule display
+ * with smooth animations and optimized layouts.
+ * 
+ * Requirements: 2.1, 2.2, 2.4, 2.5
+ */
+
+/* CSS Custom Properties for Dynamic Configuration */
+:root {
+  --columns-per-row: 3;
+  --foursome-spacing: 20px;
+  --player-spacing: 12px;
+  --animation-duration: 300ms;
+  --animation-easing: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --border-radius: 8px;
+  --shadow-light: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-medium: 0 4px 8px rgba(0, 0, 0, 0.15);
+  --shadow-heavy: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Enhanced Schedule Grid */
+.schedule-grid.optimized {
+  display: grid;
+  gap: var(--foursome-spacing);
+  grid-template-columns: 1fr;
+  transition: all var(--animation-duration) var(--animation-easing);
+  will-change: transform, opacity;
+}
+
+/* Time Slot Containers */
+.time-slot.optimized {
+  background: #ffffff;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-light);
+  padding: 20px;
+  transition: box-shadow var(--animation-duration) var(--animation-easing);
+  will-change: transform, opacity;
+}
+
+.time-slot.optimized:hover {
+  box-shadow: var(--shadow-medium);
+}
+
+.time-slot-header.optimized {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.time-slot-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* Foursomes Container */
+.foursomes-container {
+  display: grid;
+  grid-template-columns: repeat(var(--columns-per-row), 1fr);
+  gap: var(--foursome-spacing);
+  transition: all var(--animation-duration) var(--animation-easing);
+}
+
+/* Individual Foursome */
+.foursome.optimized {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--border-radius);
+  padding: 16px;
+  transition: all var(--animation-duration) var(--animation-easing);
+  will-change: transform, box-shadow;
+  position: relative;
+  overflow: hidden;
+}
+
+.foursome.optimized:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+}
+
+.foursome.optimized.editable {
+  cursor: pointer;
+  border-color: #3b82f6;
+}
+
+.foursome.optimized.editable:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+/* Foursome Header */
+.foursome-header.optimized {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.foursome-header.optimized h5 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.player-count {
+  font-size: 0.875rem;
+  color: #6b7280;
+  background: #e5e7eb;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* Players Container */
+.foursome-players.optimized {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--player-spacing);
+  transition: all var(--animation-duration) var(--animation-easing);
+}
+
+/* Player Slots */
+.player-slot.optimized {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: calc(var(--border-radius) - 2px);
+  padding: 12px;
+  transition: all var(--animation-duration) var(--animation-easing);
+  will-change: transform, background-color;
+  position: relative;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+}
+
+.player-slot.optimized.filled {
+  background: #ffffff;
+  border-color: #9ca3af;
+}
+
+.player-slot.optimized.filled:hover {
+  border-color: #6b7280;
+  box-shadow: var(--shadow-light);
+}
+
+.player-slot.optimized.empty {
+  background: #f3f4f6;
+  border-style: dashed;
+  border-color: #d1d5db;
+  color: #9ca3af;
+  font-size: 0.875rem;
+  justify-content: center;
+  text-align: center;
+}
+
+.player-slot.optimized.draggable {
+  cursor: grab;
+}
+
+.player-slot.optimized.draggable:active {
+  cursor: grabbing;
+  transform: scale(1.02);
+}
+
+/* Player Info */
+.player-info.optimized {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-name {
+  font-weight: 500;
+  color: #1f2937;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-details {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.handedness, .preference {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.handedness.left {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.handedness.right {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.preference.am {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.preference.pm {
+  background: #fdf2f8;
+  color: #9d174d;
+}
+
+.preference.either {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* Remove Button */
+.remove-player-btn.optimized {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--animation-duration) var(--animation-easing);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-slot.optimized:hover .remove-player-btn.optimized {
+  opacity: 1;
+}
+
+.remove-player-btn.optimized:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Placeholder for Virtualization */
+.foursome-placeholder.optimized {
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: var(--border-radius);
+  padding: 40px 16px;
+  text-align: center;
+  color: #9ca3af;
+  transition: all var(--animation-duration) var(--animation-easing);
+}
+
+.placeholder-content {
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+/* Enhanced Schedule Content */
+.enhanced-schedule-content {
+  transition: all var(--animation-duration) var(--animation-easing);
+  will-change: transform, opacity;
+}
+
+/* Responsive Breakpoints */
+
+/* Mobile Layout */
+.schedule-grid.optimized.mobile {
+  --columns-per-row: 1;
+  --foursome-spacing: 12px;
+  --player-spacing: 8px;
+}
+
+.time-slot.optimized.mobile {
+  padding: 16px;
+}
+
+.foursome.optimized.mobile {
+  padding: 12px;
+}
+
+.foursome-players.optimized.mobile {
+  grid-template-columns: 1fr;
+}
+
+.player-slot.optimized.mobile {
+  padding: 8px;
+  min-height: 50px;
+}
+
+.player-name.mobile {
+  font-size: 0.8rem;
+}
+
+.player-details.mobile {
+  display: none;
+}
+
+/* Tablet Layout */
+.schedule-grid.optimized.tablet {
+  --columns-per-row: 2;
+  --foursome-spacing: 16px;
+  --player-spacing: 10px;
+}
+
+.time-slot.optimized.tablet {
+  padding: 18px;
+}
+
+.foursome.optimized.tablet {
+  padding: 14px;
+}
+
+.player-slot.optimized.tablet {
+  padding: 10px;
+  min-height: 55px;
+}
+
+/* Desktop Layout */
+.schedule-grid.optimized.desktop {
+  --columns-per-row: 3;
+  --foursome-spacing: 20px;
+  --player-spacing: 12px;
+}
+
+/* Compact Mode */
+.foursomes-container.compact-mode {
+  --foursome-spacing: 8px;
+  --player-spacing: 6px;
+}
+
+.foursome.optimized.compact-mode {
+  padding: 8px;
+}
+
+.foursome-players.optimized.compact-mode {
+  gap: 6px;
+}
+
+.player-slot.optimized.compact-mode {
+  padding: 6px;
+  min-height: 40px;
+}
+
+.player-name.compact-mode {
+  font-size: 0.75rem;
+}
+
+/* Animation Classes */
+.fade-in {
+  animation: fadeIn var(--animation-duration) var(--animation-easing);
+}
+
+.fade-out {
+  animation: fadeOut var(--animation-duration) var(--animation-easing);
+}
+
+.slide-in-up {
+  animation: slideInUp var(--animation-duration) var(--animation-easing);
+}
+
+.slide-out-down {
+  animation: slideOutDown var(--animation-duration) var(--animation-easing);
+}
+
+.scale-in {
+  animation: scaleIn var(--animation-duration) var(--animation-easing);
+}
+
+.scale-out {
+  animation: scaleOut var(--animation-duration) var(--animation-easing);
+}
+
+/* Keyframe Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideOutDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scaleOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* Performance Optimizations */
+.foursome.optimized,
+.player-slot.optimized,
+.time-slot.optimized {
+  contain: layout style paint;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .schedule-grid.optimized,
+  .time-slot.optimized,
+  .foursome.optimized,
+  .player-slot.optimized {
+    transition: none !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .foursome.optimized {
+    border-width: 2px;
+  }
+  
+  .player-slot.optimized {
+    border-width: 2px;
+  }
+  
+  .handedness, .preference {
+    border: 1px solid currentColor;
+  }
+}
+
+/* Print styles */
+@media print {
+  .schedule-grid.optimized {
+    display: block;
+  }
+  
+  .time-slot.optimized {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #000;
+  }
+  
+  .foursome.optimized {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+  
+  .remove-player-btn.optimized {
+    display: none;
+  }
+}
+
+/* Loading states */
+.foursome.optimized.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.foursome.optimized.loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Focus styles for accessibility */
+.foursome.optimized:focus-within,
+.player-slot.optimized:focus-within {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.remove-player-btn.optimized:focus {
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+}
+
+/* Drag and drop visual feedback */
+.foursome.optimized.drag-over {
+  border-color: #10b981;
+  background: #ecfdf5;
+  transform: scale(1.02);
+}
+
+.player-slot.optimized.dragging {
+  opacity: 0.5;
+  transform: rotate(5deg);
+}
+
+/* Error states */
+.foursome.optimized.error {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.player-slot.optimized.error {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+/* Success states */
+.foursome.optimized.success {
+  border-color: #10b981;
+  background: #ecfdf5;
+}
+
+/* Virtual scrolling container */
+.virtual-foursomes-container {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Performance monitoring overlay (development only) */
+.performance-overlay {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.performance-metric {
+  display: block;
+  margin: 2px 0;
+}
+
+.performance-metric.good {
+  color: #10b981;
+}
+
+.performance-metric.warning {
+  color: #f59e0b;
+}
+
+.performance-metric.error {
+  color: #ef4444;
+}
