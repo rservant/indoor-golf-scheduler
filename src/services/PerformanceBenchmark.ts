@@ -102,7 +102,7 @@ export class PerformanceBenchmark {
    */
   async runBenchmark(config: BenchmarkConfig): Promise<BenchmarkResult> {
     console.log(`Running benchmark: ${config.name}`);
-    
+
     const durations: number[] = [];
     const memoryReadings: number[] = [];
     let error: string | undefined;
@@ -123,14 +123,14 @@ export class PerformanceBenchmark {
         try {
           await Promise.race([
             config.test(),
-            new Promise((_, reject) => 
+            new Promise((_, reject) =>
               setTimeout(() => reject(new Error('Benchmark timeout')), config.timeout)
             )
           ]);
 
           const endTime = performance.now();
           const endMemory = this.getMemoryUsage();
-          
+
           durations.push(endTime - startTime);
           memoryReadings.push(endMemory);
           peakMemory = Math.max(peakMemory, endMemory);
@@ -157,7 +157,7 @@ export class PerformanceBenchmark {
     const totalDuration = durations.reduce((sum, d) => sum + d, 0);
     const averageDuration = durations.length > 0 ? totalDuration / durations.length : 0;
     const sortedDurations = durations.sort((a, b) => a - b);
-    
+
     return {
       name: config.name,
       category: config.category,
@@ -250,11 +250,12 @@ export class PerformanceBenchmark {
       iterations: 10,
       timeout: 30000,
       setup: async () => {
+        const currentYear = new Date().getFullYear();
         // Create test season
         const seasonModel = new SeasonModel({
           name: `Benchmark Season ${Date.now()}`,
-          startDate: new Date('2024-01-01'),
-          endDate: new Date('2024-12-31')
+          startDate: new Date(`${currentYear}-01-01`),
+          endDate: new Date(`${currentYear}-12-31`)
         });
         testSeason = seasonModel.toJSON();
 
@@ -262,7 +263,7 @@ export class PerformanceBenchmark {
         const weekModel = new WeekModel({
           seasonId: testSeason.id,
           weekNumber: 1,
-          date: new Date('2024-01-08')
+          date: new Date(`${currentYear}-01-08`)
         });
         testWeek = weekModel.toJSON();
 
@@ -307,11 +308,12 @@ export class PerformanceBenchmark {
       iterations: 50,
       timeout: 5000,
       setup: async () => {
+        const currentYear = new Date().getFullYear();
         // Create test season
         const seasonModel = new SeasonModel({
           name: `Query Benchmark Season ${Date.now()}`,
-          startDate: new Date('2024-01-01'),
-          endDate: new Date('2024-12-31')
+          startDate: new Date(`${currentYear}-01-01`),
+          endDate: new Date(`${currentYear}-12-31`)
         });
         testSeasonId = seasonModel.id;
 
@@ -386,11 +388,12 @@ export class PerformanceBenchmark {
       iterations: 30,
       timeout: 5000,
       setup: async () => {
+        const currentYear = new Date().getFullYear();
         // Create test season
         const seasonModel = new SeasonModel({
           name: `Week Query Season ${Date.now()}`,
-          startDate: new Date('2024-01-01'),
-          endDate: new Date('2024-12-31')
+          startDate: new Date(`${currentYear}-01-01`),
+          endDate: new Date(`${currentYear}-12-31`)
         });
         testSeasonId = seasonModel.id;
 
@@ -399,7 +402,7 @@ export class PerformanceBenchmark {
           await this.weekRepository.create({
             seasonId: testSeasonId,
             weekNumber: i + 1,
-            date: new Date(2024, 0, 8 + (i * 7)) // Weekly intervals
+            date: new Date(currentYear, 0, 8 + (i * 7)) // Weekly intervals
           });
         }
       },
@@ -434,7 +437,7 @@ export class PerformanceBenchmark {
           id: i,
           data: new Array(100).fill(`test-data-${i}`)
         }));
-        
+
         // Process the data
         const processed = data.map(item => ({
           ...item,
@@ -486,7 +489,7 @@ export class PerformanceBenchmark {
           processed: true
         }));
         const sorted = mapped.sort((a, b) => a.id - b.id);
-        
+
         // Simulate aggregation
         const aggregated = sorted.reduce((acc, item) => {
           const category = item.metadata.category;
@@ -506,7 +509,7 @@ export class PerformanceBenchmark {
    * Calculate performance baseline from benchmark results
    */
   private calculateBaseline(results: BenchmarkResult[]): PerformanceBaseline {
-    const getResultByName = (name: string) => 
+    const getResultByName = (name: string) =>
       results.find(r => r.name.includes(name))?.averageDuration || 0;
 
     return {
@@ -546,7 +549,7 @@ export class PerformanceBenchmark {
    */
   private calculatePercentile(sortedArray: number[], percentile: number): number {
     if (sortedArray.length === 0) return 0;
-    
+
     const index = Math.ceil(sortedArray.length * percentile) - 1;
     return sortedArray[Math.max(0, Math.min(index, sortedArray.length - 1))];
   }
@@ -556,7 +559,7 @@ export class PerformanceBenchmark {
    */
   private calculateStandardDeviation(values: number[], mean: number): number {
     if (values.length === 0) return 0;
-    
+
     const squaredDifferences = values.map(value => Math.pow(value - mean, 2));
     const avgSquaredDiff = squaredDifferences.reduce((sum, diff) => sum + diff, 0) / values.length;
     return Math.sqrt(avgSquaredDiff);

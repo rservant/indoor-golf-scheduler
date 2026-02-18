@@ -36,7 +36,7 @@ describe('DataMigrationService Property Tests', () => {
       // Fallback to direct localStorage if storage manager not available
       localStorage.clear();
     }
-    
+
     // Ensure all TypeScript storage keys are cleared
     if (storageManager) {
       await storageManager.removeItem('golf_scheduler_seasons');
@@ -44,7 +44,7 @@ describe('DataMigrationService Property Tests', () => {
       await storageManager.removeItem('golf_scheduler_weeks');
       await storageManager.removeItem('golf_scheduler_schedules');
       await storageManager.removeItem('golf_scheduler_pairing_history');
-      
+
       // Ensure all simple version storage keys are cleared
       await storageManager.removeItem('golf_seasons');
       await storageManager.removeItem('golf_players');
@@ -55,7 +55,7 @@ describe('DataMigrationService Property Tests', () => {
       localStorage.removeItem('golf_scheduler_weeks');
       localStorage.removeItem('golf_scheduler_schedules');
       localStorage.removeItem('golf_scheduler_pairing_history');
-      
+
       localStorage.removeItem('golf_seasons');
       localStorage.removeItem('golf_players');
       localStorage.removeItem('golf_active_season');
@@ -100,7 +100,7 @@ describe('DataMigrationService Property Tests', () => {
           const validSeasons = simpleData.seasons.map(season => {
             const startDate = new Date(season.startDate);
             const endDate = new Date(season.endDate);
-            
+
             if (startDate >= endDate) {
               // Fix the dates to ensure start is before end
               const fixedEndDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000); // Add 1 day
@@ -252,7 +252,7 @@ describe('DataMigrationService Property Tests', () => {
     localStorage.clear();
 
     const result = DataMigrationService.performCompleteDataMigration();
-    
+
     expect(result.success).toBe(true);
     expect(result.migratedSeasons).toBe(0);
     expect(result.migratedPlayers).toBe(0);
@@ -265,12 +265,12 @@ describe('DataMigrationService Property Tests', () => {
   test('should skip migration when TypeScript data already exists', () => {
     // Set up existing TypeScript data
     localStorage.setItem('golf_scheduler_seasons', JSON.stringify([{ id: 'existing', name: 'Existing Season' }]));
-    
+
     // Also set up some simple data to ensure it's not migrated
     localStorage.setItem('golf_seasons', JSON.stringify([{ id: 'simple', name: 'Simple Season' }]));
 
     const result = DataMigrationService.performCompleteDataMigration();
-    
+
     expect(result.success).toBe(true);
     expect(result.migratedSeasons).toBe(0);
     expect(result.migratedPlayers).toBe(0);
@@ -285,8 +285,8 @@ describe('DataMigrationService Property Tests', () => {
       {
         id: 'season1',
         name: 'Test Season',
-        startDate: '2024-01-01T00:00:00.000Z',
-        endDate: '2024-12-31T00:00:00.000Z',
+        startDate: `${new Date().getFullYear()}-01-01T00:00:00.000Z`,
+        endDate: `${new Date().getFullYear()}-12-31T00:00:00.000Z`,
         isActive: true
       }
     ];
@@ -294,7 +294,7 @@ describe('DataMigrationService Property Tests', () => {
     localStorage.setItem('golf_seasons', JSON.stringify(simpleSeasons));
 
     const migratedSeasons = DataMigrationService.migrateSeasons();
-    
+
     expect(migratedSeasons).toHaveLength(1);
     expect(migratedSeasons[0]).toBeInstanceOf(SeasonModel);
     expect(migratedSeasons[0].name).toBe('Test Season');
@@ -316,7 +316,7 @@ describe('DataMigrationService Property Tests', () => {
     localStorage.setItem('golf_players', JSON.stringify(simplePlayers));
 
     const migratedPlayers = DataMigrationService.migratePlayers();
-    
+
     expect(migratedPlayers).toHaveLength(1);
     expect(migratedPlayers[0]).toBeInstanceOf(PlayerModel);
     expect(migratedPlayers[0].firstName).toBe('John');

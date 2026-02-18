@@ -45,11 +45,11 @@ class MockPlayerRepository {
 // Mock WeekRepository
 class MockWeekRepository {
   private testWeek: Week;
-  
+
   constructor(testWeek: Week) {
     this.testWeek = testWeek;
   }
-  
+
   async findById(id: string): Promise<Week | null> {
     return id === this.testWeek.id ? this.testWeek : null;
   }
@@ -85,11 +85,12 @@ describe('Regeneration Lock Timing Fix', () => {
 
     // Create test week with unique ID for each test
     const weekId = `test-week-${Date.now()}-${Math.random()}`;
+    const currentYear = new Date().getFullYear();
     testWeek = {
       id: weekId,
       seasonId: 'test-season-id',
       weekNumber: 1,
-      date: new Date('2024-01-08'),
+      date: new Date(`${currentYear}-01-08`),
       playerAvailability: {
         '1': true,
         '2': true,
@@ -106,7 +107,7 @@ describe('Regeneration Lock Timing Fix', () => {
     backupService = new LocalScheduleBackupService();
     pairingHistoryTracker = new PairingHistoryTracker(pairingHistoryRepository);
     playerRepository = new MockPlayerRepository();
-    
+
     scheduleManager = new ScheduleManager(
       scheduleRepository,
       weekRepository as any,
@@ -180,7 +181,7 @@ describe('Regeneration Lock Timing Fix', () => {
   test('should properly clear lock on cancellation', async () => {
     // Set lock (simulating user confirmation)
     await scheduleManager.setRegenerationLock(testWeek.id, true);
-    
+
     // Verify lock is set
     const isLockedAfterSet = await scheduleManager.isRegenerationAllowed(testWeek.id);
     expect(isLockedAfterSet).toBe(false);
@@ -200,7 +201,7 @@ describe('Regeneration Lock Timing Fix', () => {
   test('should handle errors in lock clearing gracefully', async () => {
     // Set lock
     await scheduleManager.setRegenerationLock(testWeek.id, true);
-    
+
     // Verify lock is set
     const isLocked = await scheduleManager.isRegenerationAllowed(testWeek.id);
     expect(isLocked).toBe(false);

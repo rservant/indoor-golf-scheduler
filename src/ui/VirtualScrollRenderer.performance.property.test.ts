@@ -92,14 +92,14 @@ describe('UI Rendering Performance Properties', () => {
 
   const seasonArbitrary = fc.constant({
     name: 'Test Season',
-    startDate: new Date('2024-01-01'),
-    endDate: new Date('2024-12-31')
+    startDate: new Date(`${new Date().getFullYear()}-01-01`),
+    endDate: new Date(`${new Date().getFullYear()}-12-31`)
   });
 
   const weekArbitrary = fc.constant({
     seasonId: 'test-season-id',
     weekNumber: 1,
-    date: new Date('2024-01-01')
+    date: new Date(`${new Date().getFullYear()}-01-01`)
   });
 
   /**
@@ -118,16 +118,17 @@ describe('UI Rendering Performance Properties', () => {
           const startTime = performance.now();
 
           // Generate test data
+          const currentYear = new Date().getFullYear();
           const season = new SeasonModel({
             name: 'Performance Test Season',
-            startDate: new Date('2024-01-01'),
-            endDate: new Date('2024-12-31')
+            startDate: new Date(`${currentYear}-01-01`),
+            endDate: new Date(`${currentYear}-12-31`)
           });
 
           const week = new WeekModel({
             seasonId: season.id,
             weekNumber: 1,
-            date: new Date('2024-01-01')
+            date: new Date(`${currentYear}-01-01`)
           });
 
           // Generate large player dataset
@@ -145,7 +146,7 @@ describe('UI Rendering Performance Properties', () => {
           // Generate large foursome dataset
           const morningFoursomes: FoursomeModel[] = [];
           const afternoonFoursomes: FoursomeModel[] = [];
-          
+
           for (let i = 0; i < foursomeCount; i++) {
             const foursomePlayers = players.slice(i * 4, (i * 4) + 4);
             if (foursomePlayers.length > 0) {
@@ -213,7 +214,7 @@ describe('UI Rendering Performance Properties', () => {
 
           // Measure rendering performance by triggering DOM updates through the UI
           const renderStartTime = performance.now();
-          
+
           // Simulate rendering by updating the container with schedule content
           // This will trigger the MutationObserver and cause applyOptimizations to be called
           container.innerHTML = `
@@ -261,11 +262,11 @@ describe('UI Rendering Performance Properties', () => {
               </div>
             </div>
           `;
-          
+
           // Allow MutationObserver to fire and optimizations to be applied
           // Use setTimeout without await since this is not an async function
-          setTimeout(() => {}, 50);
-          
+          setTimeout(() => { }, 50);
+
           const renderEndTime = performance.now();
           const renderDuration = renderEndTime - renderStartTime;
 
@@ -304,7 +305,7 @@ describe('UI Rendering Performance Properties', () => {
 
           // Get performance metrics
           const metrics = optimizedScheduleUI.getPerformanceMetrics();
-          
+
           // In test environment, metrics might not always be tracked due to timing
           // So make the metrics check optional but still verify basic functionality
           if (metrics.totalRenders > 0) {
@@ -321,14 +322,14 @@ describe('UI Rendering Performance Properties', () => {
           }
 
           const totalTime = performance.now() - startTime;
-          
+
           // Total test execution (including setup) should be reasonable
           expect(totalTime).toBeLessThan(5000); // 5 seconds max for any test case
 
           return true;
         }
       ),
-      { 
+      {
         ...getPropertyTestParams(),
         numRuns: 15, // Reduced for performance tests
         timeout: 10000 // Longer timeout for performance tests
@@ -378,19 +379,19 @@ describe('UI Rendering Performance Properties', () => {
 
           // Measure rendering performance
           const renderStartTime = performance.now();
-          
+
           virtualScrollRenderer.setItems(items);
-          
+
           const renderEndTime = performance.now();
           const renderDuration = renderEndTime - renderStartTime;
 
           // Get performance metrics
           const metrics = virtualScrollRenderer.getPerformanceMetrics();
-          
+
           // Performance should scale with rendered items, not total items
           const expectedVisibleItems = Math.ceil(containerHeight / itemHeight) + 10; // +overscan
           expect(metrics.renderedItems).toBeLessThanOrEqual(expectedVisibleItems);
-          
+
           // Render ratio should be small for large datasets (efficiency)
           if (totalItems > 100) {
             expect(metrics.renderRatio).toBeLessThan(0.5); // Less than 50% of items rendered
@@ -408,7 +409,7 @@ describe('UI Rendering Performance Properties', () => {
           return true;
         }
       ),
-      { 
+      {
         ...getPropertyTestParams(),
         numRuns: 10, // Reduced for performance tests
         timeout: 8000
@@ -465,27 +466,27 @@ describe('UI Rendering Performance Properties', () => {
           if (scrollContainer) {
             const maxScroll = Math.max(0, (totalItems * 50) - 300);
             const scrollTop = (scrollPercentage / 100) * maxScroll;
-            
+
             // Reset counter
             elementsCreated = 0;
-            
+
             // Trigger scroll
             scrollContainer.scrollTop = scrollTop;
             scrollContainer.dispatchEvent(new Event('scroll'));
-            
+
             const scrollElementsCreated = elementsCreated;
 
             // Get metrics after scroll
             const metrics = virtualScrollRenderer.getPerformanceMetrics();
-            
+
             // Should only create elements for newly visible items
             // Most elements should be reused from initial render
             expect(scrollElementsCreated).toBeLessThanOrEqual(metrics.renderedItems * 2); // Allow for some recreation
-            
+
             // Total rendered items should be reasonable
             const expectedMaxRendered = Math.ceil(300 / 50) + 6; // visible + overscan
             expect(metrics.renderedItems).toBeLessThanOrEqual(expectedMaxRendered * 2); // Allow for buffer
-            
+
             // Verify DOM contains reasonable number of elements (may include cached elements)
             const renderedElements = container.querySelectorAll('.scroll-test-item');
             expect(renderedElements.length).toBeGreaterThan(0);
@@ -495,7 +496,7 @@ describe('UI Rendering Performance Properties', () => {
           return true;
         }
       ),
-      { 
+      {
         ...getPropertyTestParams(),
         numRuns: 8, // Reduced for performance tests
         timeout: 6000

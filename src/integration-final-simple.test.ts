@@ -62,7 +62,7 @@ describe('Final Integration Testing - Service Layer', () => {
   beforeEach(() => {
     // Clear localStorage before each test
     localStorageMock.clear();
-    
+
     // Initialize repositories
     seasonRepository = new LocalSeasonRepository();
     playerRepository = new LocalPlayerRepository();
@@ -72,7 +72,7 @@ describe('Final Integration Testing - Service Layer', () => {
 
     // Initialize services with dependency injection
     seasonManager = new SeasonManagerService(seasonRepository);
-    
+
     playerManager = new PlayerManagerService(
       playerRepository,
       weekRepository,
@@ -98,7 +98,7 @@ describe('Final Integration Testing - Service Layer', () => {
       playerRepository,
       scheduleGenerator,
       pairingHistoryTracker
-    ,
+      ,
       backupService
     );
 
@@ -118,13 +118,14 @@ describe('Final Integration Testing - Service Layer', () => {
   describe('Complete Application Workflow End-to-End', () => {
     test('should complete full workflow: season creation → player addition → schedule generation', async () => {
       // Step 1: Create a season
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
-        'Integration Test Season 2024',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        `Integration Test Season ${currentYear}`,
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       expect(season).toBeDefined();
-      expect(season.name).toBe('Integration Test Season 2024');
+      expect(season.name).toBe(`Integration Test Season ${currentYear}`);
 
       // Set as active season
       await seasonManager.setActiveSeason(season.id);
@@ -159,25 +160,25 @@ describe('Final Integration Testing - Service Layer', () => {
       // Step 3: Create weeks and generate schedules
       const weeks = [];
       const startDate = new Date(season.startDate);
-      
+
       for (let i = 0; i < 4; i++) {
         const weekDate = new Date(startDate);
         weekDate.setDate(startDate.getDate() + (i * 7));
-        
+
         const week = await weekRepository.create({
           seasonId: season.id,
           weekNumber: i + 1,
           date: weekDate
         });
-        
+
         // Set all players as available for this week
         for (const player of players) {
           await weekRepository.setPlayerAvailability(week.id, player.id, true);
         }
-        
+
         weeks.push(week);
       }
-      
+
       expect(weeks).toHaveLength(4);
 
       // Generate schedule for first week
@@ -187,7 +188,7 @@ describe('Final Integration Testing - Service Layer', () => {
       expect(schedule.timeSlots).toBeDefined();
       expect(schedule.timeSlots.morning).toBeDefined();
       expect(schedule.timeSlots.afternoon).toBeDefined();
-      
+
       const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
       expect(allFoursomes.length).toBeGreaterThan(0);
 
@@ -223,8 +224,8 @@ describe('Final Integration Testing - Service Layer', () => {
       // Verify services are still functional after errors
       const validSeason = await seasonManager.createSeason(
         'Valid Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${new Date().getFullYear()}-01-01`),
+        new Date(`${new Date().getFullYear()}-12-31`)
       );
       expect(validSeason).toBeDefined();
     });
@@ -233,10 +234,10 @@ describe('Final Integration Testing - Service Layer', () => {
       // Create test data
       const season = await seasonManager.createSeason(
         'Persistence Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${new Date().getFullYear()}-01-01`),
+        new Date(`${new Date().getFullYear()}-12-31`)
       );
-      
+
       await seasonManager.setActiveSeason(season.id);
 
       const player = await playerManager.addPlayer({
@@ -271,8 +272,8 @@ describe('Final Integration Testing - Service Layer', () => {
       // Set up test data for advanced features
       const season = await seasonManager.createSeason(
         'Advanced Features Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${new Date().getFullYear()}-01-01`),
+        new Date(`${new Date().getFullYear()}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
     });
@@ -297,12 +298,12 @@ describe('Final Integration Testing - Service Layer', () => {
         weekNumber: 1,
         date: new Date(exportSeason!.startDate)
       });
-      
+
       // Set all players as available for this week
       for (const player of players) {
         await weekRepository.setPlayerAvailability(week.id, player.id, true);
       }
-      
+
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
 
       // Test export functionality (using ExportService for schedules)
@@ -314,7 +315,7 @@ describe('Final Integration Testing - Service Layer', () => {
       // Test import functionality
       const importData = `firstName,lastName,handedness,timePreference
 Import,Test,right,AM`;
-      
+
       const importResult = await importExportService.importPlayers(importData, 'csv');
       expect(importResult.success).toBe(true);
       expect(importResult.importedCount).toBeGreaterThan(0);
@@ -337,29 +338,29 @@ Import,Test,right,AM`;
       const pairingSeason = await seasonManager.getActiveSeason();
       const weeks = [];
       const startDate = new Date(pairingSeason!.startDate);
-      
+
       for (let i = 0; i < 3; i++) {
         const weekDate = new Date(startDate);
         weekDate.setDate(startDate.getDate() + (i * 7));
-        
+
         const week = await weekRepository.create({
           seasonId: pairingSeason!.id,
           weekNumber: i + 1,
           date: weekDate
         });
-        
+
         // Set all players as available for this week
         for (const player of players) {
           await weekRepository.setPlayerAvailability(week.id, player.id, true);
         }
-        
+
         weeks.push(week);
       }
-      
+
       for (const week of weeks) {
         const schedule = await scheduleManager.createWeeklySchedule(week.id);
         expect(schedule).toBeDefined();
-        
+
         // Record pairings for history tracking
         const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
         for (const foursome of allFoursomes) {
@@ -401,12 +402,12 @@ Import,Test,right,AM`;
         weekNumber: 1,
         date: new Date(formatSeason!.startDate)
       });
-      
+
       // Set all players as available for this week
       for (const player of players) {
         await weekRepository.setPlayerAvailability(week.id, player.id, true);
       }
-      
+
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
 
       // Test different export formats
@@ -439,18 +440,18 @@ Import,Test,right,AM`;
         weekNumber: 1,
         date: new Date(editSeason!.startDate)
       });
-      
+
       // Set all players as available for this week
       for (const player of players) {
         await weekRepository.setPlayerAvailability(week.id, player.id, true);
       }
-      
+
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
 
       // Test schedule retrieval and modification capabilities
       const retrievedSchedule = await scheduleManager.getSchedule(week.id);
       expect(retrievedSchedule).toBeDefined();
-      
+
       const originalFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
       const retrievedFoursomes = [...retrievedSchedule!.timeSlots.morning, ...retrievedSchedule!.timeSlots.afternoon];
       expect(retrievedFoursomes.length).toBe(originalFoursomes.length);
@@ -473,8 +474,8 @@ Import,Test,right,AM`;
         // Test that services work in production mode
         const season = await seasonManager.createSeason(
           'Production Test Season',
-          new Date('2024-01-01'),
-          new Date('2024-12-31')
+          new Date(`${new Date().getFullYear()}-01-01`),
+          new Date(`${new Date().getFullYear()}-12-31`)
         );
         expect(season).toBeDefined();
 
@@ -499,12 +500,12 @@ Import,Test,right,AM`;
           weekNumber: 1,
           date: new Date(season.startDate)
         });
-        
+
         // Set all players as available for this week
         for (const player of players) {
           await weekRepository.setPlayerAvailability(week.id, player.id, true);
         }
-        
+
         const schedule = await scheduleManager.createWeeklySchedule(week.id);
         expect(schedule).toBeDefined();
 
@@ -517,8 +518,8 @@ Import,Test,right,AM`;
       // Create and activate a season first (required for import)
       const season = await seasonManager.createSeason(
         'Migration Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${new Date().getFullYear()}-01-01`),
+        new Date(`${new Date().getFullYear()}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
@@ -543,8 +544,8 @@ Legacy,Player,right,AM`;
       // Create season
       const season = await seasonManager.createSeason(
         'Large Dataset Test',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${new Date().getFullYear()}-01-01`),
+        new Date(`${new Date().getFullYear()}-12-31`)
       );
 
       await seasonManager.setActiveSeason(season.id);
@@ -578,20 +579,20 @@ Legacy,Player,right,AM`;
         weekNumber: 1,
         date: new Date(season.startDate)
       });
-      
+
       // Set all players as available for this week
       const scheduleTestPlayers = await playerManager.getAllPlayers(season.id);
       for (const player of scheduleTestPlayers) {
         await weekRepository.setPlayerAvailability(week.id, player.id, true);
       }
-      
+
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
       const scheduleTime = Date.now() - scheduleStartTime;
 
       // Schedule generation should complete within reasonable time (10 seconds)
       expect(scheduleTime).toBeLessThan(10000);
       expect(schedule).toBeDefined();
-      
+
       const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
       expect(allFoursomes.length).toBeGreaterThan(0);
     });
@@ -600,10 +601,10 @@ Legacy,Player,right,AM`;
       // Create season
       const season = await seasonManager.createSeason(
         'Memory Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${new Date().getFullYear()}-01-01`),
+        new Date(`${new Date().getFullYear()}-12-31`)
       );
-      
+
       await seasonManager.setActiveSeason(season.id);
 
       // Create at least 4 players first for schedule generation
@@ -627,12 +628,12 @@ Legacy,Player,right,AM`;
           weekNumber: i + 1,
           date: new Date(new Date(season.startDate).getTime() + i * 7 * 24 * 60 * 60 * 1000)
         });
-        
+
         // Set all players as available for this week
         for (const player of players) {
           await weekRepository.setPlayerAvailability(week.id, player.id, true);
         }
-        
+
         const schedule = await scheduleManager.createWeeklySchedule(week.id);
         expect(schedule).toBeDefined();
       }
@@ -666,8 +667,8 @@ Legacy,Player,right,AM`;
       // Test that services can interact with each other through proper DI
       const season = await seasonManager.createSeason(
         'DI Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${new Date().getFullYear()}-01-01`),
+        new Date(`${new Date().getFullYear()}-12-31`)
       );
 
       await seasonManager.setActiveSeason(season.id);
@@ -690,16 +691,16 @@ Legacy,Player,right,AM`;
         weekNumber: 1,
         date: new Date(season.startDate)
       });
-      
+
       // Set all players as available for this week
       for (const player of players) {
         await weekRepository.setPlayerAvailability(week.id, player.id, true);
       }
-      
+
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
 
       const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
-      expect(allFoursomes.some(f => 
+      expect(allFoursomes.some(f =>
         f.players.some(p => p.firstName.startsWith('DI'))
       )).toBe(true);
     });

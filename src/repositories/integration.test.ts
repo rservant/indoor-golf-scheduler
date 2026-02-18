@@ -43,14 +43,15 @@ describe('Repository Integration Tests', () => {
 
   test('should create and manage a complete season workflow', async () => {
     // Create a season
+    const currentYear = new Date().getFullYear();
     const season = await seasonRepository.create({
-      name: 'Spring 2024',
-      startDate: new Date('2024-03-01'),
-      endDate: new Date('2024-05-31')
+      name: `Spring ${currentYear}`,
+      startDate: new Date(`${currentYear}-03-01`),
+      endDate: new Date(`${currentYear}-05-31`)
     });
 
     expect(season.id).toBeDefined();
-    expect(season.name).toBe('Spring 2024');
+    expect(season.name).toBe(`Spring ${currentYear}`);
     expect(season.isActive).toBe(false);
 
     // Set season as active
@@ -86,7 +87,7 @@ describe('Repository Integration Tests', () => {
     const week = await weekRepository.create({
       seasonId: season.id,
       weekNumber: 1,
-      date: new Date('2024-03-08')
+      date: new Date(`${currentYear}-03-08`)
     });
 
     expect(week.seasonId).toBe(season.id);

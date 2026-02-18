@@ -60,7 +60,7 @@ describe('End-to-End Integration Tests', () => {
     } else {
       localStorage.clear();
     }
-    
+
     // Initialize repositories
     seasonRepository = new LocalSeasonRepository();
     playerRepository = new LocalPlayerRepository();
@@ -80,7 +80,7 @@ describe('End-to-End Integration Tests', () => {
       playerRepository,
       scheduleGenerator,
       pairingHistoryTracker
-    ,
+      ,
       backupService
     );
     exportService = new ExportService();
@@ -92,14 +92,15 @@ describe('End-to-End Integration Tests', () => {
       const currentDate = new Date();
       const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 3, 0);
-      
+
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
-        'Spring 2024',
-        startDate,
-        endDate
+        `Spring ${currentYear}`,
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
 
-      expect(season.name).toBe('Spring 2024');
+      expect(season.name).toBe(`Spring ${currentYear}`);
       expect(season.isActive).toBe(false);
 
       // Step 2: Set season as active
@@ -187,7 +188,7 @@ describe('End-to-End Integration Tests', () => {
 
       // Verify schedule has players assigned
       const totalPlayers = savedSchedule1.timeSlots.morning.reduce((sum, foursome) => sum + foursome.players.length, 0) +
-                          savedSchedule1.timeSlots.afternoon.reduce((sum, foursome) => sum + foursome.players.length, 0);
+        savedSchedule1.timeSlots.afternoon.reduce((sum, foursome) => sum + foursome.players.length, 0);
       expect(totalPlayers).toBe(8);
 
       // Step 8: Set different availability for week 2 (some players unavailable)
@@ -203,7 +204,7 @@ describe('End-to-End Integration Tests', () => {
 
       // Verify only available players are scheduled
       const totalPlayers2 = savedSchedule2.timeSlots.morning.reduce((sum, foursome) => sum + foursome.players.length, 0) +
-                           savedSchedule2.timeSlots.afternoon.reduce((sum, foursome) => sum + foursome.players.length, 0);
+        savedSchedule2.timeSlots.afternoon.reduce((sum, foursome) => sum + foursome.players.length, 0);
       expect(totalPlayers2).toBe(6);
 
       // Step 9: Export schedules
@@ -246,7 +247,7 @@ describe('End-to-End Integration Tests', () => {
       const currentDate = new Date();
       const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 6, 0);
-      
+
       season = await seasonManager.createSeason(
         'Test Season',
         startDate,
@@ -377,7 +378,7 @@ describe('End-to-End Integration Tests', () => {
       const currentDate = new Date();
       const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 6, 0);
-      
+
       season = await seasonManager.createSeason(
         'Constraint Test Season',
         startDate,
@@ -495,7 +496,7 @@ describe('End-to-End Integration Tests', () => {
 
       // Should still create a schedule, but with smaller groups
       const totalPlayers = schedule.timeSlots.morning.reduce((sum, foursome) => sum + foursome.players.length, 0) +
-                          schedule.timeSlots.afternoon.reduce((sum, foursome) => sum + foursome.players.length, 0);
+        schedule.timeSlots.afternoon.reduce((sum, foursome) => sum + foursome.players.length, 0);
       expect(totalPlayers).toBe(2);
     });
 

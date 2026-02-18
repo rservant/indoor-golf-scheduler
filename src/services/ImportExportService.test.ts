@@ -16,7 +16,8 @@ describe('ImportExportService', () => {
     importExportService = new ImportExportService(playerManager, seasonManager);
 
     // Create and activate a test season
-    const season = await seasonManager.createSeason('Test Season', new Date('2024-01-01'), new Date('2024-12-31'));
+    const currentYear = new Date().getFullYear();
+    const season = await seasonManager.createSeason('Test Season', new Date(`${currentYear}-01-01`), new Date(`${currentYear}-12-31`));
     await seasonManager.setActiveSeason(season.id);
     playerManager.setActiveSeasonId(season.id);
   });
@@ -39,7 +40,7 @@ Bob,Johnson,right,Either`;
       const activeSeason = await seasonManager.getActiveSeason();
       const players = await playerManager.getAllPlayers(activeSeason!.id);
       expect(players).toHaveLength(3);
-      
+
       const johnDoe = players.find(p => p.firstName === 'John' && p.lastName === 'Doe');
       expect(johnDoe).toBeDefined();
       expect(johnDoe!.handedness).toBe('right');
@@ -81,7 +82,7 @@ Alice,Smith,right,invalid`;
       expect(result.importedCount).toBe(0);
       expect(result.skippedCount).toBe(4);
       expect(result.errors).toHaveLength(4);
-      
+
       // Check specific error messages
       expect(result.errors[0].message).toContain('First name is required');
       expect(result.errors[1].message).toContain('Last name is required');
@@ -102,7 +103,7 @@ Bob,Johnson,left,both`;
 
       const activeSeason = await seasonManager.getActiveSeason();
       const players = await playerManager.getAllPlayers(activeSeason!.id);
-      
+
       const john = players.find(p => p.firstName === 'John');
       expect(john!.handedness).toBe('left');
       expect(john!.timePreference).toBe('AM');

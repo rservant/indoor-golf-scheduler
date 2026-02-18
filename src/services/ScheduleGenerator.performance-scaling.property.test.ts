@@ -71,11 +71,12 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
    * Helper function to create test week with all players available
    */
   function createTestWeek(weekId: string, seasonId: string, players: Player[]): WeekModel {
+    const currentYear = new Date().getFullYear();
     const week = new WeekModel({
       id: weekId,
       weekNumber: 1,
       seasonId: seasonId,
-      date: new Date('2024-01-01'),
+      date: new Date(`${currentYear}-01-01`),
       playerAvailability: {}
     });
 
@@ -135,7 +136,7 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           // Property 3: All scheduled players should be from the available players
           const scheduledPlayerIds = schedule.getAllPlayers();
           const availablePlayerIds = new Set(players.map(p => p.id));
-          
+
           scheduledPlayerIds.forEach(playerId => {
             expect(availablePlayerIds.has(playerId)).toBe(true);
           });
@@ -161,7 +162,7 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           expect(Array.isArray(schedule.timeSlots.afternoon)).toBe(true);
         }
       ),
-      { 
+      {
         numRuns: 10, // Reduced for performance
         timeout: 30000, // 30 second timeout for the entire property test
         verbose: false
@@ -197,7 +198,7 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
             const startTime = performance.now();
             const schedule = await generator.generateScheduleForWeek(week, players);
             const endTime = performance.now();
-            
+
             durations.push(endTime - startTime);
 
             // Verify each generation produces valid results
@@ -207,7 +208,7 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
 
           // Property 1: All runs should complete within expected time limits
           const expectedLimit = testData.playerCount <= 50 ? 2000 : 5000;
-          
+
           durations.forEach(duration => {
             expect(duration).toBeLessThan(expectedLimit);
           });
@@ -216,13 +217,13 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           if (durations.length > 1) {
             const averageDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length;
             const maxDeviation = Math.max(...durations.map(d => Math.abs(d - averageDuration)));
-            
+
             // Maximum deviation should not exceed 200% of average (allowing for JIT warmup)
             expect(maxDeviation).toBeLessThan(averageDuration * 2);
           }
         }
       ),
-      { 
+      {
         numRuns: 5,
         timeout: 20000
       }
@@ -250,7 +251,7 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           }
 
           const initialMemory = process.memoryUsage();
-          
+
           // Create test data
           const players = createTestPlayers(testData.playerCount, testData.seasonId, 'memory-');
           const weekId = `memory-week-${Date.now()}`;
@@ -258,10 +259,10 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
 
           // Measure memory before generation
           const beforeGeneration = process.memoryUsage();
-          
+
           // Generate schedule
           const schedule = await generator.generateScheduleForWeek(week, players);
-          
+
           // Measure memory after generation
           const afterGeneration = process.memoryUsage();
 
@@ -272,10 +273,10 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           // Property 2: Memory usage should be reasonable
           // Note: Memory increase can vary significantly in test environments,
           // so we focus on total memory usage rather than incremental increase
-          
+
           // Property 3: Total memory usage should not exceed limits
           const totalMemoryMB = afterGeneration.heapUsed / (1024 * 1024);
-          
+
           // Should not exceed 1GB total (very generous buffer for test environment)
           expect(totalMemoryMB).toBeLessThan(1024);
 
@@ -285,7 +286,7 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           }
         }
       ),
-      { 
+      {
         numRuns: 8,
         timeout: 20000
       }
@@ -309,7 +310,7 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
         }),
         async (testData) => {
           const baseSeasonId = `concurrent-season-${Date.now()}`;
-          
+
           // Create concurrent generation promises
           const generationPromises = Array.from({ length: testData.concurrentRequests }, (_, index) => {
             // Use unique seasonId for each concurrent request to avoid player ID conflicts
@@ -317,9 +318,9 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
             const players = createTestPlayers(testData.playersPerRequest, seasonId, `concurrent-${index}-`);
             const weekId = `concurrent-week-${index}`;
             const week = createTestWeek(weekId, seasonId, players);
-            
+
             const startTime = performance.now();
-            
+
             return generator.generateScheduleForWeek(week, players).then(schedule => ({
               schedule,
               duration: performance.now() - startTime,
@@ -350,7 +351,7 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           // Property 3: Concurrent execution should be efficient
           // Total time should be less than sum of individual times (showing parallelism benefits)
           const longestIndividualTime = Math.max(...results.map(r => r.duration));
-          
+
           // Total time should be between 60% and 200% of the longest individual time
           // (allowing for timing variations in test environment)
           expect(totalConcurrentTime).toBeGreaterThanOrEqual(longestIndividualTime * 0.6);
@@ -360,10 +361,10 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           const allScheduledPlayerIds = new Set<string>();
           results.forEach(result => {
             const scheduledIds = result.schedule.getAllPlayers();
-            
+
             // Each schedule should have players
             expect(scheduledIds.length).toBeGreaterThan(0);
-            
+
             // No player should appear in multiple concurrent schedules (they're independent)
             scheduledIds.forEach(playerId => {
               expect(allScheduledPlayerIds.has(playerId)).toBe(false);
@@ -372,7 +373,7 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           });
         }
       ),
-      { 
+      {
         numRuns: 5,
         timeout: 25000
       }

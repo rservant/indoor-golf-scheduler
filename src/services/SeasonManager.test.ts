@@ -10,21 +10,21 @@ describe('SeasonManager Property Tests', () => {
     await fc.assert(
       fc.asyncProperty(
         fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0), // season name (non-empty after trim)
-        fc.date({ min: new Date('2025-01-01'), max: new Date('2030-12-31') }), // start date
-        fc.date({ min: new Date('2025-01-01'), max: new Date('2030-12-31') }), // end date
+        fc.date({ min: new Date(`${new Date().getFullYear()}-01-01`), max: new Date(`${new Date().getFullYear() + 5}-12-31`) }), // start date
+        fc.date({ min: new Date(`${new Date().getFullYear()}-01-01`), max: new Date(`${new Date().getFullYear() + 5}-12-31`) }), // end date
         async (name, startDate, endDate) => {
           // Ensure end date is after start date
           const actualStartDate = startDate;
           const actualEndDate = endDate > startDate ? endDate : new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
-          
+
           const manager = new InMemorySeasonManager();
-          
+
           // Create season with the generated data
           const createdSeason = await manager.createSeason(name, actualStartDate, actualEndDate);
-          
+
           // Retrieve the season
           const retrievedSeason = await manager.getSeason(createdSeason.id);
-          
+
           // Verify all fields are preserved (note: name is trimmed during creation)
           expect(retrievedSeason).not.toBeNull();
           expect(retrievedSeason!.name).toBe(name.trim()); // Names are trimmed during creation
@@ -51,9 +51,10 @@ describe('SeasonManager Unit Tests', () => {
 
   describe('Season Creation', () => {
     test('should create season with valid data', async () => {
-      const name = 'Spring 2025';
-      const startDate = new Date('2025-03-01');
-      const endDate = new Date('2025-05-31');
+      const currentYear = new Date().getFullYear();
+      const name = `Spring ${currentYear}`;
+      const startDate = new Date(`${currentYear}-03-01`);
+      const endDate = new Date(`${currentYear}-05-31`);
 
       const season = await manager.createSeason(name, startDate, endDate);
 
@@ -68,31 +69,34 @@ describe('SeasonManager Unit Tests', () => {
     });
 
     test('should reject empty season name', async () => {
-      const startDate = new Date('2025-03-01');
-      const endDate = new Date('2025-05-31');
+      const currentYear = new Date().getFullYear();
+      const startDate = new Date(`${currentYear}-03-01`);
+      const endDate = new Date(`${currentYear}-05-31`);
 
       await expect(manager.createSeason('', startDate, endDate))
         .rejects.toThrow('Season name is required and cannot be empty');
     });
 
     test('should reject start date after end date', async () => {
+      const currentYear = new Date().getFullYear();
       const name = 'Invalid Season';
-      const startDate = new Date('2025-05-31');
-      const endDate = new Date('2025-03-01');
+      const startDate = new Date(`${currentYear}-05-31`);
+      const endDate = new Date(`${currentYear}-03-01`);
 
       await expect(manager.createSeason(name, startDate, endDate))
         .rejects.toThrow('Start date must be before end date');
     });
 
     test('should reject duplicate season names', async () => {
-      const name = 'Spring 2025';
-      const startDate = new Date('2025-03-01');
-      const endDate = new Date('2025-05-31');
+      const currentYear = new Date().getFullYear();
+      const name = `Spring ${currentYear}`;
+      const startDate = new Date(`${currentYear}-03-01`);
+      const endDate = new Date(`${currentYear}-05-31`);
 
       await manager.createSeason(name, startDate, endDate);
-      
-      await expect(manager.createSeason(name, new Date('2025-06-01'), new Date('2025-08-31')))
-        .rejects.toThrow('Season with name "Spring 2025" already exists');
+
+      await expect(manager.createSeason(name, new Date(`${currentYear}-06-01`), new Date(`${currentYear}-08-31`)))
+        .rejects.toThrow(`Season with name "Spring ${currentYear}" already exists`);
     });
   });
 
@@ -112,7 +116,7 @@ describe('SeasonManager Unit Tests', () => {
       // Switch to season2
       await manager.setActiveSeason(season2.id);
       expect((await manager.getActiveSeason())?.id).toBe(season2.id);
-      
+
       // Verify season1 is no longer active
       const deactivatedSeason = await manager.getSeason(season1.id);
       expect(deactivatedSeason?.isActive).toBe(false);
@@ -127,7 +131,7 @@ describe('SeasonManager Unit Tests', () => {
   describe('Season Updates', () => {
     test('should update season data', async () => {
       const season = await manager.createSeason('Original Name', new Date('2025-01-01'), new Date('2025-03-31'));
-      
+
       const updatedSeason = await manager.updateSeason(season.id, {
         name: 'Updated Name'
       });
@@ -149,18 +153,18 @@ describe('SeasonManager Unit Tests', () => {
   describe('Season Deletion and Archiving', () => {
     test('should delete empty season', async () => {
       const season = await manager.createSeason('Test Season', new Date('2025-01-01'), new Date('2025-03-31'));
-      
+
       await manager.deleteSeason(season.id);
-      
+
       expect(await manager.getSeason(season.id)).toBeNull();
     });
 
     test('should reject deleting season with associated data', async () => {
       const season = await manager.createSeason('Test Season', new Date('2025-01-01'), new Date('2025-03-31'));
-      
+
       // Simulate adding a player
       await manager.updateSeason(season.id, { playerIds: ['player1'] });
-      
+
       await expect(manager.deleteSeason(season.id))
         .rejects.toThrow('Cannot delete season with associated players or weeks. Archive the season instead.');
     });
@@ -168,9 +172,9 @@ describe('SeasonManager Unit Tests', () => {
     test('should archive season', async () => {
       const season = await manager.createSeason('Test Season', new Date('2025-01-01'), new Date('2025-03-31'));
       await manager.setActiveSeason(season.id);
-      
+
       const archivedSeason = await manager.archiveSeason(season.id);
-      
+
       expect(archivedSeason.isActive).toBe(false);
       expect(await manager.getActiveSeason()).toBeNull();
     });
@@ -180,16 +184,16 @@ describe('SeasonManager Unit Tests', () => {
     test('should reject empty season ID', async () => {
       await expect(manager.getSeason(''))
         .rejects.toThrow('Season ID is required');
-      
+
       await expect(manager.setActiveSeason(''))
         .rejects.toThrow('Season ID is required');
-      
+
       await expect(manager.updateSeason('', {}))
         .rejects.toThrow('Season ID is required');
-      
+
       await expect(manager.deleteSeason(''))
         .rejects.toThrow('Season ID is required');
-      
+
       await expect(manager.archiveSeason(''))
         .rejects.toThrow('Season ID is required');
     });

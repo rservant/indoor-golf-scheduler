@@ -49,11 +49,12 @@ describe('OptimizedScheduleGenerator', () => {
     };
 
     const createTestWeek = (playerCount: number) => {
+      const currentYear = new Date().getFullYear();
       const week = new WeekModel({
         id: 'test-week',
         weekNumber: 1,
         seasonId: 'test-season',
-        date: new Date('2024-01-01') // Add required date field
+        date: new Date(`${currentYear}-01-01`) // Add required date field
       });
 
       // Set all players as available
@@ -73,11 +74,11 @@ describe('OptimizedScheduleGenerator', () => {
       expect(schedule).toBeDefined();
       expect(schedule.weekId).toBe('test-week');
       expect(mockProgressCallback).toHaveBeenCalled();
-      
+
       // Check that progress was reported
       const progressCalls = mockProgressCallback.mock.calls;
       expect(progressCalls.length).toBeGreaterThan(0);
-      
+
       // Check final progress call
       const finalCall = progressCalls[progressCalls.length - 1][0];
       expect(finalCall.phase).toBe('complete');
@@ -92,10 +93,10 @@ describe('OptimizedScheduleGenerator', () => {
 
       expect(schedule).toBeDefined();
       expect(mockProgressCallback).toHaveBeenCalled();
-      
+
       // Check that parallel processing message was reported
       const progressCalls = mockProgressCallback.mock.calls;
-      const parallelMessage = progressCalls.find(call => 
+      const parallelMessage = progressCalls.find(call =>
         call[0].message.includes('parallel processing')
       );
       expect(parallelMessage).toBeDefined();
@@ -187,7 +188,7 @@ describe('OptimizedScheduleGenerator', () => {
       };
 
       const players = createTestPlayers(4);
-      
+
       // Create a week with invalid data that will cause validation to fail
       const invalidWeek = {
         id: '', // Invalid empty ID - this should cause an error
