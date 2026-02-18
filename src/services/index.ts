@@ -8,6 +8,10 @@ export * from './ImportExportService';
 export * from './ExportService';
 export * from './DataMigrationService';
 export * from './ScheduleBackupService';
+export * from './RequestProcessingService';
+export * from './ScheduleEditService';
+export * from './ScheduleValidationService';
+export * from './ScheduleRegenerationService';
 
 // Performance optimization services
 export * from './PerformanceMonitor';
