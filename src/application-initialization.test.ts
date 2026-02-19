@@ -149,10 +149,10 @@ describe('Application Initialization and Bootstrap', () => {
       expect(navigation).toBeTruthy();
 
       const navTabs = navigation?.querySelectorAll('.nav-tab');
-      expect(navTabs?.length).toBe(5); // seasons, players, availability, schedule, import-export (edit merged into schedule)
+      expect(navTabs?.length).toBe(6); // seasons, players, availability, schedule, stats, import-export
 
       // Verify all expected tabs exist
-      const expectedTabs = ['seasons', 'players', 'availability', 'schedule', 'import-export'];
+      const expectedTabs = ['seasons', 'players', 'availability', 'schedule', 'stats', 'import-export'];
       expectedTabs.forEach(tabName => {
         const tab = navigation?.querySelector(`[data-tab="${tabName}"]`);
         expect(tab).toBeTruthy();
@@ -243,11 +243,11 @@ describe('Application Initialization and Bootstrap', () => {
 
       // Verify demo data was created
       const services = app.getServices();
-      
+
       // Check that seasons were created
       const seasons = await services.seasonManager.getAllSeasons();
       expect(seasons.length).toBeGreaterThan(0);
-      
+
       // Check that an active season exists
       const activeSeason = await services.seasonManager.getActiveSeason();
       expect(activeSeason).toBeTruthy();
@@ -257,7 +257,7 @@ describe('Application Initialization and Bootstrap', () => {
       if (activeSeason) {
         const players = await services.playerManager.getAllPlayers(activeSeason.id);
         expect(players.length).toBeGreaterThan(0);
-        
+
         // Verify some expected demo players
         const playerNames = players.map(p => `${p.firstName} ${p.lastName}`);
         expect(playerNames).toContain('John Smith');
@@ -288,7 +288,7 @@ describe('Application Initialization and Bootstrap', () => {
       });
 
       const services = firstApp.getServices();
-      
+
       // Create a custom season (not demo data)
       const customSeason = await services.seasonManager.createSeason(
         'Custom Season',
@@ -313,7 +313,7 @@ describe('Application Initialization and Bootstrap', () => {
       // Verify that only the custom season exists (no demo data added)
       const secondServices = secondApp.getServices();
       const seasons = await secondServices.seasonManager.getAllSeasons();
-      
+
       expect(seasons.length).toBe(1);
       expect(seasons[0].name).toBe('Custom Season');
       expect(seasons[0].id).toBe(customSeason.id);
@@ -363,17 +363,17 @@ describe('Application Initialization and Bootstrap', () => {
       // Simulate an error during startup by calling start and catching any errors
       try {
         await app.start();
-        
+
         // If no error occurred, verify normal initialization
         expect(app.getState().isInitialized).toBe(true);
         expect(app.getState().hasError).toBe(false);
-        
+
         await app.stop();
       } catch (error) {
         // If an error occurred, verify error handling
         expect(app.getState().hasError).toBe(true);
         expect(app.getState().errorMessage).toBeDefined();
-        
+
         // Verify error UI is rendered
         const errorContainer = container.querySelector('.app-error-state');
         if (errorContainer) {
@@ -403,16 +403,16 @@ describe('Application Initialization and Bootstrap', () => {
           debugMode: false,
           autoInitializeDemo: false
         });
-        
+
         // Verify app was created (services initialized successfully)
         expect(app).toBeInstanceOf(IndoorGolfSchedulerApp);
-        
+
         // Verify services are accessible
         const services = app.getServices();
         expect(services.seasonManager).toBeDefined();
         expect(services.playerManager).toBeDefined();
         expect(services.scheduleManager).toBeDefined();
-        
+
       }).not.toThrow();
     });
   });
@@ -479,12 +479,12 @@ describe('Application Initialization and Bootstrap', () => {
       // Verify restarted state
       expect(app.getState().isInitialized).toBe(true);
       expect(app.getState().hasError).toBe(false);
-      
+
       // The UI should be reinitialized - check that the main UI is functional
       const mainUI = app.getUI();
       expect(mainUI).toBeDefined();
       expect(mainUI.getCurrentTab()).toBeDefined();
-      
+
       // Verify the application is functional after restart
       const services = app.getServices();
       expect(services.seasonManager).toBeDefined();
@@ -530,7 +530,7 @@ describe('Application Initialization and Bootstrap', () => {
 
       // Clean up
       await app.stop();
-      
+
       // Verify debug reference is cleaned up
       expect((window as any).golfSchedulerApp).toBeUndefined();
     });

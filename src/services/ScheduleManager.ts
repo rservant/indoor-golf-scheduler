@@ -150,6 +150,11 @@ export class ScheduleManager {
   private playerRepository: PlayerRepository;
   private scheduleGenerator: ScheduleGenerator;
   private pairingHistoryTracker: PairingHistoryTracker;
+  private backupService: ScheduleBackupService;
+
+  // Undo/redo stacks per week
+  private undoStacks: Map<string, string[]> = new Map(); // weekId -> backup IDs
+  private redoStacks: Map<string, string[]> = new Map(); // weekId -> backup IDs
 
   constructor(
     scheduleRepository: ScheduleRepository,
@@ -164,6 +169,7 @@ export class ScheduleManager {
     this.playerRepository = playerRepository;
     this.scheduleGenerator = scheduleGenerator;
     this.pairingHistoryTracker = pairingHistoryTracker;
+    this.backupService = backupService;
 
     // Initialize delegate services
     this.requestProcessingService = new RequestProcessingService(this.regenerationStatuses);
@@ -266,6 +272,108 @@ export class ScheduleManager {
     }
 
     return weeks;
+  }
+
+  /**
+   * Generate schedules for multiple weeks at once, maximizing partner variety
+   * across the full set by finalizing pairing history after each week.
+   */
+  async generateMultiWeekSchedules(
+    weekIds: string[],
+    options?: RequestProcessingOptions
+  ): Promise<Schedule[]> {
+    if (!weekIds.length) throw new Error('At least one week ID is required');
+
+    const schedules: Schedule[] = [];
+
+    for (const weekId of weekIds) {
+      const schedule = await this.generateSchedule(weekId, options);
+      schedules.push(schedule);
+    }
+
+    return schedules;
+  }
+
+  /**
+   * Create a backup before an edit and push to undo stack
+   */
+  async pushUndoState(weekId: string): Promise<void> {
+    const schedule = await this.getSchedule(weekId);
+    if (!schedule) return;
+
+    const backup = await this.backupService.createBackup(schedule);
+    const stack = this.undoStacks.get(weekId) ?? [];
+    stack.push(backup.id);
+    this.undoStacks.set(weekId, stack);
+
+    // Clear redo stack on new edit
+    this.redoStacks.set(weekId, []);
+  }
+
+  /**
+   * Undo the last schedule change for a week
+   */
+  async undo(weekId: string): Promise<Schedule | null> {
+    const undoStack = this.undoStacks.get(weekId);
+    if (!undoStack || undoStack.length === 0) return null;
+
+    // Save current state for redo
+    const currentSchedule = await this.getSchedule(weekId);
+    if (currentSchedule) {
+      const redoBackup = await this.backupService.createBackup(currentSchedule);
+      const redoStack = this.redoStacks.get(weekId) ?? [];
+      redoStack.push(redoBackup.id);
+      this.redoStacks.set(weekId, redoStack);
+    }
+
+    // Restore from undo backup
+    const backupId = undoStack.pop()!;
+    this.undoStacks.set(weekId, undoStack);
+
+    const restored = await this.backupService.restoreBackup(backupId);
+    await this.scheduleRepository.update(restored.id, restored);
+    return restored;
+  }
+
+  /**
+   * Redo a previously undone change for a week
+   */
+  async redo(weekId: string): Promise<Schedule | null> {
+    const redoStack = this.redoStacks.get(weekId);
+    if (!redoStack || redoStack.length === 0) return null;
+
+    // Save current state for undo
+    const currentSchedule = await this.getSchedule(weekId);
+    if (currentSchedule) {
+      const undoBackup = await this.backupService.createBackup(currentSchedule);
+      const undoStack = this.undoStacks.get(weekId) ?? [];
+      undoStack.push(undoBackup.id);
+      this.undoStacks.set(weekId, undoStack);
+    }
+
+    // Restore from redo backup
+    const backupId = redoStack.pop()!;
+    this.redoStacks.set(weekId, redoStack);
+
+    const restored = await this.backupService.restoreBackup(backupId);
+    await this.scheduleRepository.update(restored.id, restored);
+    return restored;
+  }
+
+  /**
+   * Check if undo is available for a week
+   */
+  canUndo(weekId: string): boolean {
+    const stack = this.undoStacks.get(weekId);
+    return !!stack && stack.length > 0;
+  }
+
+  /**
+   * Check if redo is available for a week
+   */
+  canRedo(weekId: string): boolean {
+    const stack = this.redoStacks.get(weekId);
+    return !!stack && stack.length > 0;
   }
 
   // ─── Internal Schedule Creation ────────────────────────────────────────────

@@ -51,10 +51,10 @@ export class ScheduleGenerator {
 
     if (!Array.isArray(availablePlayers)) {
       const error = 'Available players must be an array';
-      this.logger.logStep('Schedule generation failed - invalid players input', { 
-        error, 
+      this.logger.logStep('Schedule generation failed - invalid players input', {
+        error,
         playersType: typeof availablePlayers,
-        playersValue: availablePlayers 
+        playersValue: availablePlayers
       }, false, error);
       throw new Error(error);
     }
@@ -66,7 +66,7 @@ export class ScheduleGenerator {
       if (!allSameSeason) {
         const error = 'All players must be from the same season';
         const playerSeasons = availablePlayers.map(p => ({ id: p.id, seasonId: p.seasonId }));
-        this.logger.logStep('Schedule generation failed - mixed seasons', { 
+        this.logger.logStep('Schedule generation failed - mixed seasons', {
           error,
           playerSeasons,
           firstSeasonId
@@ -88,16 +88,16 @@ export class ScheduleGenerator {
       }
     } catch (scheduleError) {
       const error = `Schedule model creation failed: ${scheduleError instanceof Error ? scheduleError.message : 'Unknown error'}`;
-      this.logger.logStep('Schedule generation failed - model creation exception', { 
-        error, 
+      this.logger.logStep('Schedule generation failed - model creation exception', {
+        error,
         weekId,
-        originalError: scheduleError 
+        originalError: scheduleError
       }, false, error);
       throw new Error(error);
     }
 
     if (availablePlayers.length === 0) {
-      this.logger.logStep('No available players - returning empty schedule', { 
+      this.logger.logStep('No available players - returning empty schedule', {
         weekId,
         guidance: 'Check player availability data and ensure players are marked as available'
       }, true);
@@ -129,26 +129,26 @@ export class ScheduleGenerator {
       const totalCategorized = amPlayers.length + pmPlayers.length + eitherPlayers.length;
       if (totalCategorized !== availablePlayers.length) {
         const error = `Player categorization failed: ${totalCategorized} categorized vs ${availablePlayers.length} total`;
-        const uncategorizedPlayers = availablePlayers.filter(p => 
+        const uncategorizedPlayers = availablePlayers.filter(p =>
           p.timePreference !== 'AM' && p.timePreference !== 'PM' && p.timePreference !== 'Either'
         );
-        this.logger.logStep('Schedule generation failed - player categorization error', { 
+        this.logger.logStep('Schedule generation failed - player categorization error', {
           error,
           totalPlayers: availablePlayers.length,
           totalCategorized,
-          uncategorizedPlayers: uncategorizedPlayers.map(p => ({ 
-            id: p.id, 
-            name: `${p.firstName} ${p.lastName}`, 
-            timePreference: p.timePreference 
+          uncategorizedPlayers: uncategorizedPlayers.map(p => ({
+            id: p.id,
+            name: `${p.firstName} ${p.lastName}`,
+            timePreference: p.timePreference
           }))
         }, false, error);
         throw new Error(error);
       }
     } catch (filterError) {
       const error = `Player filtering failed: ${filterError instanceof Error ? filterError.message : 'Unknown error'}`;
-      this.logger.logStep('Schedule generation failed - player filtering exception', { 
+      this.logger.logStep('Schedule generation failed - player filtering exception', {
         error,
-        originalError: filterError 
+        originalError: filterError
       }, false, error);
       throw new Error(error);
     }
@@ -170,7 +170,7 @@ export class ScheduleGenerator {
       const totalAssigned = morningPlayers.length + afternoonPlayers.length;
       if (totalAssigned !== availablePlayers.length) {
         const error = `Time slot assignment failed: ${totalAssigned} assigned vs ${availablePlayers.length} total`;
-        this.logger.logStep('Schedule generation failed - time slot assignment error', { 
+        this.logger.logStep('Schedule generation failed - time slot assignment error', {
           error,
           totalPlayers: availablePlayers.length,
           totalAssigned,
@@ -181,9 +181,9 @@ export class ScheduleGenerator {
       }
     } catch (assignmentError) {
       const error = `Time slot assignment failed: ${assignmentError instanceof Error ? assignmentError.message : 'Unknown error'}`;
-      this.logger.logStep('Schedule generation failed - time slot assignment exception', { 
+      this.logger.logStep('Schedule generation failed - time slot assignment exception', {
         error,
-        originalError: assignmentError 
+        originalError: assignmentError
       }, false, error);
       throw new Error(error);
     }
@@ -195,32 +195,32 @@ export class ScheduleGenerator {
 
     // Create foursomes for each time slot with enhanced error handling
     let morningFoursomes: Foursome[], afternoonFoursomes: Foursome[];
-    
+
     try {
       this.logger.logStep('Creating foursomes for morning time slot', {
         playerCount: morningPlayers.length
       }, true);
       morningFoursomes = await this.createFoursomesWithLogging(morningPlayers, 'morning', effectiveSeasonId);
-      
+
       // Validation: verify morning foursomes
       if (!Array.isArray(morningFoursomes)) {
         const error = 'Morning foursome creation returned invalid result';
-        this.logger.logStep('Schedule generation failed - invalid morning foursomes', { 
+        this.logger.logStep('Schedule generation failed - invalid morning foursomes', {
           error,
-          result: morningFoursomes 
+          result: morningFoursomes
         }, false, error);
         throw new Error(error);
       }
     } catch (morningError) {
       const error = `Morning foursome creation failed: ${morningError instanceof Error ? morningError.message : 'Unknown error'}`;
-      this.logger.logStep('Schedule generation failed - morning foursome creation exception', { 
+      this.logger.logStep('Schedule generation failed - morning foursome creation exception', {
         error,
         morningPlayerCount: morningPlayers.length,
-        originalError: morningError 
+        originalError: morningError
       }, false, error);
       throw new Error(error);
     }
-    
+
     try {
       this.logger.logStep('Creating foursomes for afternoon time slot', {
         playerCount: afternoonPlayers.length
@@ -230,18 +230,18 @@ export class ScheduleGenerator {
       // Validation: verify afternoon foursomes
       if (!Array.isArray(afternoonFoursomes)) {
         const error = 'Afternoon foursome creation returned invalid result';
-        this.logger.logStep('Schedule generation failed - invalid afternoon foursomes', { 
+        this.logger.logStep('Schedule generation failed - invalid afternoon foursomes', {
           error,
-          result: afternoonFoursomes 
+          result: afternoonFoursomes
         }, false, error);
         throw new Error(error);
       }
     } catch (afternoonError) {
       const error = `Afternoon foursome creation failed: ${afternoonError instanceof Error ? afternoonError.message : 'Unknown error'}`;
-      this.logger.logStep('Schedule generation failed - afternoon foursome creation exception', { 
+      this.logger.logStep('Schedule generation failed - afternoon foursome creation exception', {
         error,
         afternoonPlayerCount: afternoonPlayers.length,
-        originalError: afternoonError 
+        originalError: afternoonError
       }, false, error);
       throw new Error(error);
     }
@@ -255,11 +255,11 @@ export class ScheduleGenerator {
     // Add foursomes to schedule with validation
     try {
       let addedFoursomes = 0;
-      
+
       for (const foursome of morningFoursomes) {
         if (!foursome || !foursome.id) {
           const error = `Invalid morning foursome at index ${addedFoursomes}`;
-          this.logger.logStep('Schedule generation failed - invalid morning foursome', { 
+          this.logger.logStep('Schedule generation failed - invalid morning foursome', {
             error,
             foursomeIndex: addedFoursomes,
             foursome: foursome ? { id: foursome.id } : null
@@ -269,11 +269,11 @@ export class ScheduleGenerator {
         schedule.addFoursome(foursome);
         addedFoursomes++;
       }
-      
+
       for (const foursome of afternoonFoursomes) {
         if (!foursome || !foursome.id) {
           const error = `Invalid afternoon foursome at index ${addedFoursomes - morningFoursomes.length}`;
-          this.logger.logStep('Schedule generation failed - invalid afternoon foursome', { 
+          this.logger.logStep('Schedule generation failed - invalid afternoon foursome', {
             error,
             foursomeIndex: addedFoursomes - morningFoursomes.length,
             foursome: foursome ? { id: foursome.id } : null
@@ -292,7 +292,7 @@ export class ScheduleGenerator {
 
       if (actualTotalCount !== expectedFoursomes) {
         const error = `Schedule assembly failed: expected ${expectedFoursomes} foursomes, got ${actualTotalCount}`;
-        this.logger.logStep('Schedule generation failed - assembly validation error', { 
+        this.logger.logStep('Schedule generation failed - assembly validation error', {
           error,
           expectedTotal: expectedFoursomes,
           actualTotal: actualTotalCount,
@@ -306,7 +306,7 @@ export class ScheduleGenerator {
 
       if (actualMorningCount !== morningFoursomes.length) {
         const error = `Morning schedule mismatch: expected ${morningFoursomes.length}, got ${actualMorningCount}`;
-        this.logger.logStep('Schedule generation failed - morning assembly error', { 
+        this.logger.logStep('Schedule generation failed - morning assembly error', {
           error,
           expected: morningFoursomes.length,
           actual: actualMorningCount
@@ -316,7 +316,7 @@ export class ScheduleGenerator {
 
       if (actualAfternoonCount !== afternoonFoursomes.length) {
         const error = `Afternoon schedule mismatch: expected ${afternoonFoursomes.length}, got ${actualAfternoonCount}`;
-        this.logger.logStep('Schedule generation failed - afternoon assembly error', { 
+        this.logger.logStep('Schedule generation failed - afternoon assembly error', {
           error,
           expected: afternoonFoursomes.length,
           actual: actualAfternoonCount
@@ -326,11 +326,11 @@ export class ScheduleGenerator {
 
     } catch (assemblyError) {
       const error = `Schedule assembly failed: ${assemblyError instanceof Error ? assemblyError.message : 'Unknown error'}`;
-      this.logger.logStep('Schedule generation failed - assembly exception', { 
+      this.logger.logStep('Schedule generation failed - assembly exception', {
         error,
         morningFoursomeCount: morningFoursomes.length,
         afternoonFoursomeCount: afternoonFoursomes.length,
-        originalError: assemblyError 
+        originalError: assemblyError
       }, false, error);
       throw new Error(error);
     }
@@ -352,17 +352,17 @@ export class ScheduleGenerator {
    */
   async generateScheduleForWeek(week: Week | WeekModel, allPlayers: Player[]): Promise<Schedule> {
     this.logger.clear();
-    this.logger.logStep('Starting schedule generation for week', { 
-      weekId: week.id, 
+    this.logger.logStep('Starting schedule generation for week', {
+      weekId: week.id,
       weekNumber: week.weekNumber,
       seasonId: week.seasonId,
-      totalPlayers: allPlayers.length 
+      totalPlayers: allPlayers.length
     }, true);
 
     try {
       // Enhanced filtering with detailed logging
       const availablePlayers = this.filterAvailablePlayersWithLogging(allPlayers, week);
-      this.logger.logStep('Player filtering completed', { 
+      this.logger.logStep('Player filtering completed', {
         totalPlayers: allPlayers.length,
         availablePlayers: availablePlayers.length,
         excludedPlayers: allPlayers.length - availablePlayers.length
@@ -370,9 +370,9 @@ export class ScheduleGenerator {
 
       // Enhanced generation with step-by-step logging
       const schedule = await this.generateScheduleWithLogging(week.id, availablePlayers, week.seasonId);
-      
+
       const foursomeCount = this.getFoursomeCount(schedule);
-      this.logger.logStep('Schedule generation completed', { 
+      this.logger.logStep('Schedule generation completed', {
         foursomeCount,
         morningFoursomes: schedule.timeSlots.morning.length,
         afternoonFoursomes: schedule.timeSlots.afternoon.length,
@@ -380,19 +380,19 @@ export class ScheduleGenerator {
       }, true);
 
       this.logger.markComplete();
-      
+
       // Store debug info for later retrieval
       this.lastDebugInfo = this.logger.getDebugInfo(week.id, week.seasonId, schedule);
-      
+
       return schedule;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.logStep('Schedule generation failed', { error: errorMessage }, false, errorMessage);
       this.logger.markComplete();
-      
+
       // Store debug info even for failed generations
       this.lastDebugInfo = this.logger.getDebugInfo(week.id, week.seasonId, null);
-      
+
       throw error;
     }
   }
@@ -415,13 +415,13 @@ export class ScheduleGenerator {
     const availablePlayers: Player[] = [];
     const playersWithMissingData: Player[] = [];
     const unavailablePlayers: Player[] = [];
-    
+
     for (const player of allPlayers) {
       const playerName = `${player.firstName} ${player.lastName}`;
       let isAvailable: boolean;
       let availabilityStatus: boolean | null | undefined;
       let hasAvailabilityData: boolean;
-      
+
       if (week instanceof WeekModel) {
         hasAvailabilityData = week.hasAvailabilityData(player.id);
         availabilityStatus = week.getPlayerAvailabilityStatus(player.id);
@@ -432,7 +432,7 @@ export class ScheduleGenerator {
         availabilityStatus = week.playerAvailability?.[player.id];
         isAvailable = availabilityStatus === true;
       }
-      
+
       if (isAvailable) {
         availablePlayers.push(player);
         this.logger.logFilteringDecision(
@@ -461,7 +461,7 @@ export class ScheduleGenerator {
           reason = `Player availability status is not explicitly true (status: ${availabilityStatus})`;
           unavailablePlayers.push(player);
         }
-        
+
         this.logger.logFilteringDecision(
           player.id,
           playerName,
@@ -478,7 +478,7 @@ export class ScheduleGenerator {
         );
       }
     }
-    
+
     // Enhanced summary with detailed categorization
     const summary = {
       totalPlayers: allPlayers.length,
@@ -490,9 +490,9 @@ export class ScheduleGenerator {
       weekNumber: week.weekNumber,
       availabilityDataCoverage: availabilityValidation.coveragePercentage
     };
-    
+
     this.logger.logStep('Availability filtering summary', summary, true);
-    
+
     // Log detailed breakdown for debugging
     if (playersWithMissingData.length > 0) {
       this.logger.logStep('Players with missing availability data', {
@@ -500,21 +500,21 @@ export class ScheduleGenerator {
         players: playersWithMissingData.map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}` }))
       }, true);
     }
-    
+
     if (unavailablePlayers.length > 0) {
       this.logger.logStep('Explicitly unavailable players', {
         count: unavailablePlayers.length,
         players: unavailablePlayers.map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}` }))
       }, true);
     }
-    
+
     console.log(`[ScheduleGenerator] Availability filtering completed:`, summary);
-    
+
     // Graceful handling: provide guidance when insufficient players are available
     if (availablePlayers.length < 4) {
       this.handleInsufficientPlayers(availablePlayers, playersWithMissingData, unavailablePlayers, week);
     }
-    
+
     return availablePlayers;
   }
 
@@ -547,13 +547,13 @@ export class ScheduleGenerator {
     // Check data completeness for each player
     for (const player of allPlayers) {
       let hasData: boolean;
-      
+
       if (week instanceof WeekModel) {
         hasData = week.hasAvailabilityData(player.id);
       } else {
         hasData = player.id in (week.playerAvailability || {});
       }
-      
+
       if (hasData) {
         playersWithData++;
       } else {
@@ -561,8 +561,8 @@ export class ScheduleGenerator {
       }
     }
 
-    const coveragePercentage = allPlayers.length > 0 
-      ? Math.round((playersWithData / allPlayers.length) * 100) 
+    const coveragePercentage = allPlayers.length > 0
+      ? Math.round((playersWithData / allPlayers.length) * 100)
       : 0;
 
     // Add coverage warnings
@@ -592,7 +592,7 @@ export class ScheduleGenerator {
     week: Week | WeekModel
   ): void {
     const totalPlayers = availablePlayers.length + playersWithMissingData.length + unavailablePlayers.length;
-    
+
     const guidance = {
       scenario: 'insufficient_players',
       availableCount: availablePlayers.length,
@@ -710,10 +710,10 @@ export class ScheduleGenerator {
       const player = players[i];
       if (!player || !player.id || !player.firstName || !player.lastName) {
         const error = `Invalid player data at index ${i}: missing required fields`;
-        this.logger.logStep('Foursome creation failed - invalid player data', { 
-          error, 
-          playerIndex: i, 
-          player: player ? { id: player.id, firstName: player.firstName, lastName: player.lastName } : null 
+        this.logger.logStep('Foursome creation failed - invalid player data', {
+          error,
+          playerIndex: i,
+          player: player ? { id: player.id, firstName: player.firstName, lastName: player.lastName } : null
         }, false, error);
         throw new Error(error);
       }
@@ -757,22 +757,22 @@ export class ScheduleGenerator {
 
         // Validation 4: Ensure pairing tracker returns valid results
         const optimalFoursome = await this.pairingHistoryTracker.findOptimalFoursome(seasonId, remainingPlayers);
-        
+
         if (!optimalFoursome || !Array.isArray(optimalFoursome) || optimalFoursome.length === 0) {
           const error = 'Pairing tracker returned invalid foursome';
-          this.logger.logStep('Foursome creation failed - invalid pairing result', { 
-            error, 
-            optimalFoursome, 
-            remainingPlayersCount: remainingPlayers.length 
+          this.logger.logStep('Foursome creation failed - invalid pairing result', {
+            error,
+            optimalFoursome,
+            remainingPlayersCount: remainingPlayers.length
           }, false, error);
           throw new Error(error);
         }
 
         if (optimalFoursome.length > 4) {
           const error = `Pairing tracker returned too many players: ${optimalFoursome.length}`;
-          this.logger.logStep('Foursome creation failed - oversized foursome', { 
-            error, 
-            foursomeSize: optimalFoursome.length 
+          this.logger.logStep('Foursome creation failed - oversized foursome', {
+            error,
+            foursomeSize: optimalFoursome.length
           }, false, error);
           throw new Error(error);
         }
@@ -781,15 +781,15 @@ export class ScheduleGenerator {
         for (const player of optimalFoursome) {
           if (!remainingPlayers.some(rp => rp.id === player.id)) {
             const error = `Player ${player.id} in optimal foursome is not in remaining players`;
-            this.logger.logStep('Foursome creation failed - invalid player selection', { 
-              error, 
+            this.logger.logStep('Foursome creation failed - invalid player selection', {
+              error,
               playerId: player.id,
               playerName: `${player.firstName} ${player.lastName}`
             }, false, error);
             throw new Error(error);
           }
         }
-        
+
         const foursome = new FoursomeModel({
           players: optimalFoursome,
           timeSlot,
@@ -799,9 +799,9 @@ export class ScheduleGenerator {
         // Validation 6: Verify foursome creation succeeded
         if (!foursome || !foursome.id || !foursome.players || foursome.players.length !== optimalFoursome.length) {
           const error = 'Failed to create valid foursome model';
-          this.logger.logStep('Foursome creation failed - model creation error', { 
-            error, 
-            foursome: foursome ? { id: foursome.id, playerCount: foursome.players?.length } : null 
+          this.logger.logStep('Foursome creation failed - model creation error', {
+            error,
+            foursome: foursome ? { id: foursome.id, playerCount: foursome.players?.length } : null
           }, false, error);
           throw new Error(error);
         }
@@ -823,8 +823,8 @@ export class ScheduleGenerator {
 
         if (afterRemovalCount !== expectedRemovalCount) {
           const error = `Player removal failed: expected ${expectedRemovalCount} remaining, got ${afterRemovalCount}`;
-          this.logger.logStep('Foursome creation failed - player removal error', { 
-            error, 
+          this.logger.logStep('Foursome creation failed - player removal error', {
+            error,
             beforeCount: beforeRemovalCount,
             afterCount: afterRemovalCount,
             expectedCount: expectedRemovalCount
@@ -849,10 +849,10 @@ export class ScheduleGenerator {
         // Validation 8: Verify partial foursome creation
         if (!foursome || !foursome.id || !foursome.players || foursome.players.length !== remainingPlayers.length) {
           const error = 'Failed to create valid partial foursome model';
-          this.logger.logStep('Foursome creation failed - partial foursome error', { 
-            error, 
+          this.logger.logStep('Foursome creation failed - partial foursome error', {
+            error,
             expectedPlayerCount: remainingPlayers.length,
-            actualPlayerCount: foursome?.players?.length 
+            actualPlayerCount: foursome?.players?.length
           }, false, error);
           throw new Error(error);
         }
@@ -872,8 +872,8 @@ export class ScheduleGenerator {
 
       if (expectedCompleteGroups < 0 || expectedRemainingPlayers < 0 || expectedRemainingPlayers >= 4) {
         const error = `Invalid algorithm parameters: complete groups=${expectedCompleteGroups}, remaining=${expectedRemainingPlayers}`;
-        this.logger.logStep('Foursome creation failed - algorithm parameter error', { 
-          error, 
+        this.logger.logStep('Foursome creation failed - algorithm parameter error', {
+          error,
           totalPlayers: players.length,
           completeGroups: expectedCompleteGroups,
           remainingPlayers: expectedRemainingPlayers
@@ -889,8 +889,8 @@ export class ScheduleGenerator {
         // Validation 10: Verify slice indices
         if (startIndex < 0 || endIndex > players.length || startIndex >= endIndex) {
           const error = `Invalid slice indices: start=${startIndex}, end=${endIndex}, total=${players.length}`;
-          this.logger.logStep('Foursome creation failed - slice index error', { 
-            error, 
+          this.logger.logStep('Foursome creation failed - slice index error', {
+            error,
             iteration: i,
             startIndex,
             endIndex,
@@ -904,8 +904,8 @@ export class ScheduleGenerator {
         // Validation 11: Verify slice result
         if (!foursomeePlayers || foursomeePlayers.length !== 4) {
           const error = `Invalid foursome slice: expected 4 players, got ${foursomeePlayers?.length}`;
-          this.logger.logStep('Foursome creation failed - slice result error', { 
-            error, 
+          this.logger.logStep('Foursome creation failed - slice result error', {
+            error,
             iteration: i,
             sliceLength: foursomeePlayers?.length,
             startIndex,
@@ -923,10 +923,10 @@ export class ScheduleGenerator {
         // Validation 12: Verify foursome model creation
         if (!foursome || !foursome.id || !foursome.players || foursome.players.length !== 4) {
           const error = 'Failed to create valid complete foursome model';
-          this.logger.logStep('Foursome creation failed - complete foursome model error', { 
-            error, 
+          this.logger.logStep('Foursome creation failed - complete foursome model error', {
+            error,
             iteration: i,
-            foursome: foursome ? { id: foursome.id, playerCount: foursome.players?.length } : null 
+            foursome: foursome ? { id: foursome.id, playerCount: foursome.players?.length } : null
           }, false, error);
           throw new Error(error);
         }
@@ -949,8 +949,8 @@ export class ScheduleGenerator {
         // Validation 13: Verify remaining players slice
         if (startIndex < 0 || startIndex >= players.length) {
           const error = `Invalid remaining players start index: ${startIndex}`;
-          this.logger.logStep('Foursome creation failed - remaining players index error', { 
-            error, 
+          this.logger.logStep('Foursome creation failed - remaining players index error', {
+            error,
             startIndex,
             totalPlayers: players.length,
             remainingCount: remainingPlayersCount
@@ -963,8 +963,8 @@ export class ScheduleGenerator {
         // Validation 14: Verify remaining players slice result
         if (!remainingPlayersSlice || remainingPlayersSlice.length !== remainingPlayersCount) {
           const error = `Invalid remaining players slice: expected ${remainingPlayersCount}, got ${remainingPlayersSlice?.length}`;
-          this.logger.logStep('Foursome creation failed - remaining players slice error', { 
-            error, 
+          this.logger.logStep('Foursome creation failed - remaining players slice error', {
+            error,
             expectedCount: remainingPlayersCount,
             actualCount: remainingPlayersSlice?.length,
             startIndex
@@ -981,10 +981,10 @@ export class ScheduleGenerator {
         // Validation 15: Verify remaining foursome model creation
         if (!foursome || !foursome.id || !foursome.players || foursome.players.length !== remainingPlayersCount) {
           const error = 'Failed to create valid remaining foursome model';
-          this.logger.logStep('Foursome creation failed - remaining foursome model error', { 
-            error, 
+          this.logger.logStep('Foursome creation failed - remaining foursome model error', {
+            error,
             expectedPlayerCount: remainingPlayersCount,
-            actualPlayerCount: foursome?.players?.length 
+            actualPlayerCount: foursome?.players?.length
           }, false, error);
           throw new Error(error);
         }
@@ -1000,12 +1000,18 @@ export class ScheduleGenerator {
       }
     }
 
+    // Post-processing: balance handedness and skill across foursomes
+    if (foursomes.length >= 2) {
+      this.balanceHandedness(foursomes);
+      this.balanceSkillLevels(foursomes);
+    }
+
     // Final Validation 16: Verify overall results
     const totalAssignedPlayers = foursomes.reduce((sum, f) => sum + f.players.length, 0);
     if (totalAssignedPlayers !== initialPlayerCount) {
       const error = `Player count mismatch: expected ${initialPlayerCount}, assigned ${totalAssignedPlayers}`;
-      this.logger.logStep('Foursome creation failed - player count mismatch', { 
-        error, 
+      this.logger.logStep('Foursome creation failed - player count mismatch', {
+        error,
         initialCount: initialPlayerCount,
         assignedCount: totalAssignedPlayers,
         foursomeCount: foursomes.length
@@ -1019,8 +1025,8 @@ export class ScheduleGenerator {
       for (const player of foursome.players) {
         if (assignedPlayerIds.has(player.id)) {
           const error = `Duplicate player assignment: ${player.id} appears in multiple foursomes`;
-          this.logger.logStep('Foursome creation failed - duplicate player assignment', { 
-            error, 
+          this.logger.logStep('Foursome creation failed - duplicate player assignment', {
+            error,
             playerId: player.id,
             playerName: `${player.firstName} ${player.lastName}`
           }, false, error);
@@ -1034,8 +1040,8 @@ export class ScheduleGenerator {
     for (const originalId of initialPlayerIds) {
       if (!assignedPlayerIds.has(originalId)) {
         const error = `Player ${originalId} was not assigned to any foursome`;
-        this.logger.logStep('Foursome creation failed - missing player assignment', { 
-          error, 
+        this.logger.logStep('Foursome creation failed - missing player assignment', {
+          error,
           playerId: originalId
         }, false, error);
         throw new Error(error);
@@ -1053,8 +1059,8 @@ export class ScheduleGenerator {
       const foursome = foursomes[i];
       if (!foursome || !foursome.id || !foursome.players || !Array.isArray(foursome.players)) {
         const error = `Invalid foursome at index ${i}: missing required properties`;
-        this.logger.logStep('Foursome creation failed - invalid foursome structure', { 
-          error, 
+        this.logger.logStep('Foursome creation failed - invalid foursome structure', {
+          error,
           foursomeIndex: i,
           foursome: foursome ? { id: foursome.id, hasPlayers: !!foursome.players } : null
         }, false, error);
@@ -1063,8 +1069,8 @@ export class ScheduleGenerator {
 
       if (foursome.timeSlot !== timeSlot) {
         const error = `Foursome ${i} has wrong time slot: expected ${timeSlot}, got ${foursome.timeSlot}`;
-        this.logger.logStep('Foursome creation failed - wrong time slot', { 
-          error, 
+        this.logger.logStep('Foursome creation failed - wrong time slot', {
+          error,
           foursomeIndex: i,
           expectedTimeSlot: timeSlot,
           actualTimeSlot: foursome.timeSlot
@@ -1080,6 +1086,112 @@ export class ScheduleGenerator {
     }, true);
 
     return foursomes;
+  }
+
+  /**
+   * Balance handedness across foursomes by swapping players to mix left/right
+   */
+  private balanceHandedness(foursomes: Foursome[]): void {
+    const PASSES = 2;
+    for (let pass = 0; pass < PASSES; pass++) {
+      for (let i = 0; i < foursomes.length; i++) {
+        const fi = foursomes[i];
+        const leftCount = fi.players.filter(p => p.handedness === 'left').length;
+        const rightCount = fi.players.length - leftCount;
+
+        // A foursome is unbalanced if all same handedness (or very skewed)
+        if (leftCount === 0 || rightCount === 0) {
+          // Try to find a partner foursome to swap with
+          for (let j = i + 1; j < foursomes.length; j++) {
+            const fj = foursomes[j];
+            const jLeftCount = fj.players.filter(p => p.handedness === 'left').length;
+            const jRightCount = fj.players.length - jLeftCount;
+
+            if (jLeftCount === 0 || jRightCount === 0) continue;
+
+            // Find a player to swap: pick opposite handedness from each group
+            const needLeft = leftCount === 0;
+            const fromI = fi.players.findIndex(p => p.handedness === (needLeft ? 'right' : 'left'));
+            const fromJ = fj.players.findIndex(p => p.handedness === (needLeft ? 'left' : 'right'));
+
+            if (fromI >= 0 && fromJ >= 0) {
+              // Swap
+              const temp = fi.players[fromI];
+              fi.players[fromI] = fj.players[fromJ];
+              fj.players[fromJ] = temp;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Balance skill levels across foursomes by swapping players to equalize average skill
+   */
+  private balanceSkillLevels(foursomes: Foursome[]): void {
+    const getAvgSkill = (players: Player[]) => {
+      if (players.length === 0) return 5;
+      return players.reduce((sum, p) => sum + (p.skillLevel ?? 5), 0) / players.length;
+    };
+
+    const PASSES = 3;
+    for (let pass = 0; pass < PASSES; pass++) {
+      // Sort foursomes by average skill to find highest/lowest
+      const ranked = foursomes
+        .map((f, idx) => ({ idx, avg: getAvgSkill(f.players) }))
+        .sort((a, b) => a.avg - b.avg);
+
+      const lowestIdx = ranked[0].idx;
+      const highestIdx = ranked[ranked.length - 1].idx;
+
+      if (lowestIdx === highestIdx) break;
+
+      const low = foursomes[lowestIdx];
+      const high = foursomes[highestIdx];
+      const gap = ranked[ranked.length - 1].avg - ranked[0].avg;
+
+      // Only swap if the skill gap is significant (> 2 points)
+      if (gap <= 2) break;
+
+      // Find the best swap: a high-skill player from `high` and a low-skill player from `low`
+      let bestImprovement = 0;
+      let bestSwapLow = -1;
+      let bestSwapHigh = -1;
+
+      for (let li = 0; li < low.players.length; li++) {
+        for (let hi = 0; hi < high.players.length; hi++) {
+          const lowSkill = low.players[li].skillLevel ?? 5;
+          const highSkill = high.players[hi].skillLevel ?? 5;
+
+          if (highSkill <= lowSkill) continue;
+
+          // Calculate new averages after swap
+          const newLowPlayers = [...low.players];
+          newLowPlayers[li] = high.players[hi];
+          const newHighPlayers = [...high.players];
+          newHighPlayers[hi] = low.players[li];
+
+          const newGap = Math.abs(getAvgSkill(newLowPlayers) - getAvgSkill(newHighPlayers));
+          const improvement = gap - newGap;
+
+          if (improvement > bestImprovement) {
+            bestImprovement = improvement;
+            bestSwapLow = li;
+            bestSwapHigh = hi;
+          }
+        }
+      }
+
+      if (bestSwapLow >= 0 && bestSwapHigh >= 0) {
+        const temp = low.players[bestSwapLow];
+        low.players[bestSwapLow] = high.players[bestSwapHigh];
+        high.players[bestSwapHigh] = temp;
+      } else {
+        break; // No beneficial swap found
+      }
+    }
   }
 
   /**
@@ -1111,7 +1223,7 @@ export class ScheduleGenerator {
     if (week) {
       const unavailableScheduledPlayers: string[] = [];
       const playersWithoutAvailabilityData: string[] = [];
-      
+
       for (const playerId of scheduledPlayerIds) {
         if (week instanceof WeekModel) {
           // Use enhanced WeekModel methods for strict validation
@@ -1149,10 +1261,10 @@ export class ScheduleGenerator {
 
       // Validate that all scheduled players have explicit availability === true
       for (const playerId of scheduledPlayerIds) {
-        const availabilityStatus = week instanceof WeekModel 
+        const availabilityStatus = week instanceof WeekModel
           ? week.getPlayerAvailabilityStatus(playerId)
           : week.playerAvailability[playerId];
-        
+
         if (availabilityStatus !== true) {
           const player = availablePlayers.find(p => p.id === playerId);
           const playerName = player ? `${player.firstName} ${player.lastName} (${playerId})` : playerId;
@@ -1238,16 +1350,16 @@ export class ScheduleGenerator {
   validateScheduleAvailability(schedule: Schedule, week: Week | WeekModel, allPlayers: Player[]): { isValid: boolean; errors: string[]; conflicts: Array<{ playerId: string; playerName: string; availabilityStatus: boolean | undefined }> } {
     const errors: string[] = [];
     const conflicts: Array<{ playerId: string; playerName: string; availabilityStatus: boolean | undefined }> = [];
-    
+
     const scheduledPlayerIds = schedule.getAllPlayers();
-    
+
     for (const playerId of scheduledPlayerIds) {
       const player = allPlayers.find(p => p.id === playerId);
       const playerName = player ? `${player.firstName} ${player.lastName}` : 'Unknown Player';
-      
+
       let availabilityStatus: boolean | undefined;
       let hasData: boolean;
-      
+
       if (week instanceof WeekModel) {
         hasData = week.hasAvailabilityData(playerId);
         availabilityStatus = week.getPlayerAvailabilityStatus(playerId);
@@ -1255,7 +1367,7 @@ export class ScheduleGenerator {
         hasData = playerId in week.playerAvailability;
         availabilityStatus = week.playerAvailability[playerId];
       }
-      
+
       if (!hasData) {
         errors.push(`Player ${playerName} (${playerId}) is scheduled but has no availability data`);
         conflicts.push({ playerId, playerName, availabilityStatus: undefined });
@@ -1264,7 +1376,7 @@ export class ScheduleGenerator {
         conflicts.push({ playerId, playerName, availabilityStatus });
       }
     }
-    
+
     return {
       isValid: errors.length === 0,
       errors,

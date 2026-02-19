@@ -17,6 +17,9 @@ export interface PlayerFormData {
   lastName: string;
   handedness: 'left' | 'right';
   timePreference: 'AM' | 'PM' | 'Either';
+  skillLevel?: number;
+  email?: string;
+  phone?: string;
 }
 
 export class PlayerManagementUI {
@@ -90,6 +93,9 @@ export class PlayerManagementUI {
         handedness: formData.handedness,
         timePreference: formData.timePreference
       };
+      if (formData.skillLevel !== undefined) playerInfo.skillLevel = formData.skillLevel;
+      if (formData.email) playerInfo.email = formData.email.trim();
+      if (formData.phone) playerInfo.phone = formData.phone.trim();
 
       const newPlayer = await this.playerManager.addPlayer(playerInfo);
       this.state.players.push(newPlayer);
@@ -279,6 +285,29 @@ export class PlayerManagementUI {
               </select>
             </div>
           </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="skill-level">Skill Level (1-10)</label>
+              <input type="range" id="skill-level" name="skillLevel" min="1" max="10" step="1"
+                     value="${player?.skillLevel ?? 5}">
+              <span class="skill-level-display" id="skill-level-display">${player?.skillLevel ?? 5}</span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="email">Email <small>(optional)</small></label>
+              <input type="email" id="email" name="email" maxlength="100"
+                     value="${escapeHtml(player?.email || '')}">
+            </div>
+            
+            <div class="form-group">
+              <label for="phone">Phone <small>(optional)</small></label>
+              <input type="tel" id="phone" name="phone" maxlength="20"
+                     value="${escapeHtml(player?.phone || '')}">
+            </div>
+          </div>
           
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">
@@ -297,10 +326,12 @@ export class PlayerManagementUI {
    * Render a player row in the table
    */
   private renderPlayerRow(player: Player): string {
+    const skillDots = '●'.repeat(Math.round((player.skillLevel || 5) / 2)) + '○'.repeat(5 - Math.round((player.skillLevel || 5) / 2));
     return `
       <div class="player-row">
         <div class="col-name">
           <strong>${escapeHtml(player.firstName)} ${escapeHtml(player.lastName)}</strong>
+          ${player.email ? `<small class="player-email">${escapeHtml(player.email)}</small>` : ''}
         </div>
         <div class="col-handedness">
           <span class="handedness-badge ${player.handedness}">
@@ -311,6 +342,9 @@ export class PlayerManagementUI {
           <span class="preference-badge ${player.timePreference.toLowerCase()}">
             ${player.timePreference}
           </span>
+        </div>
+        <div class="col-skill">
+          <span class="skill-display" title="Skill: ${player.skillLevel || 5}/10">${skillDots}</span>
         </div>
         <div class="col-actions">
           <button class="btn btn-sm btn-secondary" data-action="edit-player" data-player-id="${player.id}">
@@ -354,8 +388,13 @@ export class PlayerManagementUI {
           firstName: formData.get('firstName') as string,
           lastName: formData.get('lastName') as string,
           handedness: formData.get('handedness') as 'left' | 'right',
-          timePreference: formData.get('timePreference') as 'AM' | 'PM' | 'Either'
+          timePreference: formData.get('timePreference') as 'AM' | 'PM' | 'Either',
+          skillLevel: parseInt(formData.get('skillLevel') as string || '5', 10)
         };
+        const emailVal = (formData.get('email') as string)?.trim();
+        const phoneVal = (formData.get('phone') as string)?.trim();
+        if (emailVal) playerData.email = emailVal;
+        if (phoneVal) playerData.phone = phoneVal;
 
         if (this.state.editingPlayer) {
           this.updatePlayer(this.state.editingPlayer.id, playerData);
