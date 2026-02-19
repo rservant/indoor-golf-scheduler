@@ -100,6 +100,10 @@ Thumbs.db
 # Vite dependency cache
 .vite/
 
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
+
 # Temporary folders
 tmp/
 temp/

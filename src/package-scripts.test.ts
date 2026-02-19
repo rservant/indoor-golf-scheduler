@@ -15,10 +15,10 @@ describe('Package Script Functionality', () => {
     // Read package.json to get the actual scripts
     const packagePath = join(process.cwd(), 'package.json');
     expect(existsSync(packagePath)).toBe(true);
-    
+
     const packageContent = readFileSync(packagePath, 'utf8');
     packageJson = JSON.parse(packageContent);
-    
+
     expect(packageJson.scripts).toBeDefined();
   });
 
@@ -46,19 +46,19 @@ describe('Package Script Functionality', () => {
 
     // Build should succeed
     expect(buildError).toBeNull();
-    
+
     // Build output should indicate success (Vite may not always output "built in")
-    const hasSuccessIndicators = buildOutput.includes('vite') || 
-                                buildOutput.includes('built') ||
-                                buildOutput.includes('dist') ||
-                                buildOutput.length > 0; // At least some output
+    const hasSuccessIndicators = buildOutput.includes('vite') ||
+      buildOutput.includes('built') ||
+      buildOutput.includes('dist') ||
+      buildOutput.length > 0; // At least some output
     expect(hasSuccessIndicators).toBe(true);
-    
+
     // Build should not contain errors
-    const hasErrors = buildOutput.toLowerCase().includes('error') && 
-                     !buildOutput.toLowerCase().includes('0 errors');
+    const hasErrors = buildOutput.toLowerCase().includes('error') &&
+      !buildOutput.toLowerCase().includes('0 errors');
     expect(hasErrors).toBe(false);
-    
+
     // Build output directory should exist (check with absolute path)
     const distPath = join(process.cwd(), 'dist');
     expect(existsSync(distPath)).toBe(true);
@@ -71,7 +71,7 @@ describe('Package Script Functionality', () => {
   test('dev script is properly configured', () => {
     expect(packageJson.scripts.dev).toBeDefined();
     expect(packageJson.scripts.dev).toBe('vite');
-    
+
     // We don't actually start the dev server in tests, just verify the script exists
     // and uses the correct command
   });
@@ -83,10 +83,10 @@ describe('Package Script Functionality', () => {
   test('serve and preview scripts are properly configured', () => {
     expect(packageJson.scripts.serve).toBeDefined();
     expect(packageJson.scripts.serve).toContain('vite preview');
-    
+
     expect(packageJson.scripts.preview).toBeDefined();
     expect(packageJson.scripts.preview).toContain('vite preview');
-    
+
     // Verify the preview script includes port configuration
     expect(packageJson.scripts.preview).toContain('--port 3000');
   });
@@ -98,16 +98,16 @@ describe('Package Script Functionality', () => {
   test('test scripts are properly configured', () => {
     expect(packageJson.scripts.test).toBeDefined();
     expect(packageJson.scripts.test).toBe('jest');
-    
+
     expect(packageJson.scripts['test:watch']).toBeDefined();
     expect(packageJson.scripts['test:watch']).toBe('jest --watch');
-    
+
     expect(packageJson.scripts['test:coverage']).toBeDefined();
     expect(packageJson.scripts['test:coverage']).toBe('jest --coverage');
 
     // Verify Jest is available as a dependency
     expect(packageJson.devDependencies.jest).toBeDefined();
-    
+
     // Verify Jest configuration exists (either in package.json or jest.config.js)
     const hasJestConfig = packageJson.jest !== undefined || existsSync('jest.config.js');
     expect(hasJestConfig).toBe(true);
@@ -120,15 +120,15 @@ describe('Package Script Functionality', () => {
   test('e2e test scripts are properly configured', () => {
     expect(packageJson.scripts['test:e2e']).toBeDefined();
     expect(packageJson.scripts['test:e2e']).toContain('playwright test');
-    
+
     // Check for CI-optimized e2e script
     expect(packageJson.scripts['test:e2e:ci']).toBeDefined();
     expect(packageJson.scripts['test:e2e:ci']).toContain('CI=true playwright test');
-    
+
     // Check for verbose and quiet variants
     expect(packageJson.scripts['test:e2e:verbose']).toBeDefined();
     expect(packageJson.scripts['test:e2e:quiet']).toBeDefined();
-    
+
     expect(packageJson.scripts['test:e2e:ui']).toBeDefined();
     expect(packageJson.scripts['test:e2e:ui']).toContain('playwright test --ui');
   });
@@ -140,7 +140,7 @@ describe('Package Script Functionality', () => {
   test('TypeScript checking scripts are available', () => {
     expect(packageJson.scripts['type-check']).toBeDefined();
     expect(packageJson.scripts['type-check']).toContain('tsc --noEmit');
-    
+
     expect(packageJson.scripts.lint).toBeDefined();
     expect(packageJson.scripts.lint).toContain('tsc --noEmit');
 
@@ -162,8 +162,8 @@ describe('Package Script Functionality', () => {
     // Type checking should succeed or only have warnings
     if (typeCheckError) {
       // Check if it's a real error or just warnings/info
-      const hasTypeErrors = typeCheckOutput.includes('error TS') && 
-                           !typeCheckOutput.includes('0 errors');
+      const hasTypeErrors = typeCheckOutput.includes('error TS') &&
+        !typeCheckOutput.includes('0 errors');
       expect(hasTypeErrors).toBe(false);
     }
   });
@@ -175,14 +175,15 @@ describe('Package Script Functionality', () => {
   test('utility scripts are properly configured', () => {
     expect(packageJson.scripts.clean).toBeDefined();
     expect(packageJson.scripts.clean).toBe('rm -rf dist');
-    
+
     expect(packageJson.scripts.start).toBeDefined();
-    expect(packageJson.scripts.start).toContain('npm run build');
-    expect(packageJson.scripts.start).toContain('npm run serve');
-    
-    expect(packageJson.scripts['dev:server']).toBeDefined();
-    expect(packageJson.scripts['dev:server']).toContain('npm run build');
-    expect(packageJson.scripts['dev:server']).toContain('node server.js');
+    expect(packageJson.scripts.start).toContain('tauri');
+
+    expect(packageJson.scripts['tauri:dev']).toBeDefined();
+    expect(packageJson.scripts['tauri:dev']).toContain('tauri dev');
+
+    expect(packageJson.scripts['tauri:build']).toBeDefined();
+    expect(packageJson.scripts['tauri:build']).toContain('tauri build');
   });
 
   /**
@@ -216,7 +217,7 @@ describe('Package Script Functionality', () => {
     // These scripts should not exist as they conflict with TypeScript application
     expect(packageJson.scripts['build:webapp']).toBeUndefined();
     expect(packageJson.scripts.webapp).toBeUndefined();
-    
+
     // Verify we're using Vite consistently
     expect(packageJson.scripts.build).toContain('vite');
     expect(packageJson.scripts.dev).toContain('vite');
@@ -231,11 +232,11 @@ describe('Package Script Functionality', () => {
   test('Vite is properly configured as dependency', () => {
     expect(packageJson.devDependencies).toBeDefined();
     expect(packageJson.devDependencies.vite).toBeDefined();
-    
+
     // Verify Vite version is reasonable (should be 4.0+)
     const viteVersion = packageJson.devDependencies.vite;
     expect(viteVersion).toMatch(/^\^?\d+\.\d+\.\d+/);
-    
+
     // Extract major version number
     const majorVersion = parseInt(viteVersion.replace(/^\^?/, '').split('.')[0]);
     expect(majorVersion).toBeGreaterThanOrEqual(4);
@@ -247,11 +248,11 @@ describe('Package Script Functionality', () => {
    */
   test('TypeScript is properly configured as dependency', () => {
     expect(packageJson.devDependencies.typescript).toBeDefined();
-    
+
     // Verify TypeScript version is reasonable (should be 4.0+)
     const tsVersion = packageJson.devDependencies.typescript;
     expect(tsVersion).toMatch(/^\^?\d+\.\d+\.\d+/);
-    
+
     // Extract major version number
     const majorVersion = parseInt(tsVersion.replace(/^\^?/, '').split('.')[0]);
     expect(majorVersion).toBeGreaterThanOrEqual(4);

@@ -112,7 +112,9 @@ export default defineConfig(({ mode }) => {
     // Development server configuration
     server: {
       port: 3000,
-      host: true,
+      host: 'localhost',
+      // Tauri requires a predictable port
+      strictPort: true,
       // Enable hot module replacement with detailed configuration
       hmr: {
         port: 24678,
@@ -136,10 +138,7 @@ export default defineConfig(({ mode }) => {
         usePolling: true,
         interval: 100
       },
-      // Configure proxy if needed for API calls
       proxy: {},
-      // Enable strict port (fail if port is already in use)
-      strictPort: false,
       // Configure file serving options
       fs: {
         // Allow serving files from one level up to the project root
@@ -158,8 +157,8 @@ export default defineConfig(({ mode }) => {
       target: 'es2020',
       // Keep class names for debugging
       keepNames: isDevelopment,
-      // Drop console and debugger statements in production
-      drop: isProduction ? ['console', 'debugger'] : [],
+      // Keep console/debugger for Tauri devtools
+      drop: [],
       // Generate source maps for better debugging
       sourcemap: isDevelopment
     },
@@ -186,7 +185,7 @@ export default defineConfig(({ mode }) => {
 
     // Optimize dependencies
     optimizeDeps: {
-      include: ['fast-check', 'papaparse', 'jspdf'],
+      include: ['papaparse', 'jspdf'],
       // Force pre-bundling of these dependencies
       force: false,
       // Exclude certain dependencies from pre-bundling if needed
