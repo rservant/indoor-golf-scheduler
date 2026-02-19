@@ -57,17 +57,45 @@ export class PairingHistoryTracker {
   }
 
   /**
+   * Batch-load a pairing matrix for all player pairs in one call.
+   * Returns Map<"id1-id2", count> for efficient lookups.
+   */
+  async loadPairingMatrix(seasonId: string, playerIds: string[]): Promise<Map<string, number>> {
+    const matrix = new Map<string, number>();
+
+    // Load all pairings for each player in a single pass per player
+    for (const playerId of playerIds) {
+      const pairings = await this.pairingHistoryRepository.getAllPairingsForPlayer(seasonId, playerId);
+      for (const { partnerId, count } of pairings) {
+        const key = this.createPairingKey(playerId, partnerId);
+        if (!matrix.has(key)) {
+          matrix.set(key, count);
+        }
+      }
+    }
+
+    return matrix;
+  }
+
+  /**
+   * Get pairing count from a pre-loaded matrix (fast, in-memory lookup)
+   */
+  getPairingCountFromMatrix(matrix: Map<string, number>, playerId1: string, playerId2: string): number {
+    return matrix.get(this.createPairingKey(playerId1, playerId2)) || 0;
+  }
+
+  /**
    * Calculate pairing optimization metrics for a set of players
    */
   async calculatePairingMetrics(seasonId: string, players: Player[]): Promise<PairingOptimizationResult> {
+    const playerIds = players.map(p => p.id);
+    const matrix = await this.loadPairingMatrix(seasonId, playerIds);
     const pairingCounts = new Map<string, number>();
 
-    // Get all pairing counts between players
     for (let i = 0; i < players.length; i++) {
       for (let j = i + 1; j < players.length; j++) {
-        const count = await this.getPairingCount(seasonId, players[i].id, players[j].id);
         const key = this.createPairingKey(players[i].id, players[j].id);
-        pairingCounts.set(key, count);
+        pairingCounts.set(key, this.getPairingCountFromMatrix(matrix, players[i].id, players[j].id));
       }
     }
 
@@ -86,14 +114,16 @@ export class PairingHistoryTracker {
 
   /**
    * Score a potential foursome based on pairing history (lower is better)
+   * Uses a pre-loaded matrix if provided, otherwise loads pair counts individually.
    */
-  async scoreFoursome(seasonId: string, players: Player[]): Promise<number> {
+  async scoreFoursome(seasonId: string, players: Player[], matrix?: Map<string, number>): Promise<number> {
     let totalScore = 0;
 
-    // Calculate score based on existing pairings
     for (let i = 0; i < players.length; i++) {
       for (let j = i + 1; j < players.length; j++) {
-        const count = await this.getPairingCount(seasonId, players[i].id, players[j].id);
+        const count = matrix
+          ? this.getPairingCountFromMatrix(matrix, players[i].id, players[j].id)
+          : await this.getPairingCount(seasonId, players[i].id, players[j].id);
         totalScore += count;
       }
     }
@@ -102,28 +132,65 @@ export class PairingHistoryTracker {
   }
 
   /**
-   * Find the best foursome combination from available players
+   * Find the best foursome using a greedy algorithm:
+   * 1. Pick the player with the fewest total pairings (least paired overall)
+   * 2. Build around them by greedily adding players with the lowest pairwise count to existing group
+   * This runs in O(n²) instead of the exhaustive O(n⁴) C(n,4) approach.
    */
   async findOptimalFoursome(seasonId: string, availablePlayers: Player[]): Promise<Player[]> {
     if (availablePlayers.length <= 4) {
       return availablePlayers;
     }
 
-    let bestFoursome: Player[] = [];
-    let bestScore = Infinity;
+    const playerIds = availablePlayers.map(p => p.id);
+    const matrix = await this.loadPairingMatrix(seasonId, playerIds);
 
-    // Try all combinations of 4 players
-    const combinations = this.generateCombinations(availablePlayers, 4);
+    // Calculate total pairing weight for each player
+    const playerWeights = availablePlayers.map(player => {
+      let totalWeight = 0;
+      for (const other of availablePlayers) {
+        if (other.id !== player.id) {
+          totalWeight += this.getPairingCountFromMatrix(matrix, player.id, other.id);
+        }
+      }
+      return { player, totalWeight };
+    });
 
-    for (const combination of combinations) {
-      const score = await this.scoreFoursome(seasonId, combination);
-      if (score < bestScore) {
-        bestScore = score;
-        bestFoursome = combination;
+    // Sort by weight ascending — start with the least-paired player
+    playerWeights.sort((a, b) => a.totalWeight - b.totalWeight);
+
+    const foursome: Player[] = [playerWeights[0].player];
+    const usedIds = new Set<string>([foursome[0].id]);
+
+    // Greedily add 3 more players with lowest pairwise cost to the growing group
+    while (foursome.length < 4) {
+      let bestCandidate: Player | null = null;
+      let bestCost = Infinity;
+
+      for (const { player: candidate } of playerWeights) {
+        if (usedIds.has(candidate.id)) continue;
+
+        // Cost = sum of pairing counts between candidate and all current foursome members
+        let cost = 0;
+        for (const member of foursome) {
+          cost += this.getPairingCountFromMatrix(matrix, candidate.id, member.id);
+        }
+
+        if (cost < bestCost) {
+          bestCost = cost;
+          bestCandidate = candidate;
+        }
+      }
+
+      if (bestCandidate) {
+        foursome.push(bestCandidate);
+        usedIds.add(bestCandidate.id);
+      } else {
+        break; // Safety: shouldn't happen with valid input
       }
     }
 
-    return bestFoursome;
+    return foursome;
   }
 
   /**
