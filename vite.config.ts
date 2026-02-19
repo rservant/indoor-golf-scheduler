@@ -112,7 +112,7 @@ export default defineConfig(({ mode }) => {
     // Development server configuration
     server: {
       port: 3000,
-      host: 'localhost',
+      host: true,
       // Tauri requires a predictable port
       strictPort: true,
       // Enable hot module replacement with detailed configuration
