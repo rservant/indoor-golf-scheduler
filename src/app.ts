@@ -125,16 +125,16 @@ export class IndoorGolfSchedulerApp {
       this.stateManager = applicationState;
       this.errorHandler = errorHandler;
       this.debugInterface = debugInterface;
-      
+
       // Initialize enhanced error handling system
       initializeEnhancedErrorHandling(this.container, {
         debugMode: this.config.debugMode ?? false,
         enableConsoleLogging: this.config.debugMode ?? false
       });
-      
+
       // Set up global error boundary
       this.errorBoundary = GlobalErrorBoundary.create(this.container);
-      
+
       if (this.config.enableRouting) {
         this.router = applicationRouter;
       }
@@ -173,7 +173,7 @@ export class IndoorGolfSchedulerApp {
     try {
       // Initialize services in dependency order
       this.seasonManager = new SeasonManagerService(this.seasonRepository);
-      
+
       this.playerManager = new PlayerManagerService(
         this.playerRepository,
         this.weekRepository,
@@ -233,7 +233,9 @@ export class IndoorGolfSchedulerApp {
         this.weekRepository,
         this.exportService,
         this.importExportService,
-        this.pairingHistoryTracker
+        this.pairingHistoryTracker,
+        this.scheduleRepository,
+        this.playerRepository
       );
 
       // Enhanced error handling system already initializes notification and debug UI
@@ -281,7 +283,7 @@ export class IndoorGolfSchedulerApp {
         // Load related data when season changes
         const players = await this.playerManager.getAllPlayers(newSeason.id);
         const weeks = await this.weekRepository.findBySeasonId(newSeason.id);
-        
+
         this.stateManager.updatePlayers(players);
         this.stateManager.updateWeeks(weeks);
       }
@@ -303,7 +305,7 @@ export class IndoorGolfSchedulerApp {
     if (this.config.enableErrorReporting) {
       // Error handler is already set up globally
       // Additional app-specific error handling can be added here
-      
+
       this.stateManager.subscribe('hasError', (hasError) => {
         if (hasError) {
           const errorMessage = this.stateManager.get('errorMessage');
@@ -400,28 +402,28 @@ export class IndoorGolfSchedulerApp {
   private async initializeDemoData(): Promise<void> {
     try {
       const existingSeasons = await this.seasonManager.getAllSeasons();
-      
+
       if (existingSeasons.length === 0) {
         console.log('Setting up demo data...');
-        
+
         // Create a demo season
         const currentDate = new Date();
         const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
         const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 3, 0);
-        
+
         const demoSeason = await this.seasonManager.createSeason(
           'Demo Season - ' + currentDate.getFullYear(),
           startDate,
           endDate
         );
-        
+
         await this.seasonManager.setActiveSeason(demoSeason.id);
-        
+
         // Re-initialize the MainUI to trigger the active season callback
         if (this.mainUI) {
           await this.mainUI.initialize();
         }
-        
+
         // Add some demo players
         const demoPlayers = [
           { firstName: 'John', lastName: 'Smith', handedness: 'right' as const, timePreference: 'AM' as const },
@@ -431,11 +433,11 @@ export class IndoorGolfSchedulerApp {
           { firstName: 'Charlie', lastName: 'Brown', handedness: 'right' as const, timePreference: 'AM' as const },
           { firstName: 'Diana', lastName: 'Davis', handedness: 'left' as const, timePreference: 'PM' as const }
         ];
-        
+
         for (const playerData of demoPlayers) {
           await this.playerManager.addPlayer(playerData);
         }
-        
+
         console.log('Demo data created successfully!');
         this.errorHandler.handleSuccess('Demo data loaded successfully');
       }

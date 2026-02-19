@@ -268,6 +268,26 @@ export class ScheduleManager {
     return weeks;
   }
 
+  /**
+   * Generate schedules for multiple weeks at once, maximizing partner variety
+   * across the full set by finalizing pairing history after each week.
+   */
+  async generateMultiWeekSchedules(
+    weekIds: string[],
+    options?: RequestProcessingOptions
+  ): Promise<Schedule[]> {
+    if (!weekIds.length) throw new Error('At least one week ID is required');
+
+    const schedules: Schedule[] = [];
+
+    for (const weekId of weekIds) {
+      const schedule = await this.generateSchedule(weekId, options);
+      schedules.push(schedule);
+    }
+
+    return schedules;
+  }
+
   // ─── Internal Schedule Creation ────────────────────────────────────────────
 
   private async createWeeklyScheduleInternal(weekId: string): Promise<Schedule> {
