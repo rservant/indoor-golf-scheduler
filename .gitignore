@@ -110,6 +110,7 @@ temp/
 
 # Debug artifacts
 *.png
+!src-tauri/icons/*.png
 
 # Data files (may contain PII)
 *.csv
