@@ -155,7 +155,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
     // Initialize services with dependency injection
     seasonManager = new SeasonManagerService(seasonRepository);
-    
+
     playerManager = new PlayerManagerService(
       playerRepository,
       weekRepository,
@@ -226,12 +226,13 @@ describe('Schedule Generation Fix Integration Tests', () => {
   describe('Complete Workflow: Player Addition to Schedule Display', () => {
     test('should successfully complete the full workflow that was failing in Playwright tests', async () => {
       // Step 1: Create and activate a season (simulating UI interaction)
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Integration Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
-      
+
       await seasonManager.setActiveSeason(season.id);
       const activeSeason = await seasonManager.getActiveSeason();
       expect(activeSeason?.id).toBe(season.id);
@@ -264,7 +265,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const week = await weekRepository.create({
         seasonId: season.id,
         weekNumber: 1,
-        date: new Date('2024-01-08') // Monday of first week
+        date: new Date(`${currentYear}-01-08`) // Monday of first week
       });
 
       // Step 4: Set all players as available (simulating UI availability setting)
@@ -278,7 +279,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
       // Step 5: Generate schedule (this is where the original bug occurred)
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
-      
+
       // Verify schedule was created successfully
       expect(schedule).toBeDefined();
       expect(schedule.weekId).toBe(week.id);
@@ -298,7 +299,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       // Step 7: Verify schedule display can render the schedule (UI integration)
       // Initialize the UI with the week and verify it can load the schedule
       await scheduleDisplayUI.setActiveSeason(season);
-      
+
       // Verify the UI received the schedule data
       const displayedSchedule = await scheduleManager.getSchedule(week.id);
       expect(displayedSchedule).toBeDefined();
@@ -308,7 +309,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       // Check that the same players who were added are the ones in the schedule
       const schedulePlayerIds = allPlayersInSchedule.map(p => p.id);
       const originalPlayerIds = players.map(p => p.id);
-      
+
       // All players in schedule should be from our original set
       for (const schedulePlayerId of schedulePlayerIds) {
         expect(originalPlayerIds).toContain(schedulePlayerId);
@@ -317,12 +318,13 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
     test('should handle the exact 6-player scenario that was failing', async () => {
       // This test specifically reproduces the failing Playwright test scenario
-      
+
       // Create season
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Playwright Reproduction Test',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
@@ -342,7 +344,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const week = await weekRepository.create({
         seasonId: season.id,
         weekNumber: 1,
-        date: new Date('2024-01-08')
+        date: new Date(`${currentYear}-01-08`)
       });
 
       // Set all players available
@@ -352,21 +354,21 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
       // Generate schedule - this should NOT produce zero foursomes
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
-      
+
       // Verify we get foursomes (the main assertion that was failing)
       const morningFoursomes = schedule.timeSlots.morning;
       const afternoonFoursomes = schedule.timeSlots.afternoon;
       const totalFoursomes = morningFoursomes.length + afternoonFoursomes.length;
-      
+
       expect(totalFoursomes).toBeGreaterThan(0); // This was failing before the fix
-      
+
       // Verify we have players in the foursomes
       const totalPlayersScheduled = morningFoursomes.reduce((sum, f) => sum + f.players.length, 0) +
-                                   afternoonFoursomes.reduce((sum, f) => sum + f.players.length, 0);
-      
+        afternoonFoursomes.reduce((sum, f) => sum + f.players.length, 0);
+
       expect(totalPlayersScheduled).toBeGreaterThan(0); // Should have scheduled players
       expect(totalPlayersScheduled).toBeLessThanOrEqual(6); // Can't exceed available players
-      
+
       // With 6 players, we should be able to create at least one foursome
       // The remaining 2 players might be in a partial group or separate foursome
       expect(totalPlayersScheduled).toBeGreaterThanOrEqual(4); // At least one foursome worth
@@ -376,10 +378,11 @@ describe('Schedule Generation Fix Integration Tests', () => {
   describe('Data Synchronization Across UI → Manager → Generator Pipeline', () => {
     test('should maintain data consistency through the entire pipeline', async () => {
       // Step 1: Create season through UI layer
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Pipeline Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
@@ -400,7 +403,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       // Step 3: Verify data is immediately available to ScheduleManager
       const managersPlayers = await playerManager.getAllPlayers(season.id);
       expect(managersPlayers).toHaveLength(4);
-      
+
       // Verify each player's data integrity
       for (let i = 0; i < addedPlayers.length; i++) {
         const addedPlayer = addedPlayers[i];
@@ -416,7 +419,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const week = await weekRepository.create({
         seasonId: season.id,
         weekNumber: 1,
-        date: new Date('2024-01-08')
+        date: new Date(`${currentYear}-01-08`)
       });
 
       for (const player of addedPlayers) {
@@ -429,10 +432,10 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
       // Step 6: Generate schedule and verify data flows correctly
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
-      
+
       const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
       const scheduledPlayers = allFoursomes.flatMap(f => f.players);
-      
+
       // Verify all scheduled players match our original data
       for (const scheduledPlayer of scheduledPlayers) {
         const originalPlayer = addedPlayers.find(p => p.id === scheduledPlayer.id);
@@ -446,10 +449,11 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
     test('should handle real-time data updates across the pipeline', async () => {
       // Create initial setup
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Real-time Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
@@ -472,7 +476,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const week = await weekRepository.create({
         seasonId: season.id,
         weekNumber: 1,
-        date: new Date('2024-01-08')
+        date: new Date(`${currentYear}-01-08`)
       });
 
       // Set initial availability
@@ -500,13 +504,13 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
       // Generate schedule - should include all 4 players
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
-      
+
       const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
       const scheduledPlayers = allFoursomes.flatMap(f => f.players);
-      
+
       // Should have all 4 players in the schedule
       expect(scheduledPlayers).toHaveLength(4);
-      
+
       // Verify all players are included
       const scheduledPlayerIds = scheduledPlayers.map(p => p.id);
       expect(scheduledPlayerIds).toContain(player1.id);
@@ -517,10 +521,11 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
     test('should handle availability data synchronization correctly', async () => {
       // Create setup
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Availability Sync Test',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
@@ -540,7 +545,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const week = await weekRepository.create({
         seasonId: season.id,
         weekNumber: 1,
-        date: new Date('2024-01-08')
+        date: new Date(`${currentYear}-01-08`)
       });
 
       // Set mixed availability (some available, some not)
@@ -561,17 +566,17 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
       // Generate schedule
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
-      
+
       // Verify only available players are scheduled
       const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
       const scheduledPlayers = allFoursomes.flatMap(f => f.players);
       const scheduledPlayerIds = scheduledPlayers.map(p => p.id);
-      
+
       // Should only include available players
       for (const scheduledPlayerId of scheduledPlayerIds) {
         expect(availablePlayerIds).toContain(scheduledPlayerId);
       }
-      
+
       // Should not include unavailable players
       expect(scheduledPlayerIds).not.toContain(players[2].id);
       expect(scheduledPlayerIds).not.toContain(players[4].id);
@@ -581,10 +586,11 @@ describe('Schedule Generation Fix Integration Tests', () => {
   describe('Error Handling and Recovery Scenarios', () => {
     test('should handle missing player data gracefully', async () => {
       // Create season
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Error Handling Test',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
@@ -592,12 +598,12 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const week = await weekRepository.create({
         seasonId: season.id,
         weekNumber: 1,
-        date: new Date('2024-01-08')
+        date: new Date(`${currentYear}-01-08`)
       });
 
       // Attempt to generate schedule with no players - should throw an error
       await expect(scheduleManager.createWeeklySchedule(week.id)).rejects.toThrow(/Precondition validation/);
-      
+
       // Verify no schedule was created
       const schedule = await scheduleManager.getSchedule(week.id);
       expect(schedule).toBeNull();
@@ -605,10 +611,11 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
     test('should handle corrupted availability data', async () => {
       // Create setup
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Corrupted Data Test',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
@@ -628,7 +635,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const week = await weekRepository.create({
         seasonId: season.id,
         weekNumber: 1,
-        date: new Date('2024-01-08')
+        date: new Date(`${currentYear}-01-08`)
       });
 
       // Set some valid availability first
@@ -653,10 +660,11 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
     test('should recover from schedule generation failures', async () => {
       // Create setup
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Recovery Test',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
@@ -676,7 +684,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const week = await weekRepository.create({
         seasonId: season.id,
         weekNumber: 1,
-        date: new Date('2024-01-08')
+        date: new Date(`${currentYear}-01-08`)
       });
 
       // Set availability
@@ -698,7 +706,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
         // Second attempt should succeed (recovery)
         const schedule = await scheduleManager.createWeeklySchedule(week.id);
         expect(schedule).toBeDefined();
-        
+
         const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
         expect(allFoursomes.length).toBeGreaterThan(0);
 
@@ -710,10 +718,11 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
     test('should handle concurrent schedule generation requests', async () => {
       // Create setup
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Concurrent Test',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
@@ -733,7 +742,7 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const week = await weekRepository.create({
         seasonId: season.id,
         weekNumber: 1,
-        date: new Date('2024-01-08')
+        date: new Date(`${currentYear}-01-08`)
       });
 
       // Set availability
@@ -747,14 +756,14 @@ describe('Schedule Generation Fix Integration Tests', () => {
 
       // Both should complete
       const [result1, result2] = await Promise.all([promise1, promise2]);
-      
+
       expect(result1).toBeDefined();
       expect(result2).toBeDefined();
-      
+
       // Both should be valid schedules (one generated, one retrieved existing)
       expect(result1.weekId).toBe(week.id);
       expect(result2.weekId).toBe(week.id);
-      
+
       // Verify both schedules have foursomes
       const foursomes1 = [...result1.timeSlots.morning, ...result1.timeSlots.afternoon];
       const foursomes2 = [...result2.timeSlots.morning, ...result2.timeSlots.afternoon];
@@ -766,19 +775,20 @@ describe('Schedule Generation Fix Integration Tests', () => {
   describe('Performance and Scalability', () => {
     test('should handle large numbers of players efficiently', async () => {
       // Create season
+      const currentYear = new Date().getFullYear();
       const season = await seasonManager.createSeason(
         'Performance Test',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       await seasonManager.setActiveSeason(season.id);
 
       // Add many players (simulate large league)
       const playerCount = 50;
       const players = [];
-      
+
       const startTime = Date.now();
-      
+
       for (let i = 1; i <= playerCount; i++) {
         const player = await playerManager.addPlayer({
           firstName: `Perf`,
@@ -788,9 +798,9 @@ describe('Schedule Generation Fix Integration Tests', () => {
         });
         players.push(player);
       }
-      
+
       const addTime = Date.now() - startTime;
-      
+
       // Should add players efficiently (under 5 seconds for 50 players)
       expect(addTime).toBeLessThan(5000);
 
@@ -810,14 +820,14 @@ describe('Schedule Generation Fix Integration Tests', () => {
       const scheduleStartTime = Date.now();
       const schedule = await scheduleManager.createWeeklySchedule(week.id);
       const scheduleTime = Date.now() - scheduleStartTime;
-      
+
       // Should generate schedule efficiently (under 10 seconds for 50 players)
       expect(scheduleTime).toBeLessThan(10000);
-      
+
       // Verify schedule quality
       const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
       expect(allFoursomes.length).toBeGreaterThan(0);
-      
+
       const scheduledPlayers = allFoursomes.flatMap(f => f.players);
       expect(scheduledPlayers.length).toBeGreaterThan(0);
       expect(scheduledPlayers.length).toBeLessThanOrEqual(playerCount);

@@ -49,7 +49,7 @@ const localStorageMock = (() => {
 const cleanupTestEnvironment = () => {
   // Clear all localStorage data
   localStorageMock.clear();
-  
+
   // Clear any global state that might persist between tests
   if (typeof window !== 'undefined') {
     // Clear any window-level state
@@ -190,11 +190,12 @@ describe('Schedule Regeneration Integration Tests', () => {
 
     // Create test week with unique ID
     const weekId = `test-week-${Date.now()}`;
+    const currentYear = new Date().getFullYear();
     testWeek = {
       id: weekId,
       seasonId: 'test-season-id',
       weekNumber: 1,
-      date: new Date('2024-01-08'),
+      date: new Date(`${currentYear}-01-08`),
       playerAvailability: {
         '1': true,
         '2': true,
@@ -214,7 +215,7 @@ describe('Schedule Regeneration Integration Tests', () => {
     pairingHistoryTracker = new PairingHistoryTracker(pairingHistoryRepository);
     exportService = new ExportService();
     playerRepository = new MockPlayerRepository();
-    
+
     scheduleManager = new ScheduleManager(
       scheduleRepository,
       weekRepository as any,
@@ -235,7 +236,7 @@ describe('Schedule Regeneration Integration Tests', () => {
     confirmationUI = new ScheduleRegenerationConfirmationUI(mockConfirmationContainer as unknown as HTMLElement);
     progressTrackingUI = new ProgressTrackingUI(mockDocument.body as unknown as HTMLElement);
     operationLockUI = new OperationLockUI(mockContainer as unknown as HTMLElement);
-    
+
     scheduleDisplayUI = new ScheduleDisplayUI(
       scheduleManager,
       scheduleGenerator,
@@ -272,17 +273,17 @@ describe('Schedule Regeneration Integration Tests', () => {
       try {
         // Force release any locks for the test week
         await scheduleRepository.forceReleaseScheduleLock(testWeek.id);
-        
+
         // Clear any regeneration status
         await scheduleManager.setRegenerationLock(testWeek.id, false);
-        
+
         // Force clear all regeneration statuses
         (scheduleManager as any).forceCleanupAllRegenerationStatuses();
       } catch (error) {
         // Ignore cleanup errors
       }
     }
-    
+
     // Clean up test environment
     cleanupTestEnvironment();
   });
@@ -389,16 +390,16 @@ describe('Schedule Regeneration Integration Tests', () => {
       // Attempt to trigger regeneration (this would normally be done through UI)
       // Since we're testing cancellation, we'll simulate the UI flow
       await scheduleManager.setRegenerationLock(testWeek.id, true);
-      
+
       // Simulate showing confirmation and canceling
       let cancelCallback: (() => void) | undefined;
-        await confirmationUI.showConfirmation(
-          originalSchedule,
-          testWeek,
-          await playerRepository.findBySeasonId('test-season-id'),
-          () => {}, // onConfirm - not called
-          () => { cancelCallback = () => {}; } // onCancel
-        );
+      await confirmationUI.showConfirmation(
+        originalSchedule,
+        testWeek,
+        await playerRepository.findBySeasonId('test-season-id'),
+        () => { }, // onConfirm - not called
+        () => { cancelCallback = () => { }; } // onCancel
+      );
 
       // Simulate the cancellation cleanup
       await scheduleManager.setRegenerationLock(testWeek.id, false);
@@ -488,17 +489,17 @@ describe('Schedule Regeneration Integration Tests', () => {
 
       // Check if first operation is still in progress
       const status = scheduleManager.getRegenerationStatus(testWeek.id);
-      
+
       // If the first operation completed too quickly, start a new test scenario
       if (!status || ['completed', 'failed'].includes(status.status)) {
         // Wait for first operation to complete
         const firstResult = await firstRegenerationPromise;
-        
+
         // Now start two concurrent operations
         const concurrentPromise1 = scheduleManager.regenerateSchedule(testWeek.id, {
           forceOverwrite: true
         });
-        
+
         // Start second operation immediately
         const concurrentPromise2 = scheduleManager.regenerateSchedule(testWeek.id, {
           forceOverwrite: true
@@ -506,7 +507,7 @@ describe('Schedule Regeneration Integration Tests', () => {
 
         const [result1, result2] = await Promise.all([concurrentPromise1, concurrentPromise2]);
         const results = [result1, result2];
-        
+
         const successCount = results.filter(r => r.success).length;
         const failureCount = results.filter(r => !r.success).length;
 
@@ -580,7 +581,7 @@ describe('Schedule Regeneration Integration Tests', () => {
       const mockShowConfirmation = jest.spyOn(confirmationUI, 'showConfirmation')
         .mockImplementation(async (schedule, week, players, onConfirm, onCancel) => {
           confirmationShown = true;
-          
+
           // Verify correct data is passed to confirmation dialog
           expect(schedule.id).toBe(originalSchedule.id);
           expect(week.id).toBe(testWeek.id);
@@ -592,7 +593,7 @@ describe('Schedule Regeneration Integration Tests', () => {
             forceOverwrite: true,
             preserveManualEdits: false
           };
-          
+
           onConfirm(confirmationResult);
         });
 

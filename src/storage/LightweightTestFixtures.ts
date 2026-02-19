@@ -41,7 +41,7 @@ export class LightweightTestFixtures {
         handedness: handedness[i % 2],
         timePreference: timePreferences[i % 3],
         seasonId: testSeasonId,
-        createdAt: new Date('2024-01-01')
+        createdAt: new Date(`${new Date().getFullYear()}-01-01`)
       });
     }
 
@@ -55,10 +55,11 @@ export class LightweightTestFixtures {
     const config = this.ciConfigurationManager.getCurrentConfiguration();
     const isCI = config.environment !== 'local';
 
+    const currentYear = new Date().getFullYear();
     const baseData: CreateSeasonData = {
       name: 'Test Season',
-      startDate: new Date('2024-01-01'),
-      endDate: new Date(isCI ? '2024-02-01' : '2024-12-31') // Shorter season in CI
+      startDate: new Date(`${currentYear}-01-01`),
+      endDate: new Date(isCI ? `${currentYear}-02-01` : `${currentYear}-12-31`) // Shorter season in CI
     };
 
     return {
@@ -66,7 +67,7 @@ export class LightweightTestFixtures {
       ...baseData,
       ...overrides,
       isActive: true,
-      createdAt: new Date('2024-01-01'),
+      createdAt: new Date(`${currentYear}-01-01`),
       playerIds: [],
       weekIds: []
     };
@@ -81,7 +82,8 @@ export class LightweightTestFixtures {
     const testPlayerIds = playerIds || this.createMinimalPlayers(8, seasonId).map(p => p.id);
 
     const weeks: Week[] = [];
-    const baseDate = new Date('2024-01-01');
+    const currentYear = new Date().getFullYear();
+    const baseDate = new Date(`${currentYear}-01-01`);
 
     for (let i = 0; i < maxWeeks; i++) {
       const weekDate = new Date(baseDate);
@@ -111,7 +113,7 @@ export class LightweightTestFixtures {
   public createMinimalPairingHistory(playerIds: string[]): Array<{ player1Id: string; player2Id: string; count: number }> {
     const config = this.ciConfigurationManager.getCurrentConfiguration();
     const isCI = config.environment !== 'local';
-    
+
     // In CI, create minimal pairing history
     if (isCI && playerIds.length > 4) {
       // Only create pairings for first 4 players to keep it minimal
@@ -127,7 +129,7 @@ export class LightweightTestFixtures {
    */
   public createTestScenarioFixtures(scenarioType: 'unit' | 'integration' | 'e2e') {
     const scenarioConfig = this.ciConfigurationManager.getTestScenarioConfiguration(scenarioType);
-    
+
     switch (scenarioType) {
       case 'unit':
         return {
@@ -164,7 +166,7 @@ export class LightweightTestFixtures {
    */
   public createPropertyTestFixtures() {
     const config = this.ciConfigurationManager.getCurrentConfiguration();
-    
+
     return {
       maxPlayers: Math.min(config.testOptimization.maxDatasetSize / 10, 20),
       maxWeeks: Math.min(config.testOptimization.maxDatasetSize / 50, 5),
@@ -187,7 +189,7 @@ export class LightweightTestFixtures {
     };
 
     const dataSize = baseSizes[size];
-    
+
     return {
       testString: 'A'.repeat(dataSize),
       testArray: Array.from({ length: Math.min(dataSize / 10, 20) }, (_, i) => ({ id: i, value: `item-${i}` })),
@@ -209,7 +211,7 @@ export class LightweightTestFixtures {
    */
   public getOptimizationSettings() {
     const config = this.ciConfigurationManager.getCurrentConfiguration();
-    
+
     return {
       useMinimalFixtures: config.environment !== 'local',
       maxDataSize: config.testOptimization.maxDatasetSize,
@@ -224,7 +226,7 @@ export class LightweightTestFixtures {
    */
   private generatePairings(playerIds: string[]): Array<{ player1Id: string; player2Id: string; count: number }> {
     const pairings: Array<{ player1Id: string; player2Id: string; count: number }> = [];
-    
+
     for (let i = 0; i < playerIds.length; i++) {
       for (let j = i + 1; j < playerIds.length; j++) {
         pairings.push({
@@ -234,7 +236,7 @@ export class LightweightTestFixtures {
         });
       }
     }
-    
+
     return pairings;
   }
 }

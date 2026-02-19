@@ -1,5 +1,6 @@
 import { Season } from '../models/Season';
 import { SeasonManager } from '../services/SeasonManager';
+import { escapeHtml } from '../utils/escapeHtml';
 
 export interface SeasonManagementUIState {
   seasons: Season[];
@@ -20,6 +21,7 @@ export class SeasonManagementUI {
   private seasonManager: SeasonManager;
   public container: HTMLElement;
   private onSeasonChange?: (season: Season | null) => void;
+  private abortController: AbortController | null = null;
 
   constructor(seasonManager: SeasonManager, container: HTMLElement) {
     this.seasonManager = seasonManager;
@@ -39,7 +41,7 @@ export class SeasonManagementUI {
   async initialize(): Promise<void> {
     await this.loadSeasons();
     this.render();
-    
+
     // If there's an active season, notify listeners
     if (this.state.activeSeason && this.onSeasonChange) {
       this.onSeasonChange(this.state.activeSeason);
@@ -62,7 +64,7 @@ export class SeasonManagementUI {
         this.seasonManager.getAllSeasons(),
         this.seasonManager.getActiveSeason()
       ]);
-      
+
       this.state.seasons = seasons;
       this.state.activeSeason = activeSeason;
       this.state.error = null;
@@ -78,17 +80,17 @@ export class SeasonManagementUI {
     try {
       const startDate = new Date(formData.startDate);
       const endDate = new Date(formData.endDate);
-      
+
       const newSeason = await this.seasonManager.createSeason(
         formData.name,
         startDate,
         endDate
       );
-      
+
       this.state.seasons.push(newSeason);
       this.state.isCreating = false;
       this.state.error = null;
-      
+
       // Automatically activate the newly created season
       await this.setActiveSeason(newSeason.id);
     } catch (error) {
@@ -105,15 +107,15 @@ export class SeasonManagementUI {
       const activatedSeason = await this.seasonManager.setActiveSeason(seasonId);
       this.state.activeSeason = activatedSeason;
       this.state.error = null;
-      
+
       // Update the seasons list to reflect the change
       this.state.seasons = this.state.seasons.map(season => ({
         ...season,
         isActive: season.id === seasonId
       }));
-      
+
       this.render();
-      
+
       // Notify listeners of the change
       if (this.onSeasonChange) {
         this.onSeasonChange(activatedSeason);
@@ -135,14 +137,14 @@ export class SeasonManagementUI {
     try {
       await this.seasonManager.deleteSeason(seasonId);
       this.state.seasons = this.state.seasons.filter(s => s.id !== seasonId);
-      
+
       if (this.state.activeSeason?.id === seasonId) {
         this.state.activeSeason = null;
         if (this.onSeasonChange) {
           this.onSeasonChange(null);
         }
       }
-      
+
       this.state.error = null;
       this.render();
     } catch (error) {
@@ -158,47 +160,30 @@ export class SeasonManagementUI {
     this.container.innerHTML = `
       <div class="season-management">
         <div class="season-header">
-          <h2>Season Management</h2>
-          <button class="btn btn-primary" onclick="seasonUI.showCreateForm()">
+          <button class="btn btn-primary" data-action="show-create-form">
             Create New Season
           </button>
         </div>
 
         ${this.state.error ? `
           <div class="alert alert-error">
-            ${this.state.error}
+            ${escapeHtml(this.state.error)}
           </div>
         ` : ''}
 
-        ${this.state.activeSeason ? `
-          <div class="active-season">
-            <h3>Active Season</h3>
-            <div class="season-card active">
-              <div class="season-info">
-                <h4>${this.state.activeSeason.name}</h4>
-                <p>${this.formatDateRange(this.state.activeSeason.startDate, this.state.activeSeason.endDate)}</p>
-                <p>${this.state.activeSeason.playerIds.length} players</p>
-              </div>
-            </div>
-          </div>
-        ` : `
-          <div class="no-active-season">
-            <p>No active season selected. Please select a season to begin scheduling.</p>
-          </div>
-        `}
+        ${!this.state.activeSeason && this.state.seasons.length === 0 ? `
+          <p class="empty-hint">No seasons yet — create one to get started.</p>
+        ` : ''}
 
         ${this.state.isCreating ? this.renderCreateForm() : ''}
 
-        <div class="seasons-list">
-          <h3>All Seasons</h3>
-          ${this.state.seasons.length === 0 ? `
-            <p class="no-seasons">No seasons created yet.</p>
-          ` : `
+        ${this.state.seasons.length > 0 ? `
+          <div class="seasons-list">
             <div class="seasons-grid">
               ${this.state.seasons.map(season => this.renderSeasonCard(season)).join('')}
             </div>
-          `}
-        </div>
+          </div>
+        ` : ''}
       </div>
     `;
 
@@ -232,7 +217,7 @@ export class SeasonManagementUI {
           
           <div class="form-actions">
             <button type="submit" id="add-season" class="btn btn-primary">Create Season</button>
-            <button type="button" class="btn btn-secondary" onclick="seasonUI.cancelCreate()">
+            <button type="button" class="btn btn-secondary" data-action="cancel-create">
               Cancel
             </button>
           </div>
@@ -248,21 +233,21 @@ export class SeasonManagementUI {
     return `
       <div class="season-card ${season.isActive ? 'active' : ''}">
         <div class="season-info">
-          <h4>${season.name}</h4>
+          <h4>${escapeHtml(season.name)}</h4>
           <p>${this.formatDateRange(season.startDate, season.endDate)}</p>
           <p>${season.playerIds.length} players, ${season.weekIds.length} weeks</p>
         </div>
         
         <div class="season-actions">
           ${!season.isActive ? `
-            <button class="btn btn-sm btn-primary" onclick="this.activateSeason('${season.id}')">
+            <button class="btn btn-sm btn-primary" data-action="activate-season" data-season-id="${season.id}">
               Activate
             </button>
           ` : `
             <span class="active-badge">Active</span>
           `}
           
-          <button class="btn btn-sm btn-danger" onclick="this.deleteSeason('${season.id}')"
+          <button class="btn btn-sm btn-danger" data-action="delete-season" data-season-id="${season.id}"
                   ${season.playerIds.length > 0 || season.weekIds.length > 0 ? 'disabled title="Cannot delete season with players or weeks"' : ''}>
             Delete
           </button>
@@ -275,12 +260,12 @@ export class SeasonManagementUI {
    * Format date range for display
    */
   private formatDateRange(startDate: Date, endDate: Date): string {
-    const options: Intl.DateTimeFormatOptions = { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     };
-    
+
     return `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}`;
   }
 
@@ -288,6 +273,13 @@ export class SeasonManagementUI {
    * Attach event listeners to the rendered elements
    */
   private attachEventListeners(): void {
+    // Abort previous listeners to prevent stacking
+    if (this.abortController) {
+      this.abortController.abort();
+    }
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+
     // Create season form submission
     const form = this.container.querySelector('#season-form') as HTMLFormElement;
     if (form) {
@@ -299,34 +291,38 @@ export class SeasonManagementUI {
           startDate: formData.get('startDate') as string,
           endDate: formData.get('endDate') as string
         });
-      });
+      }, { signal });
     }
 
-    // Bind methods to window for onclick handlers
-    (window as any).seasonUI = {
-      showCreateForm: () => {
-        this.state.isCreating = true;
-        this.render();
-      },
-      cancelCreate: () => {
-        this.state.isCreating = false;
-        this.render();
-      },
-      activateSeason: (seasonId: string) => {
-        this.setActiveSeason(seasonId);
-      },
-      deleteSeason: (seasonId: string) => {
-        this.deleteSeason(seasonId);
-      }
-    };
+    // Event delegation for all button actions
+    this.container.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement;
+      if (!target) return;
 
-    // Update onclick handlers to use the bound methods
-    this.container.querySelectorAll('[onclick]').forEach(element => {
-      const onclick = element.getAttribute('onclick');
-      if (onclick) {
-        element.setAttribute('onclick', onclick.replace('this.', 'seasonUI.'));
+      const action = target.getAttribute('data-action');
+      const seasonId = target.getAttribute('data-season-id');
+
+      switch (action) {
+        case 'show-create-form':
+          this.state.isCreating = true;
+          this.render();
+          break;
+        case 'cancel-create':
+          this.state.isCreating = false;
+          this.render();
+          break;
+        case 'activate-season':
+          if (seasonId) {
+            this.setActiveSeason(seasonId);
+          }
+          break;
+        case 'delete-season':
+          if (seasonId) {
+            this.deleteSeason(seasonId);
+          }
+          break;
       }
-    });
+    }, { signal });
   }
 
   /**

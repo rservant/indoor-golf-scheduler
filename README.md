@@ -1,277 +1,149 @@
 # Indoor Golf Scheduler
 
-A comprehensive digital scheduling system for indoor golf facilities that automates player scheduling, optimizes partner pairings, and manages multiple seasons with intelligent constraint satisfaction.
+A scheduling system for indoor golf facilities that automates player scheduling, optimizes partner pairings, and manages multiple seasons. Available as a web app and a Tauri desktop application for macOS, Windows, and Linux.
 
-## 🏌️ Features
+## Features
 
-### Core Functionality
-- **Multi-Season Management**: Create and manage multiple golf seasons with separate player rosters
-- **Player Management**: Track player preferences (AM/PM/Either), handedness, and availability
-- **Intelligent Scheduling**: Automated schedule generation with constraint satisfaction
-- **Partner Optimization**: Minimize repeat pairings while ensuring fair distribution
-- **Manual Editing**: Drag-and-drop schedule editing with constraint validation
-- **Export Capabilities**: Export schedules in PDF and CSV formats
+- **Multi-Season Management** — Create and switch between separate golf seasons
+- **Player Management** — Track handedness, time preferences (AM/PM/Either), and availability
+- **Intelligent Scheduling** — Automated schedule generation with constraint satisfaction
+- **Partner Optimization** — Minimize repeat pairings using historical tracking
+- **Availability Tracking** — Per-week player availability management
+- **Time Slot Balancing** — Balance morning/afternoon sessions using "Either" players
+- **Foursome Prioritization** — Maximize complete groups of four
+- **Data Import/Export** — Bulk player management, CSV export, and schedule sharing
 
-### Advanced Features
-- **Time Slot Balancing**: Automatically balance morning and afternoon sessions
-- **Foursome Prioritization**: Maximize complete groups of four players
-- **Availability Tracking**: Per-week player availability management
-- **Pairing History**: Track and optimize player combinations across weeks
-- **Data Import/Export**: Bulk player management and schedule sharing
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- Node.js 18+ 
-- npm or yarn
+- Node.js 22+
+- npm
+- Rust (for desktop builds only)
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone <repository-url>
 cd indoor-golf-scheduler
-
-# Install dependencies
 npm install
-
-# Build the project
-npm run build
-
-# Run tests
-npm test
 ```
 
-### Running the Application
+### Web App
 
-#### Option 1: Production Build (Recommended)
 ```bash
-# Build and start the application
-npm run build
-npm run serve
-
-# Or use the combined command:
-npm start
-```
-
-Then open http://localhost:3000 in your web browser.
-
-#### Option 2: Development Mode
-```bash
-# Start development server with hot reload
+# Development server with hot reload
 npm run dev
+
+# Production build
+npm run build
+npm run preview
 ```
 
-#### Option 3: Development with Node.js Server
-```bash
-# Build and run with Node.js server
-npm run dev:server
-```
+Open http://localhost:3000 in your browser.
 
-#### Option 3: Programmatic Usage
-```typescript
-import { initializeGolfScheduler } from './src/index';
-
-// Initialize the application
-const app = await initializeGolfScheduler('your-container-id');
-
-// Access services
-const services = app.getServices();
-const seasonManager = services.seasonManager;
-const playerManager = services.playerManager;
-```
-
-## 📖 Usage Guide
-
-### 1. Season Management
-```typescript
-// Create a new season
-const season = await seasonManager.createSeason(
-  'Spring 2024',
-  new Date('2024-03-01'),
-  new Date('2024-05-31')
-);
-
-// Set as active season
-await seasonManager.setActiveSeason(season.id);
-```
-
-### 2. Player Management
-```typescript
-// Add players
-await playerManager.addPlayer({
-  firstName: 'John',
-  lastName: 'Smith',
-  handedness: 'right',
-  timePreference: 'AM'
-});
-
-// Set weekly availability
-await playerManager.setPlayerAvailability(playerId, weekId, true);
-```
-
-### 3. Schedule Generation
-```typescript
-// Generate optimized schedule
-const schedule = await scheduleGenerator.generateSchedule(weekId, availablePlayers);
-
-// The algorithm automatically:
-// - Respects time preferences (AM/PM/Either)
-// - Balances time slots using "Either" preference players
-// - Minimizes repeat pairings from previous weeks
-// - Prioritizes complete foursomes
-```
-
-### 4. Export Schedules
-```typescript
-// Export in various formats
-await exportService.exportToPDF(schedule, 'week-1-schedule.pdf');
-await exportService.exportToCSV(schedule, 'week-1-schedule.csv');
-```
-
-## 🏗️ Architecture
-
-The TypeScript application follows a clean architecture pattern with clear separation of concerns:
-
-### Layers
-- **Presentation Layer**: Modern web-based UI with TypeScript and responsive design
-- **Business Logic Layer**: TypeScript services for season, player, and schedule management
-- **Data Access Layer**: Repository pattern with localStorage and future database support
-- **External Interfaces**: Export functionality and data import capabilities
-
-### Key Components
-- **SeasonManager**: Handles season lifecycle and context switching
-- **PlayerManager**: Manages player data and availability
-- **ScheduleGenerator**: Core scheduling algorithm with optimization
-- **PairingHistoryTracker**: Tracks and optimizes player combinations
-- **ExportService**: Multi-format schedule export functionality
-
-## 🧪 Testing
-
-The project includes comprehensive testing with both unit tests and property-based tests:
+### Desktop App (Tauri)
 
 ```bash
-# Run all tests
+# Development
+npm run tauri:dev
+
+# Production build (creates platform-specific binary)
+npm run tauri:build
+```
+
+## Testing
+
+```bash
+# Unit tests (572 tests across 73 suites)
 npm test
 
-# Run tests with coverage
+# E2E tests (10 Playwright tests)
+npm run test:e2e
+
+# Coverage report
 npm run test:coverage
 
-# Run tests in watch mode
-npm run test:watch
+# Type checking
+npm run type-check
 ```
 
 ### Test Coverage
-- **72 tests** across 13 test suites
-- **Property-based tests** using fast-check for correctness validation
-- **Unit tests** for specific functionality and edge cases
-- **Integration tests** for end-to-end workflows
+- **73 test suites** with 572 unit tests
+- **10 Playwright e2e tests** covering full user workflows
+- Property-based tests using fast-check for correctness validation
+- Integration tests for end-to-end scheduling workflows
 
-### Correctness Properties
-The system validates 13 key correctness properties:
-1. Season data round trip integrity
-2. Active season context isolation
-3. Player data integrity across operations
-4. Graceful player removal handling
-5. Schedule completeness and uniqueness
-6. Time preference respect
-7. Foursome prioritization
-8. Either preference balancing
-9. Availability filtering accuracy
-10. Pairing history tracking
-11. Pairing optimization effectiveness
-12. Manual edit validation
-13. Export data accuracy
+## Architecture
 
-## 📁 Project Structure
+The TypeScript application follows a clean architecture pattern:
+
+- **UI Layer** — Component-based UI modules (`src/ui/`)
+- **Services** — Business logic for seasons, players, and scheduling (`src/services/`)
+- **Models** — Data models and types (`src/models/`)
+- **Repositories** — Data access layer with localStorage (`src/repositories/`)
+- **Utilities** — Error handling, validation, and helpers (`src/utils/`)
+
+### Key Components
+| Component | Purpose |
+|-----------|---------|
+| `SeasonManager` | Season lifecycle and context switching |
+| `PlayerManager` | Player data and availability |
+| `ScheduleGenerator` | Constraint-satisfaction scheduling algorithm |
+| `PairingHistoryTracker` | Tracks and optimizes player combinations |
+| `ImportExportUI` | Bulk data management and CSV/PDF export |
+
+## Project Structure
 
 ```
 src/
-├── models/           # Data models (Season, Player, Schedule, etc.)
-├── repositories/     # Data access layer with local storage
+├── models/           # Data models (Season, Player, Schedule)
+├── repositories/     # Data access layer (localStorage)
 ├── services/         # Business logic services
-├── ui/              # User interface components
-├── routing/         # Application routing
-├── state/           # Application state management
-├── utils/           # Utility functions and error handling
-├── app.ts           # Main application class
-└── index.ts         # Entry point and exports
+├── ui/               # UI components and styles
+├── routing/          # Application routing
+├── state/            # Application state management
+├── utils/            # Utilities and error handling
+├── app.ts            # Main application class
+└── index.ts          # Entry point
+src-tauri/            # Tauri desktop app (Rust)
+tests/
+├── e2e/              # Playwright end-to-end tests
+├── unit/             # Jest unit tests
+└── property/         # fast-check property-based tests
 ```
 
-## 🔧 Configuration
+## Scheduling Algorithm
 
-### Jest Configuration
-The project uses Jest for testing with TypeScript support:
-- Property-based testing with fast-check
-- Coverage reporting
-- DOM testing environment for UI components
+The core algorithm uses constraint satisfaction with optimization:
 
-### TypeScript Configuration
-- Strict type checking enabled
-- ES2020 target with modern features
-- Comprehensive type definitions
+**Constraints**: Time preferences (AM/PM), availability, uniqueness (one slot per player per week)
 
-## 📊 Scheduling Algorithm
+**Optimization**: Complete foursomes → time balance → partner variety → fair distribution
 
-The core scheduling algorithm uses constraint satisfaction with optimization:
+**Steps**: Filter available players → separate by preference → balance with "Either" players → form foursomes → optimize pairings using history → validate constraints
 
-### Constraints
-1. **Time Preferences**: AM/PM players only in preferred slots
-2. **Availability**: Only available players in schedules
-3. **Uniqueness**: Each player in exactly one foursome per week
+## Configuration
 
-### Optimization Goals
-1. **Complete Foursomes**: Maximize groups of 4 players
-2. **Time Balance**: Even distribution across AM/PM slots
-3. **Partner Variety**: Minimize repeat pairings
-4. **Fair Distribution**: Equitable repeat pairing distribution
+| File | Purpose |
+|------|---------|
+| `tsconfig.json` | TypeScript — strict mode, ES2020 target |
+| `vite.config.ts` | Vite — dev server on port 3000, build output |
+| `jest.config.ts` | Jest — jsdom environment, ts-jest transform |
+| `playwright.config.ts` | Playwright — Chromium e2e tests |
+| `src-tauri/tauri.conf.json` | Tauri — window config, icon paths, build commands |
 
-### Algorithm Steps
-1. Filter available players by weekly availability
-2. Separate players by time preferences (AM/PM/Either)
-3. Use "Either" players to balance time slots
-4. Form foursomes prioritizing complete groups
-5. Optimize partner pairings using historical data
-6. Validate all constraints are satisfied
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass (`npm test`)
-6. Commit your changes (`git commit -m 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass (`npm test && npm run test:e2e`)
+5. Open a Pull Request
 
-### Development Guidelines
-- Follow TypeScript best practices
-- Write tests for new features (both unit and property-based)
-- Maintain clean architecture separation
-- Update documentation for API changes
+## License
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-For questions, issues, or feature requests:
-1. Check the [Issues](../../issues) page
-2. Review the [Requirements](.kiro/specs/indoor-golf-scheduler/requirements.md) and [Design](.kiro/specs/indoor-golf-scheduler/design.md) documents
-3. Create a new issue with detailed information
-
-## 🎯 Roadmap
-
-- [ ] Database backend integration
-- [ ] Multi-facility support
-- [ ] Mobile application
-- [ ] Advanced reporting and analytics
-- [ ] Email notifications
-- [ ] Tournament scheduling
-- [ ] Handicap tracking integration
+MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
-**Built with TypeScript, Jest, and fast-check for reliable, well-tested golf scheduling.**
+**Built with TypeScript, Vite, Tauri, Jest, Playwright, and fast-check.**

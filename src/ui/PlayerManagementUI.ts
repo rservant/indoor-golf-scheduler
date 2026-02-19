@@ -1,6 +1,7 @@
 import { Player, PlayerInfo } from '../models/Player';
 import { PlayerManager } from '../services/PlayerManager';
 import { Season } from '../models/Season';
+import { escapeHtml } from '../utils/escapeHtml';
 
 export interface PlayerManagementUIState {
   players: Player[];
@@ -22,6 +23,7 @@ export class PlayerManagementUI {
   private state: PlayerManagementUIState;
   private playerManager: PlayerManager;
   public container: HTMLElement;
+  private abortController: AbortController | null = null;
 
   constructor(playerManager: PlayerManager, container: HTMLElement) {
     this.playerManager = playerManager;
@@ -113,13 +115,13 @@ export class PlayerManagementUI {
       };
 
       const updatedPlayer = await this.playerManager.updatePlayer(playerId, updates);
-      
+
       // Update the player in the local state
       const index = this.state.players.findIndex(p => p.id === playerId);
       if (index !== -1) {
         this.state.players[index] = updatedPlayer;
       }
-      
+
       this.state.editingPlayer = null;
       this.state.error = null;
       this.render();
@@ -160,7 +162,7 @@ export class PlayerManagementUI {
     }
 
     const searchLower = this.state.searchTerm.toLowerCase();
-    return this.state.players.filter(player => 
+    return this.state.players.filter(player =>
       player.firstName.toLowerCase().includes(searchLower) ||
       player.lastName.toLowerCase().includes(searchLower) ||
       `${player.firstName} ${player.lastName}`.toLowerCase().includes(searchLower)
@@ -174,10 +176,7 @@ export class PlayerManagementUI {
     if (!this.state.activeSeason) {
       this.container.innerHTML = `
         <div class="player-management">
-          <div class="no-active-season">
-            <h2>Player Management</h2>
-            <p>Please select an active season to manage players.</p>
-          </div>
+          <p class="empty-hint">Select an active season to manage players.</p>
         </div>
       `;
       return;
@@ -188,26 +187,21 @@ export class PlayerManagementUI {
     this.container.innerHTML = `
       <div class="player-management">
         <div class="player-header">
-          <h2>Player Management</h2>
+          <span class="player-count-label">${this.state.players.length} players</span>
           <div class="header-actions">
             <div class="search-box">
               <input type="text" id="player-search" placeholder="Search players..." 
-                     value="${this.state.searchTerm}">
+                     value="${escapeHtml(this.state.searchTerm)}">
             </div>
-            <button class="btn btn-primary" onclick="playerUI.showCreateForm()">
+            <button class="btn btn-primary" data-action="show-create-form">
               Add Player
             </button>
           </div>
         </div>
 
-        <div class="season-info">
-          <p>Managing players for: <strong>${this.state.activeSeason.name}</strong></p>
-          <p>${this.state.players.length} total players</p>
-        </div>
-
         ${this.state.error ? `
           <div class="alert alert-error">
-            ${this.state.error}
+            ${escapeHtml(this.state.error)}
           </div>
         ` : ''}
 
@@ -216,12 +210,12 @@ export class PlayerManagementUI {
 
         <div class="players-list">
           ${filteredPlayers.length === 0 ? `
-            <div class="no-players">
-              ${this.state.searchTerm ? 
-                `<p>No players found matching "${this.state.searchTerm}"</p>` :
-                `<p>No players added yet. Click "Add Player" to get started.</p>`
-              }
-            </div>
+            <p class="empty-hint">
+              ${this.state.searchTerm ?
+          `No players matching "${escapeHtml(this.state.searchTerm)}"` :
+          `No players yet — click "Add Player" to get started.`
+        }
+            </p>
           ` : `
             <div class="players-table">
               <div class="table-header">
@@ -246,7 +240,7 @@ export class PlayerManagementUI {
   private renderPlayerForm(player?: Player): string {
     const isEditing = !!player;
     const title = isEditing ? 'Edit Player' : 'Add New Player';
-    
+
     return `
       <div class="player-form">
         <h3>${title}</h3>
@@ -255,13 +249,13 @@ export class PlayerManagementUI {
             <div class="form-group">
               <label for="first-name">First Name</label>
               <input type="text" id="first-name" name="firstName" required maxlength="50"
-                     value="${player?.firstName || ''}">
+                     value="${escapeHtml(player?.firstName || '')}">
             </div>
             
             <div class="form-group">
               <label for="last-name">Last Name</label>
               <input type="text" id="last-name" name="lastName" required maxlength="50"
-                     value="${player?.lastName || ''}">
+                     value="${escapeHtml(player?.lastName || '')}">
             </div>
           </div>
           
@@ -290,7 +284,7 @@ export class PlayerManagementUI {
             <button type="submit" class="btn btn-primary">
               ${isEditing ? 'Update Player' : 'Add Player'}
             </button>
-            <button type="button" class="btn btn-secondary" onclick="playerUI.cancelForm()">
+            <button type="button" class="btn btn-secondary" data-action="cancel-form">
               Cancel
             </button>
           </div>
@@ -306,7 +300,7 @@ export class PlayerManagementUI {
     return `
       <div class="player-row">
         <div class="col-name">
-          <strong>${player.firstName} ${player.lastName}</strong>
+          <strong>${escapeHtml(player.firstName)} ${escapeHtml(player.lastName)}</strong>
         </div>
         <div class="col-handedness">
           <span class="handedness-badge ${player.handedness}">
@@ -319,10 +313,10 @@ export class PlayerManagementUI {
           </span>
         </div>
         <div class="col-actions">
-          <button class="btn btn-sm btn-secondary" onclick="playerUI.editPlayer('${player.id}')">
+          <button class="btn btn-sm btn-secondary" data-action="edit-player" data-player-id="${player.id}">
             Edit
           </button>
-          <button class="btn btn-sm btn-danger" onclick="playerUI.deletePlayer('${player.id}')">
+          <button class="btn btn-sm btn-danger" data-action="delete-player" data-player-id="${player.id}">
             Remove
           </button>
         </div>
@@ -334,13 +328,20 @@ export class PlayerManagementUI {
    * Attach event listeners
    */
   private attachEventListeners(): void {
+    // Abort previous listeners to prevent stacking
+    if (this.abortController) {
+      this.abortController.abort();
+    }
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+
     // Search functionality
     const searchInput = this.container.querySelector('#player-search') as HTMLInputElement;
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
         this.state.searchTerm = (e.target as HTMLInputElement).value;
         this.render();
-      });
+      }, { signal });
     }
 
     // Player form submission
@@ -361,33 +362,45 @@ export class PlayerManagementUI {
         } else {
           this.createPlayer(playerData);
         }
-      });
+      }, { signal });
     }
 
-    // Bind methods to window for onclick handlers
-    (window as any).playerUI = {
-      showCreateForm: () => {
-        this.state.isCreating = true;
-        this.state.editingPlayer = null;
-        this.render();
-      },
-      cancelForm: () => {
-        this.state.isCreating = false;
-        this.state.editingPlayer = null;
-        this.render();
-      },
-      editPlayer: (playerId: string) => {
-        const player = this.state.players.find(p => p.id === playerId);
-        if (player) {
-          this.state.editingPlayer = player;
-          this.state.isCreating = false;
+    // Event delegation for all button actions
+    this.container.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement;
+      if (!target) return;
+
+      const action = target.getAttribute('data-action');
+      const playerId = target.getAttribute('data-player-id');
+
+      switch (action) {
+        case 'show-create-form':
+          this.state.isCreating = true;
+          this.state.editingPlayer = null;
           this.render();
-        }
-      },
-      deletePlayer: (playerId: string) => {
-        this.deletePlayer(playerId);
+          break;
+        case 'cancel-form':
+          this.state.isCreating = false;
+          this.state.editingPlayer = null;
+          this.render();
+          break;
+        case 'edit-player':
+          if (playerId) {
+            const player = this.state.players.find(p => p.id === playerId);
+            if (player) {
+              this.state.editingPlayer = player;
+              this.state.isCreating = false;
+              this.render();
+            }
+          }
+          break;
+        case 'delete-player':
+          if (playerId) {
+            this.deletePlayer(playerId);
+          }
+          break;
       }
-    };
+    }, { signal });
   }
 
   /**

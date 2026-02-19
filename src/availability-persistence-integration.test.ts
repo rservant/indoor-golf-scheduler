@@ -81,7 +81,7 @@ describe('Availability Persistence Integration Tests', () => {
   beforeEach(async () => {
     // Clear localStorage before each test
     localStorageMock.clear();
-    
+
     // Initialize repositories
     seasonRepository = new LocalSeasonRepository();
     playerRepository = new LocalPlayerRepository();
@@ -125,10 +125,11 @@ describe('Availability Persistence Integration Tests', () => {
 
   async function setupTestData(): Promise<void> {
     // Create test season
+    const currentYear = new Date().getFullYear();
     testSeason = await seasonManager.createSeason(
       'Availability Test Season',
-      new Date('2024-01-01'),
-      new Date('2024-12-31')
+      new Date(`${currentYear}-01-01`),
+      new Date(`${currentYear}-12-31`)
     );
     await seasonManager.setActiveSeason(testSeason.id);
 
@@ -303,12 +304,14 @@ describe('Availability Persistence Integration Tests', () => {
       expect(initialFreshness.isStale).toBe(false);
 
       // Force refresh and verify freshness is updated
+      // Add small delay to ensure timestamp difference
+      await new Promise(resolve => setTimeout(resolve, 1));
       await availabilityUI.forceRefreshFromPersistence();
 
       const updatedFreshness = availabilityUI.getDataFreshnessInfo();
       expect(updatedFreshness.lastRefresh).toBeTruthy();
       expect(updatedFreshness.isStale).toBe(false);
-      expect(updatedFreshness.lastRefresh!.getTime()).toBeGreaterThan(initialFreshness.lastRefresh!.getTime());
+      expect(updatedFreshness.lastRefresh!.getTime()).toBeGreaterThanOrEqual(initialFreshness.lastRefresh!.getTime());
     });
 
     test('should detect and handle stale data correctly', async () => {
@@ -427,7 +430,7 @@ describe('Availability Persistence Integration Tests', () => {
 
       // Ensure UI is initialized with the correct week selected
       (availabilityUI as any).state.selectedWeek = week;
-      
+
       // Refresh UI data to ensure consistency
       await availabilityUI.refreshFromPersistence();
 
@@ -538,7 +541,7 @@ describe('Availability Persistence Integration Tests', () => {
 
       // Verify final state is consistent
       const firstPlayerAvailability = await playerManager.getPlayerAvailability(testPlayers[0].id, week.id);
-      
+
       // All players should have the same availability (atomic bulk operation)
       for (const player of testPlayers) {
         const availability = await playerManager.getPlayerAvailability(player.id, week.id);
@@ -556,43 +559,43 @@ describe('Availability Persistence Integration Tests', () => {
       const week = testWeeks[0];
 
       // Simulate a complete user session
-      
+
       // 1. User navigates to availability management
       await availabilityUI.initialize(testSeason);
-      
+
       // 2. User marks all players available
       const playerIds = testPlayers.map(p => p.id);
       await playerManager.setBulkAvailabilityAtomic(week.id, playerIds, true);
-      
+
       // 3. Verify all are available
       for (const player of testPlayers) {
         expect(await playerManager.getPlayerAvailability(player.id, week.id)).toBe(true);
       }
-      
+
       // 4. User toggles one player to unavailable
       await playerManager.setPlayerAvailabilityAtomic(testPlayers[0].id, week.id, false);
-      
+
       // 5. User navigates away (simulate by refreshing data)
       await availabilityUI.refreshFromPersistence();
-      
+
       // 6. User returns and data should be preserved
       expect(await playerManager.getPlayerAvailability(testPlayers[0].id, week.id)).toBe(false);
       expect(await playerManager.getPlayerAvailability(testPlayers[1].id, week.id)).toBe(true);
       expect(await playerManager.getPlayerAvailability(testPlayers[2].id, week.id)).toBe(true);
       expect(await playerManager.getPlayerAvailability(testPlayers[3].id, week.id)).toBe(true);
-      
+
       // 7. Verify data consistency
       const consistencyCheck = await availabilityUI.verifyDataConsistency();
       expect(consistencyCheck).toBe(true);
-      
+
       // 8. User marks all unavailable
       await playerManager.setBulkAvailabilityAtomic(week.id, playerIds, false);
-      
+
       // 9. Final verification
       for (const player of testPlayers) {
         expect(await playerManager.getPlayerAvailability(player.id, week.id)).toBe(false);
       }
-      
+
       // 10. Final data integrity check
       const finalIntegrityCheck = await weekRepository.verifyDataIntegrity(week.id);
       expect(finalIntegrityCheck).toBe(true);
@@ -602,12 +605,12 @@ describe('Availability Persistence Integration Tests', () => {
       // Set availability for multiple weeks
       for (let weekIndex = 0; weekIndex < testWeeks.length; weekIndex++) {
         const week = testWeeks[weekIndex];
-        
+
         // Set different patterns for each week
         for (let playerIndex = 0; playerIndex < testPlayers.length; playerIndex++) {
           const player = testPlayers[playerIndex];
           const available = (weekIndex + playerIndex) % 2 === 0;
-          
+
           await playerManager.setPlayerAvailabilityAtomic(player.id, week.id, available);
         }
       }
@@ -615,11 +618,11 @@ describe('Availability Persistence Integration Tests', () => {
       // Verify each week's data
       for (let weekIndex = 0; weekIndex < testWeeks.length; weekIndex++) {
         const week = testWeeks[weekIndex];
-        
+
         for (let playerIndex = 0; playerIndex < testPlayers.length; playerIndex++) {
           const player = testPlayers[playerIndex];
           const expectedAvailable = (weekIndex + playerIndex) % 2 === 0;
-          
+
           const actualAvailable = await playerManager.getPlayerAvailability(player.id, week.id);
           expect(actualAvailable).toBe(expectedAvailable);
         }

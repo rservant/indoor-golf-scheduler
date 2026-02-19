@@ -487,7 +487,7 @@ describe('ScheduleGenerator Availability Property Tests', () => {
     test('Property: Schedule validation correctly identifies all availability violations', () => {
       fc.assert(
         fc.property(
-          // Generate players with valid data
+          // Generate players with valid data and unique IDs
           fc.array(
             fc.record({
               id: fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
@@ -498,7 +498,13 @@ describe('ScheduleGenerator Availability Property Tests', () => {
               seasonId: fc.constant('test-season')
             }),
             { minLength: 2, maxLength: 8 }
-          ),
+          ).map(players => {
+            // Ensure unique player IDs by adding index suffix
+            return players.map((player, index) => ({
+              ...player,
+              id: `${player.id}_${index}`
+            }));
+          }),
           // Generate availability data
           fc.dictionary(
             fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),

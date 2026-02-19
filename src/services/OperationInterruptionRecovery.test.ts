@@ -51,17 +51,18 @@ describe('Property Test: Operation Interruption Recovery', () => {
     interruptionManager = playerManager.getInterruptionManager();
 
     // Create test season
+    const currentYear = new Date().getFullYear();
     testSeason = await seasonRepository.create({
       name: 'Test Season',
-      startDate: new Date('2024-01-01'),
-      endDate: new Date('2024-12-31')
+      startDate: new Date(`${currentYear}-01-01`),
+      endDate: new Date(`${currentYear}-12-31`)
     });
 
     // Create test week
     testWeek = await weekRepository.create({
       seasonId: testSeason.id,
       weekNumber: 1,
-      date: new Date('2024-01-08')
+      date: new Date(`${currentYear}-01-08`)
     });
 
     // Create test players
@@ -130,11 +131,11 @@ describe('Property Test: Operation Interruption Recovery', () => {
           try {
             if (operationType === 'individual' && operationPlayerIds.length > 0) {
               const playerId = operationPlayerIds[0];
-              
+
               // Start operation tracking
               const targetState = new Map<string, boolean>();
               targetState.set(playerId, targetAvailability);
-              
+
               operationId = await interruptionManager.startOperation(
                 'individual',
                 testWeek.id,
@@ -158,13 +159,13 @@ describe('Property Test: Operation Interruption Recovery', () => {
 
             } else if (operationType.startsWith('bulk_') && operationPlayerIds.length > 0) {
               const bulkAvailable = operationType === 'bulk_available';
-              
+
               // Start operation tracking
               const targetState = new Map<string, boolean>();
               for (const playerId of operationPlayerIds) {
                 targetState.set(playerId, bulkAvailable);
               }
-              
+
               operationId = await interruptionManager.startOperation(
                 operationType as 'bulk_available' | 'bulk_unavailable',
                 testWeek.id,
@@ -217,7 +218,7 @@ describe('Property Test: Operation Interruption Recovery', () => {
             for (const playerId of operationPlayerIds) {
               const currentAvailability = await playerManager.getPlayerAvailability(playerId, testWeek.id);
               const actualAvailability = actualFinalState.get(playerId);
-              
+
               // After recovery, the current state should match what was actually persisted
               expect(currentAvailability).toBe(actualAvailability);
             }
@@ -239,7 +240,7 @@ describe('Property Test: Operation Interruption Recovery', () => {
           }
         }
       ),
-      { 
+      {
         numRuns: 100,
         verbose: true
       }
@@ -291,10 +292,10 @@ describe('Property Test: Operation Interruption Recovery', () => {
           for (const operation of uniqueOperations) {
             const playerId = testPlayers[operation.playerIndex].id;
             const originalAvailability = await playerManager.getPlayerAvailability(playerId, testWeek.id);
-            
+
             const originalState = new Map<string, boolean>();
             originalState.set(playerId, originalAvailability);
-            
+
             const targetState = new Map<string, boolean>();
             targetState.set(playerId, operation.targetAvailability);
 
@@ -317,18 +318,18 @@ describe('Property Test: Operation Interruption Recovery', () => {
               // This operation was interrupted before completion
               expectedFinalState.set(playerId, originalAvailability);
             }
-            
+
             // DON'T call interruptionManager.completeOperation() to simulate interruption
           }
 
           // Simulate time passage by manually updating operation timestamps to be old
           const persistedOps = await (interruptionManager as any).getPersistedOperations();
           const oldTimestamp = new Date(Date.now() - 35000); // 35 seconds ago (older than timeout)
-          
+
           for (const op of persistedOps) {
             op.timestamp = oldTimestamp;
           }
-          
+
           // Re-persist with old timestamps
           localStorage.setItem('golf_scheduler_operation_state', JSON.stringify(
             persistedOps.map((op: any) => ({
@@ -344,7 +345,7 @@ describe('Property Test: Operation Interruption Recovery', () => {
 
           // Detect and recover from interruptions
           const detectionResult = await newInterruptionManager.detectInterruptions();
-          
+
           // We should have interruptions since we didn't complete the operations and they're old
           expect(detectionResult.hasInterruption).toBe(true);
           expect(detectionResult.interruptedOperations.length).toBe(operationIds.length);
@@ -369,7 +370,7 @@ describe('Property Test: Operation Interruption Recovery', () => {
           newInterruptionManager.destroy();
         }
       ),
-      { 
+      {
         numRuns: 50,
         verbose: true
       }
@@ -410,7 +411,7 @@ describe('Property Test: Operation Interruption Recovery', () => {
           newInterruptionManager.destroy();
         }
       ),
-      { 
+      {
         numRuns: 50,
         verbose: true
       }

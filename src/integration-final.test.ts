@@ -16,7 +16,7 @@ describe('Final Integration Testing', () => {
   beforeEach(() => {
     // Clear localStorage before each test
     localStorage.clear();
-    
+
     // Create fresh container
     container = document.createElement('div');
     container.id = 'test-app-container';
@@ -28,12 +28,12 @@ describe('Final Integration Testing', () => {
     if (app) {
       await app.stop();
     }
-    
+
     // Clean up DOM
     if (container && container.parentNode) {
       container.parentNode.removeChild(container);
     }
-    
+
     // Clear localStorage
     localStorage.clear();
   });
@@ -97,13 +97,14 @@ describe('Final Integration Testing', () => {
       const services = app.getServices();
 
       // Step 1: Create a season
+      const currentYear = new Date().getFullYear();
       const season = await services.seasonManager.createSeason(
-        'Test Season 2024',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        `Test Season ${currentYear}`,
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
       expect(season).toBeDefined();
-      expect(season.name).toBe('Test Season 2024');
+      expect(season.name).toBe(`Test Season ${currentYear}`);
 
       // Set as active season
       await services.seasonManager.setActiveSeason(season.id);
@@ -200,7 +201,7 @@ describe('Final Integration Testing', () => {
         enableErrorReporting: true,
         enableRouting: true,
         debugMode: true,
-        autoInitializeDemo: true
+        autoInitializeDemo: false
       };
 
       app = await createIndoorGolfSchedulerApp(config);
@@ -210,11 +211,14 @@ describe('Final Integration Testing', () => {
       const services = app.getServices();
 
       // Create test data
+      const currentYear = new Date().getFullYear();
       const season = await services.seasonManager.createSeason(
         'Export Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
+
+      await services.seasonManager.setActiveSeason(season.id);
 
       const player = await services.playerManager.addPlayer({
         firstName: 'Export',
@@ -241,10 +245,11 @@ describe('Final Integration Testing', () => {
       const services = app.getServices();
 
       // Create test season and players
+      const currentYear = new Date().getFullYear();
       const season = await services.seasonManager.createSeason(
         'Pairing Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
 
       await services.seasonManager.setActiveSeason(season.id);
@@ -262,11 +267,11 @@ describe('Final Integration Testing', () => {
 
       // Generate multiple weeks and schedules
       const weeks = await services.scheduleManager.generateWeeksForSeason(season.id, 3);
-      
+
       for (const week of weeks) {
         const schedule = await services.scheduleManager.generateSchedule(week.id, { validatePreconditions: false });
         expect(schedule).toBeDefined();
-        
+
         // Record pairings for history tracking
         const foursomesForHistory = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
         for (const foursome of foursomesForHistory) {
@@ -287,10 +292,11 @@ describe('Final Integration Testing', () => {
       const services = app.getServices();
 
       // Create test data
+      const currentYear = new Date().getFullYear();
       const season = await services.seasonManager.createSeason(
         'Edit Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
 
       await services.seasonManager.setActiveSeason(season.id);
@@ -309,23 +315,23 @@ describe('Final Integration Testing', () => {
 
       // Generate schedule
       const weeks = await services.scheduleManager.generateWeeksForSeason(season.id, 1);
-      
+
       // Set all players as available for the week
       for (const player of players) {
         await services.playerManager.setPlayerAvailability(player.id, weeks[0].id, true);
       }
-      
+
       const schedule = await services.scheduleManager.generateSchedule(weeks[0].id, { validatePreconditions: false });
 
       // Test schedule modification
       const scheduleForEdit = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
       const originalFoursomeCount = scheduleForEdit.length;
-      
+
       // Verify we can access and modify the schedule
       expect(schedule.timeSlots).toBeDefined();
       const editableFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
       expect(editableFoursomes.length).toBeGreaterThan(0);
-      
+
       // The schedule should be editable through the schedule manager
       const updatedSchedule = await services.scheduleManager.getSchedule(weeks[0].id);
       expect(updatedSchedule).toBeDefined();
@@ -336,11 +342,14 @@ describe('Final Integration Testing', () => {
       const services = app.getServices();
 
       // Create test data
+      const currentYear = new Date().getFullYear();
       const season = await services.seasonManager.createSeason(
         'Format Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
+
+      await services.seasonManager.setActiveSeason(season.id);
 
       const player = await services.playerManager.addPlayer({
         firstName: 'Format',
@@ -387,10 +396,11 @@ describe('Final Integration Testing', () => {
 
         // Verify core functionality still works
         const services = app.getServices();
+        const currentYear = new Date().getFullYear();
         const season = await services.seasonManager.createSeason(
           'Production Test Season',
-          new Date('2024-01-01'),
-          new Date('2024-12-31')
+          new Date(`${currentYear}-01-01`),
+          new Date(`${currentYear}-12-31`)
         );
         expect(season).toBeDefined();
 
@@ -424,10 +434,11 @@ describe('Final Integration Testing', () => {
 
       // Create some data
       const services = app.getServices();
+      const currentYear = new Date().getFullYear();
       const season = await services.seasonManager.createSeason(
         'Restart Test Season',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
 
       // Restart application
@@ -510,10 +521,11 @@ describe('Final Integration Testing', () => {
       const services = app.getServices();
 
       // Create season
+      const currentYear = new Date().getFullYear();
       const season = await services.seasonManager.createSeason(
         'Large Dataset Test',
-        new Date('2024-01-01'),
-        new Date('2024-12-31')
+        new Date(`${currentYear}-01-01`),
+        new Date(`${currentYear}-12-31`)
       );
 
       await services.seasonManager.setActiveSeason(season.id);
@@ -543,13 +555,13 @@ describe('Final Integration Testing', () => {
       // Test schedule generation with large dataset
       const scheduleStartTime = Date.now();
       const weeks = await services.scheduleManager.generateWeeksForSeason(season.id, 1);
-      
+
       // Set all players as available for the week
       const playersForSchedule = await services.playerManager.getAllPlayers(season.id);
       for (const player of playersForSchedule) {
         await services.playerManager.setPlayerAvailability(player.id, weeks[0].id, true);
       }
-      
+
       const schedule = await services.scheduleManager.generateSchedule(weeks[0].id, { validatePreconditions: false });
       const scheduleTime = Date.now() - scheduleStartTime;
 

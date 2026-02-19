@@ -8,3 +8,4 @@ export * from './ErrorHandler';
 export * from './ErrorBoundary';
 export * from './DebugInterface';
 export * from './EnhancedErrorHandling';
+export * from './PerformanceDecorators';

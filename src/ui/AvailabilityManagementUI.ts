@@ -5,6 +5,7 @@ import { PlayerManager } from '../services/PlayerManager';
 import { WeekRepository } from '../repositories/WeekRepository';
 import { availabilityErrorHandler, withAvailabilityErrorHandling } from '../utils/AvailabilityErrorHandler';
 import { OperationInterruptionManager } from '../services/OperationInterruptionManager';
+import { escapeHtml } from '../utils/escapeHtml';
 
 export interface AvailabilityManagementUIState {
   activeSeason: Season | null;
@@ -26,6 +27,7 @@ export class AvailabilityManagementUI {
   private visibilityChangeHandler: () => void;
   private focusHandler: () => void;
   private stalenessThresholdMs: number = 30000; // 30 seconds
+  private abortController: AbortController | null = null;
 
   constructor(playerManager: PlayerManager, weekRepository: WeekRepository, container: HTMLElement) {
     this.playerManager = playerManager;
@@ -45,7 +47,7 @@ export class AvailabilityManagementUI {
     // Set up navigation freshness detection
     this.visibilityChangeHandler = () => this.handleVisibilityChange();
     this.focusHandler = () => this.handleFocusChange();
-    
+
     // Add event listeners for tab focus/visibility changes
     document.addEventListener('visibilitychange', this.visibilityChangeHandler);
     window.addEventListener('focus', this.focusHandler);
@@ -56,10 +58,10 @@ export class AvailabilityManagementUI {
    */
   async initialize(activeSeason: Season | null): Promise<void> {
     this.state.activeSeason = activeSeason;
-    
+
     // Check for interrupted operations first
     await this.checkAndRecoverFromInterruptions();
-    
+
     if (activeSeason) {
       await this.loadData();
       this.lastDataRefresh = new Date();
@@ -133,7 +135,7 @@ export class AvailabilityManagementUI {
 
     for (const week of this.state.weeks) {
       const weekAvailability = new Map<string, boolean>();
-      
+
       for (const player of this.state.players) {
         try {
           // Always fetch from persistence layer to ensure freshness
@@ -145,7 +147,7 @@ export class AvailabilityManagementUI {
           weekAvailability.set(player.id, false);
         }
       }
-      
+
       this.state.playerAvailability.set(week.id, weekAvailability);
       console.log(`Loaded availability for week ${week.weekNumber}: ${Array.from(weekAvailability.values()).filter(Boolean).length}/${weekAvailability.size} available`);
     }
@@ -173,7 +175,7 @@ export class AvailabilityManagementUI {
 
         // Verify the change was persisted successfully
         const verificationSuccess = await this.playerManager.verifyAvailabilityPersisted(playerId, weekId, newAvailability);
-        
+
         if (!verificationSuccess) {
           await availabilityErrorHandler.handleVerificationError(playerId, weekId, newAvailability, !newAvailability);
           throw new Error('Failed to verify availability change was persisted');
@@ -213,13 +215,13 @@ export class AvailabilityManagementUI {
    */
   private async setAllAvailable(weekId: string, available: boolean): Promise<void> {
     console.log(`Setting all players ${available ? 'available' : 'unavailable'} for week ${weekId}`);
-    
+
     // Prevent multiple simultaneous operations
     if (this.state.isLoading) {
       console.log('Operation already in progress, ignoring click');
       return;
     }
-    
+
     if (this.state.players.length === 0) {
       this.state.error = 'No players found to update availability';
       this.render();
@@ -255,7 +257,7 @@ export class AvailabilityManagementUI {
 
         // Verify all changes were persisted successfully
         const failedPlayers: string[] = [];
-        
+
         for (const player of this.state.players) {
           const verified = await this.playerManager.verifyAvailabilityPersisted(player.id, weekId, available);
           if (!verified) {
@@ -335,10 +337,7 @@ export class AvailabilityManagementUI {
     if (!this.state.activeSeason) {
       this.container.innerHTML = `
         <div class="availability-management">
-          <div class="no-active-season">
-            <h2>Weekly Availability</h2>
-            <p>Please select an active season to manage player availability.</p>
-          </div>
+          <p class="empty-hint">Select an active season to manage availability.</p>
         </div>
       `;
       return;
@@ -346,17 +345,9 @@ export class AvailabilityManagementUI {
 
     this.container.innerHTML = `
       <div class="availability-management">
-        <div class="availability-header">
-          <h2>Weekly Availability</h2>
-          <div class="season-info">
-            <p>Season: <strong>${this.state.activeSeason.name}</strong></p>
-            <p>${this.state.players.length} players, ${this.state.weeks.length} weeks</p>
-          </div>
-        </div>
-
         ${this.state.error ? `
           <div class="alert alert-error">
-            ${this.state.error}
+            ${escapeHtml(this.state.error)}
           </div>
         ` : ''}
 
@@ -373,12 +364,10 @@ export class AvailabilityManagementUI {
         ` : ''}
 
         ${this.state.weeks.length === 0 ? `
-          <div class="no-weeks">
-            <p>No weeks found for this season. Weeks are created automatically when generating schedules.</p>
-          </div>
+          <p class="empty-hint">No weeks yet — they're created when you generate a schedule.</p>
         ` : `
           <div class="week-selector">
-            <label for="week-select">Select Week:</label>
+            <label for="week-select">Week:</label>
             <select id="week-select">
               ${this.state.weeks.map(week => `
                 <option value="${week.id}" ${this.state.selectedWeek?.id === week.id ? 'selected' : ''}>
@@ -460,7 +449,7 @@ export class AvailabilityManagementUI {
     return `
       <div class="player-availability ${isAvailable ? 'available' : 'unavailable'}">
         <div class="player-info">
-          <strong>${player.firstName} ${player.lastName}</strong>
+          <strong>${escapeHtml(player.firstName)} ${escapeHtml(player.lastName)}</strong>
           <div class="player-details">
             <span class="handedness">${player.handedness}</span>
             <span class="preference">${player.timePreference}</span>
@@ -488,10 +477,10 @@ export class AvailabilityManagementUI {
    * Format date for display
    */
   private formatDate(date: Date): string {
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   }
 
@@ -499,6 +488,13 @@ export class AvailabilityManagementUI {
    * Attach event listeners
    */
   private attachEventListeners(): void {
+    // Abort previous listeners to prevent stacking
+    if (this.abortController) {
+      this.abortController.abort();
+    }
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+
     // Week selector
     const weekSelect = this.container.querySelector('#week-select') as HTMLSelectElement;
     if (weekSelect) {
@@ -506,14 +502,14 @@ export class AvailabilityManagementUI {
         const selectedWeekId = (e.target as HTMLSelectElement).value;
         this.state.selectedWeek = this.state.weeks.find(w => w.id === selectedWeekId) || null;
         this.render();
-      });
+      }, { signal });
     }
 
     // Use event delegation for bulk actions
     this.container.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const action = target.getAttribute('data-action');
-      
+
       if (action === 'mark-all-available') {
         const weekId = target.getAttribute('data-week-id');
         if (weekId) {
@@ -545,13 +541,13 @@ export class AvailabilityManagementUI {
           this.handleForceRefresh();
         }
       }
-    });
+    }, { signal });
 
     // Use event delegation for individual toggles
     this.container.addEventListener('change', (e) => {
       const target = e.target as HTMLInputElement;
       const action = target.getAttribute('data-action');
-      
+
       if (action === 'toggle-availability') {
         const playerId = target.getAttribute('data-player-id');
         const weekId = target.getAttribute('data-week-id');
@@ -560,19 +556,7 @@ export class AvailabilityManagementUI {
           this.togglePlayerAvailability(playerId, weekId);
         }
       }
-    });
-
-    // Keep the window binding as fallback (for any remaining onclick handlers)
-    (window as any).availabilityUI = {
-      toggleAvailability: (playerId: string, weekId: string) => {
-        console.log('Toggle availability called via window binding:', { playerId, weekId });
-        this.togglePlayerAvailability(playerId, weekId);
-      },
-      setAllAvailable: (weekId: string, available: boolean) => {
-        console.log('Set all available called via window binding:', { weekId, available });
-        this.setAllAvailable(weekId, available);
-      }
-    };
+    }, { signal });
   }
 
   /**
@@ -591,7 +575,7 @@ export class AvailabilityManagementUI {
     const weekAvailability = this.state.playerAvailability.get(this.state.selectedWeek.id);
     if (!weekAvailability) return [];
 
-    return this.state.players.filter(player => 
+    return this.state.players.filter(player =>
       weekAvailability.get(player.id) === true
     );
   }
@@ -637,7 +621,7 @@ export class AvailabilityManagementUI {
       for (const player of this.state.players) {
         const uiAvailability = this.getPlayerAvailability(player.id, this.state.selectedWeek.id);
         const persistedAvailability = await this.playerManager.getPlayerAvailability(player.id, this.state.selectedWeek.id);
-        
+
         if (uiAvailability !== persistedAvailability) {
           console.warn(`Data inconsistency detected for player ${player.id}: UI=${uiAvailability}, Persisted=${persistedAvailability}`);
           return false;
@@ -750,20 +734,20 @@ export class AvailabilityManagementUI {
   private async checkAndRecoverFromInterruptions(): Promise<void> {
     try {
       const detectionResult = await this.interruptionManager.detectInterruptions();
-      
+
       if (detectionResult.hasInterruption) {
         console.log(`Detected ${detectionResult.interruptedOperations.length} interrupted operations`);
-        
+
         // Show user notification about recovery
         this.state.error = `Recovering from ${detectionResult.interruptedOperations.length} interrupted operation(s)...`;
         this.render();
-        
+
         // Perform recovery
         await this.interruptionManager.recoverFromInterruptions(detectionResult.interruptedOperations);
-        
+
         // Refresh data to ensure UI shows accurate state
         await this.refreshFromPersistence();
-        
+
         // Clear error message
         this.state.error = null;
         console.log('Successfully recovered from interrupted operations');
@@ -791,7 +775,7 @@ export class AvailabilityManagementUI {
 
     try {
       const isConsistent = await this.verifyDataConsistency();
-      
+
       if (isConsistent) {
         this.state.error = null;
         // Show success message temporarily
@@ -824,10 +808,10 @@ export class AvailabilityManagementUI {
 
     try {
       await this.refreshFromPersistence();
-      
+
       // Verify consistency after refresh
       const isConsistent = await this.verifyDataConsistency();
-      
+
       if (isConsistent) {
         const successMessage = 'Data refreshed successfully from storage';
         this.showTemporaryMessage(successMessage, 'success');
@@ -858,10 +842,10 @@ export class AvailabilityManagementUI {
 
     try {
       await this.forceRefreshFromPersistence();
-      
+
       // Verify consistency after force refresh
       const isConsistent = await this.verifyDataConsistency();
-      
+
       if (isConsistent) {
         const successMessage = 'Data force refreshed successfully - all caches bypassed';
         this.showTemporaryMessage(successMessage, 'success');
@@ -883,7 +867,7 @@ export class AvailabilityManagementUI {
     // Store the message temporarily in state
     (this.state as any).temporaryMessage = { message, type };
     this.render();
-    
+
     // Clear the message after 3 seconds
     setTimeout(() => {
       (this.state as any).temporaryMessage = null;
@@ -925,9 +909,9 @@ export class AvailabilityManagementUI {
       for (const player of this.state.players) {
         const uiAvailability = this.getPlayerAvailability(player.id, this.state.selectedWeek.id);
         const persistedAvailability = await this.playerManager.getPlayerAvailability(player.id, this.state.selectedWeek.id);
-        
+
         result.checkedPlayers++;
-        
+
         if (uiAvailability !== persistedAvailability) {
           result.isConsistent = false;
           result.discrepancies.push({
@@ -967,7 +951,7 @@ export class AvailabilityManagementUI {
   }> {
     const freshnessInfo = this.getDataFreshnessInfo();
     const consistencyReport = await this.verifyDataConsistencyDetailed();
-    
+
     return {
       weekId: this.state.selectedWeek?.id || '',
       weekNumber: this.state.selectedWeek?.weekNumber || 0,
@@ -996,7 +980,7 @@ export class AvailabilityManagementUI {
     if (!this.state.selectedWeek) {
       return { hasActiveOperations: false, operationState: null };
     }
-    
+
     const operationState = this.interruptionManager.getOperationState(this.state.selectedWeek.id);
     return {
       hasActiveOperations: operationState !== null,

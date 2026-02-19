@@ -17,7 +17,7 @@ describe('PlayerManager Property Tests', () => {
         // Generate season and week data
         fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
         fc.integer({ min: 1, max: 52 }),
-        
+
         // Generate multiple players for bulk operations
         fc.array(
           fc.record({
@@ -28,7 +28,7 @@ describe('PlayerManager Property Tests', () => {
           }),
           { minLength: 2, maxLength: 10 }
         ),
-        
+
         // Generate bulk availability state (true = all available, false = all unavailable)
         fc.boolean(),
 
@@ -38,7 +38,7 @@ describe('PlayerManager Property Tests', () => {
           const playerRepository = new LocalPlayerRepository();
           const scheduleRepository = new LocalScheduleRepository();
           const seasonRepository = new LocalSeasonRepository();
-          
+
           const playerManager = new PlayerManagerService(
             playerRepository,
             weekRepository,
@@ -47,17 +47,18 @@ describe('PlayerManager Property Tests', () => {
           );
 
           // Create season first
+          const currentYear = new Date().getFullYear();
           const season = await seasonRepository.create({
             name: `Test Season Bulk ${seasonId}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-            startDate: new Date('2024-01-01'),
-            endDate: new Date('2024-12-31')
+            startDate: new Date(`${currentYear}-01-01`),
+            endDate: new Date(`${currentYear}-12-31`)
           });
 
           // Create week
           const week = await weekRepository.create({
             seasonId: season.id,
             weekNumber: weekNumber,
-            date: new Date(`2024-01-${Math.min(weekNumber, 28)}`)
+            date: new Date(`${currentYear}-01-${Math.min(weekNumber, 28)}`)
           });
 
           // Add all players to the season
@@ -84,7 +85,7 @@ describe('PlayerManager Property Tests', () => {
           // Set initial availability state (opposite of what we'll bulk set)
           const initialAvailabilityState = !bulkAvailabilityState;
           const originalState = new Map<string, boolean>();
-          
+
           for (const player of addedPlayers) {
             await playerManager.setPlayerAvailability(player.id, week.id, initialAvailabilityState);
             originalState.set(player.id, initialAvailabilityState);
@@ -135,7 +136,7 @@ describe('PlayerManager Property Tests', () => {
           }
 
           const mixedResult = await weekRepository.setBulkAvailabilityVerified(week.id, mixedUpdates);
-          
+
           if (mixedResult.success) {
             // All updates succeeded - verify each player has correct state
             for (const [playerId, expectedAvailability] of mixedUpdates) {
@@ -150,7 +151,7 @@ describe('PlayerManager Property Tests', () => {
               const availability = await playerManager.getPlayerAvailability(player.id, week.id);
               currentStates.add(availability);
             }
-            
+
             // The system should maintain consistency - either all players have the same state
             // or the state is predictable based on the atomicity guarantee
             expect(mixedResult.verifiedCount + mixedResult.failedPlayerIds.length).toBe(mixedUpdates.size);
@@ -174,7 +175,7 @@ describe('PlayerManager Property Tests', () => {
         // Generate season and week data
         fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
         fc.integer({ min: 1, max: 52 }),
-        
+
         // Generate fewer players for faster execution
         fc.array(
           fc.record({
@@ -185,7 +186,7 @@ describe('PlayerManager Property Tests', () => {
           }),
           { minLength: 2, maxLength: 4 } // Reduced from 8 to 4
         ),
-        
+
         // Generate fewer concurrent operations
         fc.array(
           fc.record({
@@ -202,7 +203,7 @@ describe('PlayerManager Property Tests', () => {
           const playerRepository = new LocalPlayerRepository();
           const scheduleRepository = new LocalScheduleRepository();
           const seasonRepository = new LocalSeasonRepository();
-          
+
           const playerManager = new PlayerManagerService(
             playerRepository,
             weekRepository,
@@ -211,17 +212,18 @@ describe('PlayerManager Property Tests', () => {
           );
 
           // Create season first with unique name to avoid duplicates
+          const currentYear = new Date().getFullYear();
           const season = await seasonRepository.create({
             name: `Test Season Concurrent ${seasonId}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-            startDate: new Date('2024-01-01'),
-            endDate: new Date('2024-12-31')
+            startDate: new Date(`${currentYear}-01-01`),
+            endDate: new Date(`${currentYear}-12-31`)
           });
 
           // Create week
           const week = await weekRepository.create({
             seasonId: season.id,
             weekNumber: weekNumber,
-            date: new Date(`2024-01-${Math.min(weekNumber, 28)}`)
+            date: new Date(`${currentYear}-01-${Math.min(weekNumber, 28)}`)
           });
 
           // Add all players to the season
@@ -257,7 +259,7 @@ describe('PlayerManager Property Tests', () => {
           // Execute concurrent operations with simulated delays (simplified)
           const operationPromises = validOperations.map(async (operation, index) => {
             const player = addedPlayers[operation.playerId];
-            
+
             // Add small delay to simulate concurrent access
             if (operation.delay > 0) {
               await new Promise(resolve => setTimeout(resolve, operation.delay));
@@ -266,11 +268,11 @@ describe('PlayerManager Property Tests', () => {
             try {
               // Use the atomic method to ensure proper queuing
               await playerManager.setPlayerAvailabilityAtomic(
-                player.id, 
-                week.id, 
+                player.id,
+                week.id,
                 operation.available
               );
-              
+
               return {
                 operationIndex: index,
                 playerId: player.id,
@@ -327,7 +329,7 @@ describe('PlayerManager Property Tests', () => {
       fc.asyncProperty(
         // Generate a season ID
         fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
-        
+
         // Generate multiple players
         fc.array(
           fc.record({
@@ -338,7 +340,7 @@ describe('PlayerManager Property Tests', () => {
           }),
           { minLength: 1, maxLength: 10 }
         ),
-        
+
         // Generate week IDs for availability tracking
         fc.array(
           fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
@@ -348,7 +350,7 @@ describe('PlayerManager Property Tests', () => {
         async (seasonId, playerDataArray, weekIds) => {
           // Create a fresh PlayerManager instance for each test
           const playerManager = new InMemoryPlayerManager(seasonId);
-          
+
           // Add all players
           const addedPlayers: any[] = [];
           for (const playerData of playerDataArray) {
@@ -387,7 +389,7 @@ describe('PlayerManager Property Tests', () => {
 
           // Get initial state for comparison
           const initialPlayerCount = (await playerManager.getAllPlayers(seasonId)).length;
-          
+
           // Test graceful removal - this should not throw any errors
           await expect(playerManager.removePlayer(playerToRemoveId)).resolves.not.toThrow();
 
@@ -402,11 +404,11 @@ describe('PlayerManager Property Tests', () => {
           // Verify other players are still present and unaffected
           const remainingPlayers = await playerManager.getAllPlayers(seasonId);
           const remainingPlayerIds = remainingPlayers.map(p => p.id);
-          
+
           for (const originalPlayer of addedPlayers) {
             if (originalPlayer.id !== playerToRemoveId) {
               expect(remainingPlayerIds).toContain(originalPlayer.id);
-              
+
               // Verify the remaining player's data is intact
               const stillExistingPlayer = await playerManager.getPlayer(originalPlayer.id);
               expect(stillExistingPlayer).not.toBeNull();
@@ -454,21 +456,21 @@ describe('PlayerManager Property Tests', () => {
   describe('Player removal edge cases', () => {
     test('should handle removal of non-existent player gracefully', async () => {
       const playerManager = new InMemoryPlayerManager('test-season');
-      
+
       await expect(playerManager.removePlayer('non-existent-id'))
         .rejects.toThrow('Player with ID "non-existent-id" not found');
     });
 
     test('should handle removal with empty player ID', async () => {
       const playerManager = new InMemoryPlayerManager('test-season');
-      
+
       await expect(playerManager.removePlayer(''))
         .rejects.toThrow('Player ID is required');
     });
 
     test('should handle removal when player has complex availability patterns', async () => {
       const playerManager = new InMemoryPlayerManager('test-season');
-      
+
       // Add a player
       const playerData: PlayerInfo = {
         firstName: 'Test',
@@ -476,30 +478,30 @@ describe('PlayerManager Property Tests', () => {
         handedness: 'right',
         timePreference: 'AM'
       };
-      
+
       const player = await playerManager.addPlayer(playerData);
-      
+
       // Set complex availability pattern
       const weekIds = ['week1', 'week2', 'week3', 'week4', 'week5'];
       const availabilityPattern = [true, false, true, false, true];
-      
+
       for (let i = 0; i < weekIds.length; i++) {
         await playerManager.setPlayerAvailability(player.id, weekIds[i], availabilityPattern[i]);
       }
-      
+
       // Verify availability is set correctly
       for (let i = 0; i < weekIds.length; i++) {
         const availability = await playerManager.getPlayerAvailability(player.id, weekIds[i]);
         expect(availability).toBe(availabilityPattern[i]);
       }
-      
+
       // Remove player - should not throw
       await expect(playerManager.removePlayer(player.id)).resolves.not.toThrow();
-      
+
       // Verify player is gone
       const removedPlayer = await playerManager.getPlayer(player.id);
       expect(removedPlayer).toBeNull();
-      
+
       // Verify availability data is cleaned up (should default to false)
       for (const weekId of weekIds) {
         const availability = await playerManager.getPlayerAvailability(player.id, weekId);

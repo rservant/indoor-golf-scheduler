@@ -16,6 +16,9 @@ import { ScheduleGenerator } from '../services/ScheduleGenerator';
 import { ExportService } from '../services/ExportService';
 import { ImportExportService } from '../services/ImportExportService';
 import { PairingHistoryTracker } from '../services/PairingHistoryTracker';
+import { uiPerformanceMonitor } from '../services/UIPerformanceMonitor';
+import { UIPerformanceFeedbackUI } from './UIPerformanceFeedbackUI';
+import { PerformanceAnalyticsIntegration } from './PerformanceAnalyticsIntegration';
 
 // Import repositories
 import { WeekRepository } from '../repositories/WeekRepository';
@@ -37,6 +40,8 @@ export class MainApplicationUI {
   private availabilityUI!: AvailabilityManagementUI;
   private scheduleDisplayUI!: ScheduleDisplayUI;
   private importExportUI!: ImportExportUI;
+  private performanceFeedbackUI!: UIPerformanceFeedbackUI;
+  private performanceAnalytics!: PerformanceAnalyticsIntegration;
 
   // Service dependencies
   private seasonManager: SeasonManager;
@@ -77,6 +82,9 @@ export class MainApplicationUI {
 
     // Initialize UI components
     this.initializeUIComponents();
+    
+    // Initialize performance monitoring
+    this.initializePerformanceMonitoring();
   }
 
   /**
@@ -107,6 +115,49 @@ export class MainApplicationUI {
 
     // Set up callbacks
     this.setupCallbacks();
+  }
+
+  /**
+   * Initialize performance monitoring
+   */
+  private initializePerformanceMonitoring(): void {
+    // Set UI performance thresholds
+    uiPerformanceMonitor.setUIPerformanceThresholds('render', {
+      warning: 100,  // 100ms warning threshold
+      critical: 500, // 500ms critical threshold
+      timeout: 2000  // 2s timeout
+    });
+
+    uiPerformanceMonitor.setUIPerformanceThresholds('interaction', {
+      warning: 50,   // 50ms warning threshold
+      critical: 100, // 100ms critical threshold
+      timeout: 500   // 500ms timeout
+    });
+
+    // Create performance feedback UI
+    this.performanceFeedbackUI = new UIPerformanceFeedbackUI(
+      document.body, // Attach to body for global positioning
+      uiPerformanceMonitor,
+      {
+        showInProduction: false, // Only show in development
+        autoHide: true,
+        hideDelay: 5000,
+        position: 'bottom-right',
+        showDetailedMetrics: false
+      }
+    );
+
+    // Start monitoring
+    uiPerformanceMonitor.startMonitoring();
+
+    // Initialize performance analytics dashboard
+    this.performanceAnalytics = new PerformanceAnalyticsIntegration(document.body, {
+      enableKeyboardShortcut: true,
+      keyboardShortcut: 'Ctrl+Shift+P',
+      showToggleButton: true,
+      buttonPosition: 'bottom-left',
+      autoStart: false
+    });
   }
 
   /**
@@ -499,5 +550,28 @@ export class MainApplicationUI {
       this.availabilityUI.refresh(),
       this.scheduleDisplayUI.refresh()
     ]);
+  }
+
+  /**
+   * Destroy the application and clean up resources
+   */
+  destroy(): void {
+    // Stop performance monitoring
+    if (uiPerformanceMonitor) {
+      uiPerformanceMonitor.stopMonitoring();
+    }
+
+    // Destroy performance feedback UI
+    if (this.performanceFeedbackUI) {
+      this.performanceFeedbackUI.destroy();
+    }
+
+    // Destroy performance analytics
+    if (this.performanceAnalytics) {
+      this.performanceAnalytics.destroy();
+    }
+
+    // Clean up other resources as needed
+    this.isStructureCreated = false;
   }
 }
