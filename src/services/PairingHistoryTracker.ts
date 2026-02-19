@@ -11,14 +11,14 @@ export interface PairingOptimizationResult {
 }
 
 export class PairingHistoryTracker {
-  constructor(private pairingHistoryRepository: PairingHistoryRepository) {}
+  constructor(private pairingHistoryRepository: PairingHistoryRepository) { }
 
   /**
    * Track pairings from a completed schedule
    */
   async trackSchedulePairings(seasonId: string, schedule: Schedule): Promise<void> {
     const allFoursomes = [...schedule.timeSlots.morning, ...schedule.timeSlots.afternoon];
-    
+
     for (const foursome of allFoursomes) {
       await this.trackFoursomePairings(seasonId, foursome);
     }
@@ -29,7 +29,7 @@ export class PairingHistoryTracker {
    */
   async trackFoursomePairings(seasonId: string, foursome: Foursome): Promise<void> {
     const players = foursome.players;
-    
+
     // Track all unique pairs within the foursome
     for (let i = 0; i < players.length; i++) {
       for (let j = i + 1; j < players.length; j++) {
@@ -61,7 +61,7 @@ export class PairingHistoryTracker {
    */
   async calculatePairingMetrics(seasonId: string, players: Player[]): Promise<PairingOptimizationResult> {
     const pairingCounts = new Map<string, number>();
-    
+
     // Get all pairing counts between players
     for (let i = 0; i < players.length; i++) {
       for (let j = i + 1; j < players.length; j++) {
@@ -89,7 +89,7 @@ export class PairingHistoryTracker {
    */
   async scoreFoursome(seasonId: string, players: Player[]): Promise<number> {
     let totalScore = 0;
-    
+
     // Calculate score based on existing pairings
     for (let i = 0; i < players.length; i++) {
       for (let j = i + 1; j < players.length; j++) {
@@ -97,7 +97,7 @@ export class PairingHistoryTracker {
         totalScore += count;
       }
     }
-    
+
     return totalScore;
   }
 
@@ -114,7 +114,7 @@ export class PairingHistoryTracker {
 
     // Try all combinations of 4 players
     const combinations = this.generateCombinations(availablePlayers, 4);
-    
+
     for (const combination of combinations) {
       const score = await this.scoreFoursome(seasonId, combination);
       if (score < bestScore) {
@@ -132,18 +132,18 @@ export class PairingHistoryTracker {
   generateCombinations<T>(array: T[], k: number): T[][] {
     if (k === 0) return [[]];
     if (k > array.length) return [];
-    
+
     const result: T[][] = [];
-    
+
     for (let i = 0; i <= array.length - k; i++) {
       const head = array[i];
       const tailCombinations = this.generateCombinations(array.slice(i + 1), k - 1);
-      
+
       for (const tail of tailCombinations) {
         result.push([head, ...tail]);
       }
     }
-    
+
     return result;
   }
 
@@ -162,32 +162,43 @@ export class PairingHistoryTracker {
   }
 
   /**
-   * Get pairing history for a specific player
+   * Get pairing history for a specific player across all seasons
    */
   async getPairingHistory(playerId: string): Promise<Array<{ partnerId: string; count: number }>> {
-    // We need to get all pairings for this player from all seasons
-    // For now, we'll implement a basic version that gets pairings from the current season
-    // In a real implementation, this would query the pairing history repository
-    
-    // Since we don't have a direct way to get the current season ID here,
-    // we'll return a mock result for testing purposes
-    // In a real implementation, this would be properly implemented with season context
-    return [
-      { partnerId: 'mock-partner-1', count: 2 },
-      { partnerId: 'mock-partner-2', count: 1 }
-    ];
+    const allHistories = await this.pairingHistoryRepository.findAll();
+    const aggregated = new Map<string, number>();
+
+    for (const history of allHistories) {
+      const pairings = await this.pairingHistoryRepository.getAllPairingsForPlayer(history.seasonId, playerId);
+      for (const { partnerId, count } of pairings) {
+        aggregated.set(partnerId, (aggregated.get(partnerId) || 0) + count);
+      }
+    }
+
+    return Array.from(aggregated.entries())
+      .map(([partnerId, count]) => ({ partnerId, count }))
+      .sort((a, b) => b.count - a.count);
   }
 
   /**
-   * Record a pairing between multiple players
+   * Get pairing history for a specific player within a single season
    */
-  async recordPairing(playerIds: string[], weekId: string): Promise<void> {
-    // Record all unique pairs within the group
+  async getPairingHistoryForSeason(seasonId: string, playerId: string): Promise<Array<{ partnerId: string; count: number }>> {
+    return await this.pairingHistoryRepository.getAllPairingsForPlayer(seasonId, playerId);
+  }
+
+  /**
+   * Record a pairing between multiple players for a given season
+   */
+  async recordPairing(playerIds: string[], _weekId: string, seasonId?: string): Promise<void> {
+    if (!seasonId) {
+      console.warn('recordPairing called without seasonId — pairings not recorded');
+      return;
+    }
+
     for (let i = 0; i < playerIds.length; i++) {
       for (let j = i + 1; j < playerIds.length; j++) {
-        // We need the season ID to record pairings properly
-        // For now, we'll skip this implementation as it requires season context
-        // This would typically be handled by trackSchedulePairings method
+        await this.pairingHistoryRepository.addPairing(seasonId, playerIds[i], playerIds[j]);
       }
     }
   }
