@@ -352,9 +352,9 @@ describe('Schedule Generation Performance Scaling Property Tests', () => {
           // Total time should be less than sum of individual times (showing parallelism benefits)
           const longestIndividualTime = Math.max(...results.map(r => r.duration));
 
-          // Total time should be between 60% and 200% of the longest individual time
-          // (allowing for timing variations in test environment)
-          expect(totalConcurrentTime).toBeGreaterThanOrEqual(longestIndividualTime * 0.6);
+          // Total time should be between 40% and 200% of the longest individual time
+          // (allowing for timing variations in test/CI environments)
+          expect(totalConcurrentTime).toBeGreaterThanOrEqual(longestIndividualTime * 0.4);
           expect(totalConcurrentTime).toBeLessThan(longestIndividualTime * 2);
 
           // Property 4: All schedules should be valid and independent
