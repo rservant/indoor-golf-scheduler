@@ -92,15 +92,20 @@ Thumbs.db
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Storybook build outputs
 .out
 .storybook-out
 
+# Vite dependency cache
+.vite/
+
 # Temporary folders
 tmp/
 temp/
-before-generation.png
-.gitignore
-schedule-generation-debug.png
+
+# Debug artifacts
+*.png
+
+# Data files (may contain PII)
+*.csv
