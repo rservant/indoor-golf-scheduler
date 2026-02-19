@@ -2548,3 +2548,348 @@ input[type="file"]:focus {
 .verification-metric.error .verification-metric-value {
   color: #dc3545;
 }
+
+/* ─── Drag-and-Drop ─────────────────────────────────────────────────────── */
+
+.player-slot[draggable="true"] {
+  cursor: grab;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+}
+
+.player-slot[draggable="true"]:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.player-slot[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.player-slot.dragging {
+  opacity: 0.4;
+  border: 2px dashed #3498db;
+  background: #ebf5fb;
+}
+
+.foursome.drag-over {
+  border: 2px dashed #059669;
+  background: #ecfdf5;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+}
+
+.foursome.drag-over .foursome-header h5 {
+  color: #059669;
+}
+
+.player-slot.drop-target {
+  border: 2px dashed #3498db;
+  background: #ebf5fb;
+}
+
+/* ─── Stats Dashboard ───────────────────────────────────────────────────── */
+
+.stats-dashboard {
+  padding: 1.5rem;
+}
+
+.stats-dashboard h2 {
+  color: #2c3e50;
+  margin-bottom: 1.5rem;
+  font-size: 1.3rem;
+}
+
+.stats-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1.5rem;
+}
+
+.stats-sidebar {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.stats-sidebar h3 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.leaderboard-row:hover {
+  background: #f8f9fa;
+}
+
+.leaderboard-row.selected {
+  background: #ecfdf5;
+  border: 1px solid #059669;
+}
+
+.leaderboard-row .rank {
+  font-weight: 700;
+  color: #6b7280;
+  width: 24px;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+.leaderboard-row .name {
+  flex: 1;
+  font-size: 0.875rem;
+  color: #2c3e50;
+}
+
+.leaderboard-row .games {
+  font-size: 0.75rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.stats-detail {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.player-stats-detail h3 {
+  color: #2c3e50;
+  margin-bottom: 1.25rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #059669;
+  margin-bottom: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.time-slot-breakdown h4 {
+  font-size: 0.875rem;
+  color: #2c3e50;
+  margin-bottom: 0.75rem;
+}
+
+.time-bar {
+  display: flex;
+  height: 32px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.time-bar-am {
+  background: #fbbf24;
+  color: #78350f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: width 0.3s ease;
+}
+
+.time-bar-pm {
+  background: #60a5fa;
+  color: #1e3a5f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: width 0.3s ease;
+}
+
+.empty-state {
+  color: #6b7280;
+  font-style: italic;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+/* ─── Mobile Responsive ─────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+
+  /* Stack navigation vertically */
+  .app-navigation {
+    flex-wrap: wrap;
+    padding: 0.5rem;
+    gap: 0.25rem;
+  }
+
+  .nav-tab {
+    flex: 1 1 auto;
+    min-width: calc(33% - 0.25rem);
+    padding: 0.625rem 0.5rem;
+    font-size: 0.75rem;
+    min-height: 44px;
+  }
+
+  /* App content padding */
+  .app-content {
+    padding: 0.75rem;
+  }
+
+  /* Player table → card layout */
+  .table-header {
+    display: none;
+  }
+
+  .player-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+  }
+
+  .player-row .player-cell {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .player-row .player-cell::before {
+    font-weight: 600;
+    color: #6b7280;
+  }
+
+  /* Foursomes stack vertically */
+  .foursome-players {
+    grid-template-columns: 1fr;
+  }
+
+  .foursomes {
+    gap: 0.75rem;
+  }
+
+  /* Stats layout → stacked */
+  .stats-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Season cards → full width */
+  .season-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .season-card .season-actions {
+    width: 100%;
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .season-card .season-actions .btn {
+    flex: 1;
+  }
+
+  /* Buttons min touch target */
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .btn-sm {
+    min-height: 36px;
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* Forms full width */
+  .form-row {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* Week selector stacked */
+  .week-selector {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .week-selector select {
+    min-width: 100%;
+  }
+
+  /* Header compact */
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .app-header h1 {
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-tab {
+    min-width: calc(50% - 0.25rem);
+    font-size: 0.7rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
+  .foursome {
+    padding: 0.75rem;
+  }
+
+  .player-slot {
+    padding: 0.625rem;
+    font-size: 0.825rem;
+  }
+}
