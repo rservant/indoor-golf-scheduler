@@ -269,6 +269,12 @@ describe('Final Integration Testing', () => {
       const weeks = await services.scheduleManager.generateWeeksForSeason(season.id, 3);
 
       for (const week of weeks) {
+        // Set all players as available for this week
+        const repos = app.getRepositories();
+        for (const player of players) {
+          await repos.weekRepository.setPlayerAvailability(week.id, player.id, true);
+        }
+
         const schedule = await services.scheduleManager.generateSchedule(week.id, { validatePreconditions: false });
         expect(schedule).toBeDefined();
 
@@ -277,7 +283,8 @@ describe('Final Integration Testing', () => {
         for (const foursome of foursomesForHistory) {
           await services.pairingHistoryTracker.recordPairing(
             foursome.players.map(p => p.id),
-            week.id
+            week.id,
+            season.id
           );
         }
       }

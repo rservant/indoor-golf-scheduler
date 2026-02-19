@@ -1,3 +1,14 @@
+export interface TimeSlotConfig {
+  name: string;   // internal key: 'morning', 'afternoon', or custom
+  label: string;   // display label: '10:30 AM', '1:00 PM', etc.
+  time: string;    // 24h time: '10:30', '13:00', etc.
+}
+
+export const DEFAULT_TIME_SLOTS: TimeSlotConfig[] = [
+  { name: 'morning', label: '10:30 AM', time: '10:30' },
+  { name: 'afternoon', label: '1:00 PM', time: '13:00' }
+];
+
 export interface Season {
   id: string;
   name: string;
@@ -7,12 +18,14 @@ export interface Season {
   createdAt: Date;
   playerIds: string[];
   weekIds: string[];
+  timeSlotConfigs?: TimeSlotConfig[];
 }
 
 export interface CreateSeasonData {
   name: string;
   startDate: Date;
   endDate: Date;
+  timeSlotConfigs?: TimeSlotConfig[];
 }
 
 export class SeasonModel implements Season {
@@ -24,8 +37,9 @@ export class SeasonModel implements Season {
   createdAt: Date;
   playerIds: string[];
   weekIds: string[];
+  timeSlotConfigs: TimeSlotConfig[];
 
-  constructor(data: CreateSeasonData & { id?: string; isActive?: boolean; createdAt?: Date; playerIds?: string[]; weekIds?: string[] }) {
+  constructor(data: CreateSeasonData & { id?: string; isActive?: boolean; createdAt?: Date; playerIds?: string[]; weekIds?: string[]; timeSlotConfigs?: TimeSlotConfig[] }) {
     this.id = data.id || this.generateId();
     this.name = data.name;
     this.startDate = data.startDate;
@@ -34,6 +48,7 @@ export class SeasonModel implements Season {
     this.createdAt = data.createdAt || new Date();
     this.playerIds = data.playerIds || [];
     this.weekIds = data.weekIds || [];
+    this.timeSlotConfigs = data.timeSlotConfigs || [...DEFAULT_TIME_SLOTS];
 
     this.validate();
   }
@@ -70,6 +85,36 @@ export class SeasonModel implements Season {
     if (!Array.isArray(this.weekIds)) {
       throw new Error('Week IDs must be an array');
     }
+
+    if (!Array.isArray(this.timeSlotConfigs) || this.timeSlotConfigs.length === 0) {
+      throw new Error('At least one time slot configuration is required');
+    }
+
+    // Validate each time slot config
+    const slotNames = new Set<string>();
+    for (const slot of this.timeSlotConfigs) {
+      if (!slot.name || slot.name.trim().length === 0) {
+        throw new Error('Time slot name is required');
+      }
+      if (!slot.label || slot.label.trim().length === 0) {
+        throw new Error('Time slot label is required');
+      }
+      if (!slot.time || slot.time.trim().length === 0) {
+        throw new Error('Time slot time is required');
+      }
+      if (slotNames.has(slot.name)) {
+        throw new Error(`Duplicate time slot name: ${slot.name}`);
+      }
+      slotNames.add(slot.name);
+    }
+  }
+
+  /**
+   * Get the label for a time slot by its internal name
+   */
+  getTimeSlotLabel(slotName: string): string {
+    const config = this.timeSlotConfigs.find(s => s.name === slotName);
+    return config ? config.label : slotName;
   }
 
   addPlayer(playerId: string): void {
@@ -106,7 +151,8 @@ export class SeasonModel implements Season {
       isActive: this.isActive,
       createdAt: this.createdAt,
       playerIds: [...this.playerIds],
-      weekIds: [...this.weekIds]
+      weekIds: [...this.weekIds],
+      timeSlotConfigs: this.timeSlotConfigs.map(s => ({ ...s }))
     };
   }
 }

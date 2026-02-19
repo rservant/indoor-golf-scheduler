@@ -9,6 +9,9 @@ export interface Player {
   timePreference: TimePreference;
   seasonId: string;
   createdAt: Date;
+  skillLevel?: number;
+  email?: string;
+  phone?: string;
 }
 
 export interface PlayerInfo {
@@ -16,6 +19,9 @@ export interface PlayerInfo {
   lastName: string;
   handedness: Handedness;
   timePreference: TimePreference;
+  skillLevel?: number;
+  email?: string;
+  phone?: string;
 }
 
 export class PlayerModel implements Player {
@@ -26,8 +32,11 @@ export class PlayerModel implements Player {
   timePreference: TimePreference;
   seasonId: string;
   createdAt: Date;
+  skillLevel: number;
+  email?: string;
+  phone?: string;
 
-  constructor(data: PlayerInfo & { seasonId: string; id?: string; createdAt?: Date }) {
+  constructor(data: PlayerInfo & { seasonId: string; id?: string; createdAt?: Date; skillLevel?: number; email?: string; phone?: string }) {
     this.id = data.id || this.generateId();
     this.firstName = data.firstName;
     this.lastName = data.lastName;
@@ -35,6 +44,9 @@ export class PlayerModel implements Player {
     this.timePreference = data.timePreference;
     this.seasonId = data.seasonId;
     this.createdAt = data.createdAt || new Date();
+    this.skillLevel = data.skillLevel ?? 5;
+    if (data.email) this.email = data.email;
+    if (data.phone) this.phone = data.phone;
 
     this.validate();
   }
@@ -66,6 +78,17 @@ export class PlayerModel implements Player {
 
     if (!this.id || this.id.trim().length === 0) {
       throw new Error('Player ID is required');
+    }
+
+    if (typeof this.skillLevel !== 'number' || this.skillLevel < 1 || this.skillLevel > 10) {
+      throw new Error('Skill level must be a number between 1 and 10');
+    }
+
+    if (this.email !== undefined && this.email !== null && this.email !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(this.email)) {
+        throw new Error('Email must be a valid email address');
+      }
     }
   }
 
@@ -99,6 +122,19 @@ export class PlayerModel implements Player {
       throw new Error('Time preference must be "AM", "PM", or "Either"');
     }
 
+    if (updates.skillLevel !== undefined) {
+      if (typeof updates.skillLevel !== 'number' || updates.skillLevel < 1 || updates.skillLevel > 10) {
+        throw new Error('Skill level must be a number between 1 and 10');
+      }
+    }
+
+    if (updates.email !== undefined && updates.email !== null && updates.email !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(updates.email)) {
+        throw new Error('Email must be a valid email address');
+      }
+    }
+
     // If validation passes, apply the updates
     if (updates.firstName !== undefined) {
       this.firstName = updates.firstName;
@@ -112,17 +148,30 @@ export class PlayerModel implements Player {
     if (updates.timePreference !== undefined) {
       this.timePreference = updates.timePreference;
     }
+    if (updates.skillLevel !== undefined) {
+      this.skillLevel = updates.skillLevel;
+    }
+    if (updates.email !== undefined) {
+      this.email = updates.email;
+    }
+    if (updates.phone !== undefined) {
+      this.phone = updates.phone;
+    }
   }
 
   toJSON(): Player {
-    return {
+    const result: Player = {
       id: this.id,
       firstName: this.firstName,
       lastName: this.lastName,
       handedness: this.handedness,
       timePreference: this.timePreference,
       seasonId: this.seasonId,
-      createdAt: this.createdAt
+      createdAt: this.createdAt,
+      skillLevel: this.skillLevel
     };
+    if (this.email) result.email = this.email;
+    if (this.phone) result.phone = this.phone;
+    return result;
   }
 }
