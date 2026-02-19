@@ -997,10 +997,7 @@ export class ScheduleDisplayUI {
     if (!this.state.activeSeason) {
       this.container.innerHTML = `
         <div class="schedule-display">
-          <div class="no-active-season">
-            <h2>Schedule Display</h2>
-            <p>Please select an active season to view and generate schedules.</p>
-          </div>
+          <p class="empty-hint">Select an active season to view schedules.</p>
         </div>
       `;
       return;
@@ -1008,12 +1005,6 @@ export class ScheduleDisplayUI {
 
     this.container.innerHTML = `
       <div class="schedule-display">
-        <div class="schedule-header">
-          <h2>Schedule Display</h2>
-          <div class="season-info">
-            <p>Season: <strong>${this.state.activeSeason.name}</strong></p>
-          </div>
-        </div>
 
         ${this.renderErrorDisplay()}
 
@@ -1021,12 +1012,9 @@ export class ScheduleDisplayUI {
 
         ${this.state.weeks.length === 0 ? `
           <div class="no-weeks">
-            <h3>No Weeks Created Yet</h3>
             ${this.state.allPlayers.length < 4 ? `
               <div class="insufficient-players">
-                <p>You need at least 4 players to generate a schedule.</p>
-                <p>Current players: ${this.state.allPlayers.length}</p>
-                <p>Please add more players before creating your first week.</p>
+                <p>You need at least 4 players to generate a schedule (currently ${this.state.allPlayers.length}).</p>
               </div>
             ` : `
               <p>Start by creating your first week and generating a schedule.</p>

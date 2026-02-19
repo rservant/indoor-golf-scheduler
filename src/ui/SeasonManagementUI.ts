@@ -160,7 +160,6 @@ export class SeasonManagementUI {
     this.container.innerHTML = `
       <div class="season-management">
         <div class="season-header">
-          <h2>Season Management</h2>
           <button class="btn btn-primary" data-action="show-create-form">
             Create New Season
           </button>
@@ -172,35 +171,19 @@ export class SeasonManagementUI {
           </div>
         ` : ''}
 
-        ${this.state.activeSeason ? `
-          <div class="active-season">
-            <h3>Active Season</h3>
-            <div class="season-card active">
-              <div class="season-info">
-                <h4>${escapeHtml(this.state.activeSeason.name)}</h4>
-                <p>${this.formatDateRange(this.state.activeSeason.startDate, this.state.activeSeason.endDate)}</p>
-                <p>${this.state.activeSeason.playerIds.length} players</p>
-              </div>
-            </div>
-          </div>
-        ` : `
-          <div class="no-active-season">
-            <p>No active season selected. Please select a season to begin scheduling.</p>
-          </div>
-        `}
+        ${!this.state.activeSeason && this.state.seasons.length === 0 ? `
+          <p class="empty-hint">No seasons yet — create one to get started.</p>
+        ` : ''}
 
         ${this.state.isCreating ? this.renderCreateForm() : ''}
 
-        <div class="seasons-list">
-          <h3>All Seasons</h3>
-          ${this.state.seasons.length === 0 ? `
-            <p class="no-seasons">No seasons created yet.</p>
-          ` : `
+        ${this.state.seasons.length > 0 ? `
+          <div class="seasons-list">
             <div class="seasons-grid">
               ${this.state.seasons.map(season => this.renderSeasonCard(season)).join('')}
             </div>
-          `}
-        </div>
+          </div>
+        ` : ''}
       </div>
     `;
 

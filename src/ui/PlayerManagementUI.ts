@@ -176,10 +176,7 @@ export class PlayerManagementUI {
     if (!this.state.activeSeason) {
       this.container.innerHTML = `
         <div class="player-management">
-          <div class="no-active-season">
-            <h2>Player Management</h2>
-            <p>Please select an active season to manage players.</p>
-          </div>
+          <p class="empty-hint">Select an active season to manage players.</p>
         </div>
       `;
       return;
@@ -190,7 +187,7 @@ export class PlayerManagementUI {
     this.container.innerHTML = `
       <div class="player-management">
         <div class="player-header">
-          <h2>Player Management</h2>
+          <span class="player-count-label">${this.state.players.length} players</span>
           <div class="header-actions">
             <div class="search-box">
               <input type="text" id="player-search" placeholder="Search players..." 
@@ -200,11 +197,6 @@ export class PlayerManagementUI {
               Add Player
             </button>
           </div>
-        </div>
-
-        <div class="season-info">
-          <p>Managing players for: <strong>${escapeHtml(this.state.activeSeason.name)}</strong></p>
-          <p>${this.state.players.length} total players</p>
         </div>
 
         ${this.state.error ? `
@@ -218,12 +210,12 @@ export class PlayerManagementUI {
 
         <div class="players-list">
           ${filteredPlayers.length === 0 ? `
-            <div class="no-players">
+            <p class="empty-hint">
               ${this.state.searchTerm ?
-          `<p>No players found matching "${escapeHtml(this.state.searchTerm)}"</p>` :
-          `<p>No players added yet. Click "Add Player" to get started.</p>`
+          `No players matching "${escapeHtml(this.state.searchTerm)}"` :
+          `No players yet — click "Add Player" to get started.`
         }
-            </div>
+            </p>
           ` : `
             <div class="players-table">
               <div class="table-header">

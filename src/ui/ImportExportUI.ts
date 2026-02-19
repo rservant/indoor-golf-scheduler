@@ -15,10 +15,6 @@ export class ImportExportUI {
   public render(): void {
     this.container.innerHTML = `
       <div class="import-export-container">
-        <div class="section-header">
-          <h2>Import & Export</h2>
-          <p>Import player data or export schedules in various formats</p>
-        </div>
 
         <!-- Import Section -->
         <div class="import-section">
@@ -125,7 +121,7 @@ export class ImportExportUI {
   private async validateImportFile(): Promise<void> {
     const fileInput = this.container.querySelector('#import-file') as HTMLInputElement;
     const formatSelect = this.container.querySelector('#import-format') as HTMLSelectElement;
-    
+
     if (!fileInput.files || fileInput.files.length === 0) {
       this.showImportError('Please select a file to validate');
       return;
@@ -138,7 +134,7 @@ export class ImportExportUI {
       const fileData = await this.readFileAsText(file);
 
       const validation = this.importExportService.validateImportFile(fileData, format);
-      
+
       if (validation.valid) {
         this.showImportSuccess('File validation passed. Ready to import.');
       } else {
@@ -152,7 +148,7 @@ export class ImportExportUI {
   private async importPlayers(): Promise<void> {
     const fileInput = this.container.querySelector('#import-file') as HTMLInputElement;
     const formatSelect = this.container.querySelector('#import-format') as HTMLSelectElement;
-    
+
     if (!fileInput.files || fileInput.files.length === 0) {
       this.showImportError('Please select a file to import');
       return;
@@ -179,7 +175,7 @@ export class ImportExportUI {
 
     try {
       const result = this.importExportService.generateImportTemplate(format);
-      
+
       if (result.success && result.data) {
         this.downloadFile(result.data, result.filename, result.mimeType);
         this.showImportSuccess('Template downloaded successfully');
@@ -194,7 +190,7 @@ export class ImportExportUI {
   private async exportSchedule(): Promise<void> {
     const weekSelect = this.container.querySelector('#export-week') as HTMLSelectElement;
     const formatSelect = this.container.querySelector('#export-format') as HTMLSelectElement;
-    
+
     if (!weekSelect.value) {
       this.showExportError('Please select a week to export');
       return;
@@ -332,7 +328,7 @@ export class ImportExportUI {
 
   private updateOperationList(): void {
     const listContainer = this.container.querySelector('#operation-list') as HTMLElement;
-    
+
     if (this.operationQueue.length === 0) {
       listContainer.innerHTML = '<p class="empty-state">No operations queued</p>';
       return;
@@ -371,10 +367,10 @@ export class ImportExportUI {
 
     try {
       this.showBulkProgress('Executing bulk operations...');
-      
+
       const result = await this.importExportService.performBulkPlayerOperations(this.operationQueue);
       this.displayBulkResults(result);
-      
+
       if (result.success) {
         this.operationQueue = [];
         this.updateOperationList();
@@ -585,7 +581,7 @@ export class ImportExportUI {
   public updateWeekOptions(weeks: { id: string; name: string }[]): void {
     const weekSelect = this.container.querySelector('#export-week') as HTMLSelectElement;
     weekSelect.innerHTML = '<option value="">Select a week...</option>';
-    
+
     weeks.forEach(week => {
       const option = document.createElement('option');
       option.value = week.id;

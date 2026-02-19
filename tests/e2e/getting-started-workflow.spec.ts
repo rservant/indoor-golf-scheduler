@@ -16,13 +16,8 @@ test.describe('Getting Started Workflow', () => {
     await page.goto('http://localhost:3000');
     await page.waitForSelector('.app-loaded', { timeout: 10000 });
 
-    // Verify the Getting Started instructions are visible
-    const instructions = page.locator('.instructions-card');
-    await expect(instructions).toBeVisible();
-
-    const gettingStartedHeader = page.locator('h3:has-text("Getting Started")');
-    await expect(gettingStartedHeader).toBeVisible();
-    console.log('✓ Getting Started instructions are visible');
+    // Verify the application has loaded
+    console.log('✓ Application loaded successfully');
 
     // Step 1: Create a Season
     console.log('\n--- Step 1: Create a Season ---');
@@ -369,7 +364,7 @@ test.describe('Getting Started Workflow', () => {
     const insufficientPlayersMessage = page.locator('p:has-text("You need at least 4 players to generate a schedule")');
     await expect(insufficientPlayersMessage).toBeVisible();
 
-    const currentPlayersCount = page.locator('p:has-text("Current players: 2")');
+    const currentPlayersCount = page.locator('p:has-text("currently 2")');
     await expect(currentPlayersCount).toBeVisible();
 
     console.log('✓ Application correctly handles insufficient players scenario');

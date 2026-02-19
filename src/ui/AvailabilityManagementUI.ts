@@ -337,10 +337,7 @@ export class AvailabilityManagementUI {
     if (!this.state.activeSeason) {
       this.container.innerHTML = `
         <div class="availability-management">
-          <div class="no-active-season">
-            <h2>Weekly Availability</h2>
-            <p>Please select an active season to manage player availability.</p>
-          </div>
+          <p class="empty-hint">Select an active season to manage availability.</p>
         </div>
       `;
       return;
@@ -348,14 +345,6 @@ export class AvailabilityManagementUI {
 
     this.container.innerHTML = `
       <div class="availability-management">
-        <div class="availability-header">
-          <h2>Weekly Availability</h2>
-          <div class="season-info">
-            <p>Season: <strong>${escapeHtml(this.state.activeSeason.name)}</strong></p>
-            <p>${this.state.players.length} players, ${this.state.weeks.length} weeks</p>
-          </div>
-        </div>
-
         ${this.state.error ? `
           <div class="alert alert-error">
             ${escapeHtml(this.state.error)}
@@ -375,12 +364,10 @@ export class AvailabilityManagementUI {
         ` : ''}
 
         ${this.state.weeks.length === 0 ? `
-          <div class="no-weeks">
-            <p>No weeks found for this season. Weeks are created automatically when generating schedules.</p>
-          </div>
+          <p class="empty-hint">No weeks yet — they're created when you generate a schedule.</p>
         ` : `
           <div class="week-selector">
-            <label for="week-select">Select Week:</label>
+            <label for="week-select">Week:</label>
             <select id="week-select">
               ${this.state.weeks.map(week => `
                 <option value="${week.id}" ${this.state.selectedWeek?.id === week.id ? 'selected' : ''}>

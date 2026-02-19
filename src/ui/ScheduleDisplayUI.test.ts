@@ -70,8 +70,8 @@ describe('ScheduleDisplayUI', () => {
   describe('initialization', () => {
     it('should initialize with no active season', async () => {
       await scheduleDisplayUI.initialize(null);
-      
-      expect(container.innerHTML).toContain('Please select an active season');
+
+      expect(container.innerHTML).toContain('Select an active season');
     });
 
     it('should initialize with active season and load data', async () => {
@@ -116,9 +116,8 @@ describe('ScheduleDisplayUI', () => {
       });
 
       await scheduleDisplayUI.initialize(season);
-      
-      expect(container.innerHTML).toContain('Schedule Display');
-      expect(container.innerHTML).toContain('Test Season');
+
+      expect(container.innerHTML).toContain('schedule-display');
       expect(mockWeekRepository.findBySeasonId).toHaveBeenCalledWith(season.id);
       expect(mockPlayerManager.getAllPlayers).toHaveBeenCalledWith(season.id);
     });
@@ -195,7 +194,7 @@ describe('ScheduleDisplayUI', () => {
       });
 
       await scheduleDisplayUI.initialize(season);
-      
+
       // Should show schedule content
       expect(container.innerHTML).toContain('Week 1');
       expect(container.innerHTML).toContain('Morning (10:30 AM)');
@@ -266,12 +265,12 @@ describe('ScheduleDisplayUI', () => {
       });
 
       await scheduleDisplayUI.initialize(season);
-      
+
       // Should show availability status
       expect(container.innerHTML).toContain('Player Availability Status');
       expect(container.innerHTML).toContain('Available Player');
       expect(container.innerHTML).toContain('Unavailable Player');
-      
+
       // Should show scheduling conflicts
       expect(container.innerHTML).toContain('Scheduling Conflicts');
       expect(container.innerHTML).toContain('marked as unavailable');
@@ -323,8 +322,8 @@ describe('ScheduleDisplayUI', () => {
         }
       });
 
-      const pairingKey = players[0].id < players[1].id 
-        ? `${players[0].id}-${players[1].id}` 
+      const pairingKey = players[0].id < players[1].id
+        ? `${players[0].id}-${players[1].id}`
         : `${players[1].id}-${players[0].id}`;
 
       const pairingCounts = new Map();
@@ -342,7 +341,7 @@ describe('ScheduleDisplayUI', () => {
       });
 
       await scheduleDisplayUI.initialize(season);
-      
+
       // Manually set pairing metrics since the mock might not be working correctly
       scheduleDisplayUI['state'].pairingMetrics = {
         pairingCounts,
@@ -350,11 +349,11 @@ describe('ScheduleDisplayUI', () => {
         maxPairings: 2,
         averagePairings: 1.0
       };
-      
+
       // Toggle pairing history display
       scheduleDisplayUI['state'].showPairingHistory = true;
       scheduleDisplayUI['render']();
-      
+
       // Should show pairing metrics
       expect(container.innerHTML).toContain('Pairing History &amp; Optimization');
       expect(container.innerHTML).toContain('Min Pairings');
